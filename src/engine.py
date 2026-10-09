@@ -111,6 +111,7 @@ class Entity:
         self.atk_buff = 1.0        # attack-speed multiplier while buffed
         self.atk_buff_timer = 0.0
         self.ability_cd = 0.0      # champion ability cooldown remaining
+        self.ability_uses = card.ability_uses if card.is_champion else 0
         self.souls = 0            # Skeleton King soul counter
         self.protect_timer = 0.0   # Monk: damage reduction + projectile deflect
         self.partner = None        # Goblinstein Doctor <-> Monster link
@@ -1235,13 +1236,13 @@ class Match:
         if champ is None:
             return None, False, 0
         cost = champ.card.ability_cost
-        ready = (champ.ability_cd <= 0 and self.elixir[team] >= cost
-                 and not champ.is_dashing())
+        ready = (champ.ability_uses > 0 and champ.ability_cd <= 0
+                 and self.elixir[team] >= cost and not champ.is_dashing())
         return champ, ready, cost
 
     def activate_ability(self, team):
         champ = self.champion_on_field(team)
-        if champ is None or champ.ability_cd > 0:
+        if champ is None or champ.ability_cd > 0 or champ.ability_uses <= 0:
             return False
         card = champ.card
         if self.elixir[team] < card.ability_cost:
@@ -1249,6 +1250,7 @@ class Match:
         if not self.ability_has_target(champ):
             return False
         self.elixir[team] -= card.ability_cost
+        champ.ability_uses -= 1
         champ.ability_cd = card.ability_cooldown
         self._do_ability(champ, card)
         return True
@@ -1259,6 +1261,8 @@ class Match:
             return False
         if champ.card.ability_type == "chain_dash":
             return self._nearest_enemy(champ, champ.card.ability_radius) is not None
+        if champ.card.ability_type == "getaway":
+            return self._getaway_anchor(champ) is not None
         return True
 
     def _nearest_enemy(self, champ, rng, ground_only=False):
@@ -1334,26 +1338,60 @@ class Match:
                                        card_key=champ.key,
                                        ends=(champ, champ.partner)))
         elif typ == "getaway":
-            # Boss Bandit: smoke grenade, then vanish and leap back home
-            self.effects.append(Effect("aoe", team, champ.x, champ.y,
-                                       card.ability_radius, 0.5,
-                                       card_key="tornado"))
-            self.area_damage(team, champ.x, champ.y, card.ability_radius,
-                             card.ability_value, hit_air=False, stun=0.5)
-            champ.invis_timer = card.ability_duration
-            champ.target = None
-            back_y = champ.y - fwd * 4.0      # 4 tiles toward her own side
-            if team == PLAYER:
-                if champ.y < RIVER_TOP:          # can't leap across the river
-                    back_y = max(champ.y, min(back_y, RIVER_TOP - 0.6))
-                back_y = min(back_y, cfg.GRID_ROWS - 1.0)
-            else:
-                if champ.y > RIVER_BOTTOM:
-                    back_y = min(champ.y, max(back_y, RIVER_BOTTOM + 0.6))
-                back_y = max(back_y, 1.0)
-            champ.start_dash(None, kind="point", point=(champ.x, back_y),
-                             immune=True, speed=12.0)
-            champ.dash_cd = 1.0
+            # Boss Bandit: teleport straight back from her target to a spot
+            # inside her dash window, so she can dash in again right away
+            t = self._getaway_anchor(champ)
+            nx, ny = self.getaway_point(champ, t, card.ability_value)
+            for (ex, ey) in ((champ.x, champ.y), (nx, ny)):
+                self.effects.append(Effect("aoe", team, ex, ey, 1.0, 0.45,
+                                           card_key="tornado"))
+            champ.x, champ.y = nx, ny
+            champ.target = t
+            champ.dash_cd = 0.0
+            champ.ramp_time = 0.0
+
+    def _getaway_anchor(self, champ):
+        """The enemy the Boss Bandit escapes FROM (her target, else nearest)."""
+        t = champ.target
+        if t is not None and t.alive and champ.can_attack(t):
+            return t
+        return self._nearest_enemy(champ, champ.sight + 2)
+
+    def getaway_point(self, champ, t, gap):
+        """Where Getaway Grenade lands: `gap` tiles (edge to edge) straight
+        back from target `t`. If straight back is blocked (arena wall, river,
+        or the far bank) she angles off to the nearest open direction so she
+        can still dash back in; as a last resort she stops at the bank."""
+        dx, dy = champ.x - t.x, champ.y - t.y
+        d = math.hypot(dx, dy)
+        if d < 0.3:                          # on top of it: back toward home
+            dx, dy, d = 0.0, (1.0 if champ.team == PLAYER else -1.0), 1.0
+        base = math.atan2(dy, dx)
+        reach = t.radius + gap
+        side_t = river_side(t.y)
+        lo, hi = 0.6, cfg.GRID_COLS - 0.6
+
+        def ok(x, y):
+            if not (lo <= x <= hi and 0.6 <= y <= cfg.GRID_ROWS - 0.6):
+                return False
+            if champ.flying:
+                return True
+            side = river_side(y)
+            if side == 0:     # only on a bridge
+                return min(abs(x - b) for b in BRIDGE_X) <= 0.9
+            return side_t == 0 or side == side_t
+
+        for deg in (0, 20, -20, 40, -40, 60, -60, 85, -85, 110, -110, 140, -140):
+            a = base + math.radians(deg)
+            nx, ny = t.x + math.cos(a) * reach, t.y + math.sin(a) * reach
+            if ok(nx, ny):
+                return nx, ny
+        # fallback: clamp the straight-back spot into the arena / onto the bank
+        nx = min(max(t.x + math.cos(base) * reach, lo), hi)
+        ny = min(max(t.y + math.sin(base) * reach, 0.6), cfg.GRID_ROWS - 0.6)
+        if not champ.flying and river_side(ny) != side_t and side_t != 0:
+            ny = RIVER_TOP - 0.6 if side_t < 0 else RIVER_BOTTOM + 0.6
+        return nx, ny
 
     def _dash_landed(self, ent, dsh):
         """Called when a dash reaches its destination."""

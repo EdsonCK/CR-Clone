@@ -165,7 +165,10 @@ class CardDef:
     ability_type: str = ""      # cloak|escape|rescue|chain_dash|skeletons|
                                 #   protect|link|getaway
     ability_cost: int = 0       # extra elixir to activate
-    ability_cooldown: float = 8.0
+    ability_uses: int = 1       # times the ability can be used per champion
+                                #   deployment (1 = one-shot)
+    ability_cooldown: float = 0.0  # seconds between uses (only matters when
+                                #   ability_uses > 1)
     ability_duration: float = 0.0
     ability_radius: float = 0.0
     ability_value: float = 0.0  # generic magnitude (dmg / shield / count / mult)
@@ -539,7 +542,7 @@ _CARD_LIST = [
             # drill: 3 damage stages (x1 -> x2 after 2s -> x3 after 4s on the
             # same target). Melee drill, NOT an inferno beam. Max ~240 dps.
             ability_name="Explosive Escape", ability_type="escape",
-            ability_cost=1, ability_cooldown=12.0, ability_duration=1.0,
+            ability_cost=1, ability_duration=1.0,
             ability_radius=2.5, ability_value=380),
             # drops a bomb (explodes after 1s) and burrows to the OTHER lane:
             # his new spot is mirrored across the arena's vertical centre line
@@ -547,7 +550,7 @@ _CARD_LIST = [
             hp=500, damage=126, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True,
             ability_name="Cloaking Cape", ability_type="cloak", ability_cost=1,
-            ability_cooldown=12.0, ability_duration=3.5, ability_value=2.0),
+            ability_duration=3.5, ability_value=2.0),
             # invisible (untargetable) + attacks twice as fast for 3.5s
     CardDef("little_prince", "Little Prince", 3, rarity="champion",
             hp=560, damage=60, hit_speed=1.2, range=6.0, speed=SPEED_MEDIUM,
@@ -555,7 +558,7 @@ _CARD_LIST = [
             ramp_stages=((0.0, 1.0), (2.5, 1.6), (5.0, 2.3)), ramp_kind="speed",
             # keeps shooting faster the longer he attacks (normal shots)
             ability_name="Royal Rescue", ability_type="rescue",
-            ability_cost=3, ability_cooldown=18.0, ability_radius=1.0,
+            ability_cost=3, ability_radius=1.0,
             ability_value=150),
             # the Guardian charges in, knocking back + damaging enemies on
             # his path, then stays to fight
@@ -563,7 +566,7 @@ _CARD_LIST = [
             hp=1400, damage=170, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, is_champion=True,
             ability_name="Dashing Dash", ability_type="chain_dash",
-            ability_cost=1, ability_cooldown=10.0, ability_radius=5.5,
+            ability_cost=1, ability_radius=5.5,
             ability_value=220),
             # chain-dashes through up to 10 enemies (each within 5.5 tiles of
             # the last), hitting each one; can't be damaged while dashing
@@ -571,14 +574,16 @@ _CARD_LIST = [
             hp=1800, damage=176, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.3, is_champion=True,
             ability_name="Soul Summoning", ability_type="skeletons",
-            ability_cost=2, ability_cooldown=14.0, ability_value=6),
+            ability_cost=2, ability_value=6),
             # 6 skeletons + 1 per soul collected from nearby deaths (max 10)
     CardDef("monk", "Monk", 5, rarity="champion",
             hp=1900, damage=120, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, is_champion=True, combo_every=3, knockback=1.2,
             # 3-hit combo: every 3rd strike splashes and knocks enemies back
+            # (every champion ability below is ONE use per deployment, except
+            #  the Boss Bandit's, which has 2 uses with a 3s cooldown)
             ability_name="Pensive Protection", ability_type="protect",
-            ability_cost=1, ability_cooldown=14.0, ability_duration=4.0,
+            ability_cost=1, ability_duration=4.0,
             ability_value=0.8),
             # takes 80% less damage for 4s and deflects incoming single-target
             # projectiles back at whoever fired them
@@ -587,7 +592,7 @@ _CARD_LIST = [
             attacks=AG, is_champion=True, companion=("goblin_monster", 1),
             # the Doctor (ranged) deploys together with his Monster
             ability_name="Lightning Link", ability_type="link",
-            ability_cost=2, ability_cooldown=14.0, ability_duration=4.0,
+            ability_cost=2, ability_duration=4.0,
             ability_radius=0.7, ability_value=160),
             # a crackling beam joins Doctor and Monster for 4s: enemies
             # touching it take damage (per second) and are briefly stunned
@@ -597,10 +602,12 @@ _CARD_LIST = [
             charge_mult=2.0,
             # dashes like the Bandit (invulnerable, double-damage landing)
             ability_name="Getaway Grenade", ability_type="getaway",
-            ability_cost=1, ability_cooldown=12.0, ability_duration=2.5,
-            ability_radius=2.0, ability_value=150),
-            # smoke grenade at her feet (damage + stun), then she vanishes and
-            # leaps back toward her own side, cloaked for 2.5s
+            ability_cost=1, ability_uses=2, ability_cooldown=3.0,
+            ability_value=4.75),
+            # 2 uses, 3s apart: she teleports straight back from her target
+            # until there's a 4.75-tile gap (inside her 3.5-6 dash window),
+            # so she can immediately dash in again for another double-damage
+            # hit - unless another enemy is closer, then she dashes at that.
 
     # ==================== NON-DEPLOYABLE SUB-UNITS ====================
     # These are spawned by other cards; they don't appear in the deck builder.

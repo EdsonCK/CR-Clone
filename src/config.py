@@ -14,7 +14,7 @@ Rules of thumb:
   * If something breaks, you probably deleted a comma or a bracket. Undo it.
 
 Card-specific stats (hp, damage, elixir cost of each card) live in `cards.py`.
-This file controls the GLOBAL rules of the game and the AI difficulty.
+This file controls the GLOBAL rules of the game and the AI settings.
 ============================================================================
 """
 
@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI difficulty.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "0.2.2"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "0.2.3"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
@@ -96,68 +96,61 @@ KING_INSET_Y           = 2     # rows in from the top/bottom edge for the King
 
 
 # ---------------------------------------------------------------------------
-# 5. AI OPPONENT DIFFICULTY   <<< TUNE THIS FOR FAIR / HARD FIGHTS >>>
+# 5. AI OPPONENT   <<< INTELLIGENCE + ELIXIR, SET SEPARATELY >>>
 # ---------------------------------------------------------------------------
-# You correctly pointed out a simple AI can't out-skill a real player, so we
-# give it resource & tempo advantages instead of "smarts". Turn these DOWN to
-# make the AI easier, UP to make it harder.
+# Two independent dials, both picked on the Battle Setup screen:
+#
+#   * AI INTELLIGENCE (levels 1-5, AI_LEVELS below): how WELL it plays -
+#     reaction speed, card choice, placement, spell use, elixir counting...
+#   * AI ELIXIR BOOST (0.5x - 2.0x slider): how much elixir it gets. 1.0x is
+#     a perfectly even fight. Starting elixir scales too:
+#     start bonus = (boost - 1) * AI_START_BONUS_PER_MULT.
 
-AI_ELIXIR_MULT       = 1.5    # AI regenerates elixir this much faster than you
-AI_ELIXIR_START_BONUS= 2.0    # extra starting elixir for the AI
-AI_REACTION_TIME     = 0.9    # seconds the AI "thinks" before responding to a push
-AI_DECISION_INTERVAL = 0.6    # how often (s) the AI re-evaluates what to play
-AI_AGGRESSION        = 0.55   # 0 = pure defense, 1 = always pushing
-AI_MAX_ELIXIR_HOARD  = 9.0    # AI tries to spend before hitting this much elixir
-AI_DEFEND_HP_TRIGGER = 6.5    # AI defends when an enemy troop is within this many
-                              #   tiles of one of its towers
-AI_SMART_TARGETING   = True   # AI tries to counter your card with a good answer
-AI_INTELLIGENCE      = 0      # 0 = basic brain, 1 = smart brain (Master/Insane):
-                              #   finisher spells on low towers, bridge pressure,
-                              #   support behind tanks, pull placements, better
-                              #   counter picks. Set by difficulty presets.
+AI_ELIXIR_MULT        = 1.0    # current boost (set by the slider)
+AI_ELIXIR_MULT_MIN    = 0.5
+AI_ELIXIR_MULT_MAX    = 2.0
+AI_ELIXIR_MULT_STEP   = 0.05   # slider snaps to this step
+AI_START_BONUS_PER_MULT = 2.0  # 2.0x boost -> +2 starting elixir, 0.5x -> -1
+AI_ELIXIR_START_BONUS = 0.0    # derived from the boost by apply_ai_settings()
+AI_LEVEL              = 3      # current intelligence level (1-5)
 
-# --- Difficulty presets -----------------------------------------------------
-# The pre-match setup screen lets the player pick Easy / Medium / Hard. Picking
-# one overwrites the AI_* values above via apply_difficulty(). "Hard" reproduces
-# the original tuning. Tweak any number here to taste.
-DIFFICULTIES = {
-    "Easy": dict(
-        AI_ELIXIR_MULT=1.0, AI_ELIXIR_START_BONUS=0.0, AI_REACTION_TIME=2.2,
-        AI_DECISION_INTERVAL=1.3, AI_AGGRESSION=0.30, AI_MAX_ELIXIR_HOARD=8.0,
-        AI_DEFEND_HP_TRIGGER=5.0, AI_SMART_TARGETING=False),
-    "Medium": dict(
-        AI_ELIXIR_MULT=1.2, AI_ELIXIR_START_BONUS=1.0, AI_REACTION_TIME=1.4,
-        AI_DECISION_INTERVAL=0.9, AI_AGGRESSION=0.45, AI_MAX_ELIXIR_HOARD=8.5,
-        AI_DEFEND_HP_TRIGGER=6.0, AI_SMART_TARGETING=True),
-    "Hard": dict(   # the original balancing
-        AI_ELIXIR_MULT=1.5, AI_ELIXIR_START_BONUS=2.0, AI_REACTION_TIME=0.9,
-        AI_DECISION_INTERVAL=0.6, AI_AGGRESSION=0.55, AI_MAX_ELIXIR_HOARD=9.0,
-        AI_DEFEND_HP_TRIGGER=6.5, AI_SMART_TARGETING=True, AI_INTELLIGENCE=0),
-    "Master": dict(   # smarter brain, only a slight elixir edge
-        AI_ELIXIR_MULT=1.2, AI_ELIXIR_START_BONUS=1.0, AI_REACTION_TIME=0.5,
-        AI_DECISION_INTERVAL=0.35, AI_AGGRESSION=0.6, AI_MAX_ELIXIR_HOARD=8.5,
-        AI_DEFEND_HP_TRIGGER=7.5, AI_SMART_TARGETING=True, AI_INTELLIGENCE=1),
-    "Insane": dict(   # smart brain + perfect reactions + big elixir edge
-        AI_ELIXIR_MULT=1.6, AI_ELIXIR_START_BONUS=3.0, AI_REACTION_TIME=0.0,
-        AI_DECISION_INTERVAL=0.2, AI_AGGRESSION=0.65, AI_MAX_ELIXIR_HOARD=8.5,
-        AI_DEFEND_HP_TRIGGER=8.0, AI_SMART_TARGETING=True, AI_INTELLIGENCE=1),
+# What each intelligence level can do. Every level unlocks the skills of the
+# levels below it. Numbers:
+#   reaction   - seconds before it responds to a push
+#   interval   - seconds between decisions
+#   mistakes   - chance a decision is a sloppy/random one
+#   jitter     - tiles of random error in where it places cards
+#   spell_need - how much elixir value a damage spell must hit, relative to
+#                its own cost, before the AI casts it (lower = sharper)
+#   defend_at  - it defends when your troops get this close to its towers
+AI_LEVELS = {
+    1: dict(name="Novice", reaction=2.2, interval=1.4, mistakes=0.35,
+            jitter=2.0, spell_need=2.2, defend_at=5.0,
+            desc="Slow, sloppy, plays mostly at random."),
+    2: dict(name="Casual", reaction=1.4, interval=0.9, mistakes=0.18,
+            jitter=1.2, spell_need=1.7, defend_at=6.0,
+            desc="Basic counters & spells, simple pushes."),
+    3: dict(name="Skilled", reaction=0.9, interval=0.6, mistakes=0.07,
+            jitter=0.5, spell_need=1.35, defend_at=6.5,
+            desc="Smart counters & placement, support pushes."),
+    4: dict(name="Expert", reaction=0.5, interval=0.35, mistakes=0.03,
+            jitter=0.2, spell_need=1.15, defend_at=7.5,
+            desc="Counts elixir, punishes, counter-pushes."),
+    5: dict(name="Master", reaction=0.25, interval=0.2, mistakes=0.0,
+            jitter=0.0, spell_need=1.0, defend_at=8.0,
+            desc="Everything: exact elixir count, card tracking."),
 }
-DIFFICULTY_DESC = {
-    "Easy":   "Fair elixir, slow to react. Good for learning.",
-    "Medium": "Small elixir edge, moderate reactions.",
-    "Hard":   "Big elixir edge, fast & aggressive (original).",
-    "Master": "Smart play, slight elixir edge, 0.5s reactions.",
-    "Insane": "Smart play, perfect reactions, huge elixir edge.",
-}
-DEFAULT_DIFFICULTY = "Hard"
+AI_DEFAULT_LEVEL = 3
+AI_DEFAULT_ELIXIR = 1.0
 
 
-def apply_difficulty(name):
-    """Overwrite the module-level AI_* knobs with a difficulty preset."""
-    preset = DIFFICULTIES.get(name, DIFFICULTIES[DEFAULT_DIFFICULTY])
+def apply_ai_settings(level, elixir_mult):
+    """Set the AI's intelligence level and elixir boost for the next match."""
     g = globals()
-    for k, v in preset.items():
-        g[k] = v
+    g["AI_LEVEL"] = level if level in AI_LEVELS else AI_DEFAULT_LEVEL
+    m = min(max(float(elixir_mult), AI_ELIXIR_MULT_MIN), AI_ELIXIR_MULT_MAX)
+    g["AI_ELIXIR_MULT"] = round(m, 2)
+    g["AI_ELIXIR_START_BONUS"] = round((m - 1.0) * AI_START_BONUS_PER_MULT, 2)
 
 
 # ---------------------------------------------------------------------------

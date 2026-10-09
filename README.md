@@ -21,10 +21,16 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 
 ## How to play
 
-1. **Battle** from the main menu opens the **Battle Setup** screen, where you
-   pick the AI's **difficulty** (Easy / Medium / Hard / Master / Insane — Hard
-   is the original, punishing tuning), see both decks, then hit
-   **Start Battle!**
+1. **Battle** from the main menu opens the **Battle Setup** screen. Two
+   separate dials control the AI:
+   * **AI Intelligence 1–5** (Novice, Casual, Skilled, Expert, Master): how
+     well it plays. Keys **1–5** also work.
+   * **AI Elixir 0.5x–2.0x**: how fast it gains elixir (its starting elixir
+     scales too). **1.0x is a perfectly even fight.** Drag or click the
+     slider, use the **−/+** buttons, the arrow keys or the mouse wheel
+     (0.05 steps), or the preset buttons.
+
+   Your choices are remembered. Then hit **Start Battle!**
    * **Change AI Deck** opens the AI Deck screen; **Back to Battle Setup**
      returns you straight to the battle screen. Pick from 11 archetype decks
      (Hog Cycle, P.E.K.K.A Bridge, Golem Beatdown, Classic, Log Bait, Miner
@@ -52,7 +58,9 @@ Your 8 cards sit at the top in two rows of four. Below is the full collection.
 ### Champions
 
 Once a champion is on the field, the yellow button (bottom-left of the arena)
-activates its ability for a little extra elixir.
+activates its ability for a little extra elixir. Each ability can be used
+**once** per champion deployment. The exception is the Boss Bandit, who gets
+**2 uses, 3 seconds apart**.
 
 | Champion | Passive | Ability |
 |---|---|---|
@@ -63,10 +71,28 @@ activates its ability for a little extra elixir.
 | Skeleton King | Collects souls from nearby deaths | **Soul Summoning**: 6 skeletons + 1 per soul (max 16) |
 | Monk | Every 3rd hit is a knockback combo | **Pensive Protection**: −80% damage taken, reflects projectiles |
 | Goblinstein | Doctor + Monster deploy together | **Lightning Link**: damaging beam between the two |
-| Boss Bandit | Dashes onto targets, invulnerable mid-dash | **Getaway Grenade**: smoke bomb, vanishes and leaps back |
+| Boss Bandit | Dashes onto targets (3.5–6 tiles), invulnerable mid-dash | **Getaway Grenade** (x2): teleports straight back from her target to a 4.75-tile gap, then dashes straight back in for another double-damage hit (unless another enemy is closer) |
 
-The AI is deliberately given an **elixir/tempo advantage** (a simple AI can't
-out-skill a real player) — all of that is tunable, see below.
+### The AI levels
+
+Every level keeps the skills of the ones below it.
+
+| Level | What it adds |
+|---|---|
+| 1 Novice | Slow reactions, often plays a random card, sloppy placement |
+| 2 Casual | Real counter-picking (air/ground, splash vs swarms, DPS vs tanks), value spells, supports its pushes |
+| 3 Skilled | Lets towers handle tiny threats, smart placement (buildings pull tanks to the middle, ranged units behind towers), leads moving targets with spells, finishes low towers, counter-pushes, beatdown pushes, keeps a defence reserve, times champion abilities |
+| 4 Expert | Counts your elixir and punishes you when you're low, resets Infernos, cycles to its win condition, and **simulates** its defensive options a few seconds ahead before choosing one |
+| 5 Master | Exact elixir count, remembers your cards, and **simulates every decision** (defence, attack, spells) 10 seconds ahead while assuming you keep playing well |
+
+Benchmarked by having the AIs play each other at 1.0x elixir (both deck
+orders, preset decks): Casual beats Novice 59%, Skilled beats Casual 58%,
+Expert beats Skilled 61%, Master beats Expert 58% (Master beats Skilled 79%).
+Elixir is the bigger lever: Master at 1.0x roughly equals Skilled at 1.15x,
+and Skilled at 1.5x beats Master at 1.0x about 4 games in 5.
+
+Master "thinks" for about half a second per decision, spread over frames so
+the game stays smooth.
 
 ---
 
@@ -78,11 +104,10 @@ Two files are designed for you to tweak without touching engine code:
 Heavily commented knobs for:
 - Arena size, elixir rates, double/triple-elixir timing, match length.
 - Tower HP / damage / range.
-- **AI difficulty**: `AI_ELIXIR_MULT`, `AI_ELIXIR_START_BONUS`,
-  `AI_REACTION_TIME`, `AI_AGGRESSION`, and more. Turn these **down** to make
-  the AI easier, **up** to make it harder. The **Easy / Medium / Hard**
-  presets live in the `DIFFICULTIES` dict (Hard = the original tuning); edit
-  those to reshape what each difficulty means.
+- **AI**: `AI_LEVELS` holds each intelligence level's reaction time,
+  decision speed, mistake rate, placement accuracy and spell pickiness.
+  `AI_ELIXIR_MULT_MIN/MAX/STEP` set the slider's range, and
+  `AI_START_BONUS_PER_MULT` sets how much starting elixir the boost adds.
 - Global damage/HP/speed multipliers for quick sweeping balance changes.
 - Debug toggles: `SHOW_TILE_GRID`, `SHOW_RANGES`.
 

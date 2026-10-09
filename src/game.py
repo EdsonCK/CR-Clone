@@ -5,7 +5,8 @@
 
 Screens:
   * MENU     -- Battle / Edit Deck / AI Deck / Records / How To Play / Quit
-  * PREMATCH -- Battle Setup: difficulty, both decks, Start Battle
+  * PREMATCH -- Battle Setup: AI intelligence (1-5), AI elixir boost slider
+                (0.5x-2.0x), both decks, Start Battle
   * AIDECK   -- choose the AI's deck (returns to wherever you came from)
   * DECK     -- pick 8 cards (left-click add/remove, right-click remove)
   * MATCH    -- the live battle (arena + HUD)
@@ -35,6 +36,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DECK_FILE = os.path.join(_ROOT, "player_deck.json")
 AI_DECK_FILE = os.path.join(_ROOT, "ai_custom_deck.json")
 STATS_FILE = os.path.join(_ROOT, "records.json")
+SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 
 # Colors for spell telegraphs & detonations, roughly matching each spell.
 SPELL_FX_COLORS = {
@@ -166,8 +168,11 @@ class Game:
         self.deck_msg = ""
 
         # pre-match setup choices
-        self.difficulty = cfg.DEFAULT_DIFFICULTY
+        self.ai_level = cfg.AI_DEFAULT_LEVEL       # AI intelligence 1-5
+        self.ai_elixir = cfg.AI_DEFAULT_ELIXIR     # AI elixir boost 0.5-2.0
+        self.slider_drag = False
         self.ai_deck_choice = "Classic"
+        self._load_settings()
         self.ai_custom_deck = self._load_deck(AI_DECK_FILE, cards.DEFAULT_AI_DECK)
         self.deck_scroll = 0        # vertical scroll offset in the deck builder
         self.deck_mode = "player"   # "player" or "ai" - which deck is being edited
@@ -175,7 +180,7 @@ class Game:
         self.deck_backup = []       # deck as it was when the editor opened
         self.deck_drag = False      # dragging the deck-builder scrollbar
         self.aideck_return = "menu" # where the AI Deck screen goes back to
-        self.stats = self._load_stats()   # per-difficulty crown/win records
+        self.stats = self._load_stats()   # per-intelligence crown/win records
 
         self._build_menu_buttons()
 
@@ -232,39 +237,88 @@ class Game:
         except Exception:
             pass
 
-    # ---- records / stats ----
+    # ---- settings (AI level / elixir / AI deck), remembered between runs ----
+    def _load_settings(self):
+        try:
+            with open(SETTINGS_FILE) as f:
+                d = json.load(f)
+            if int(d.get("ai_level", 0)) in cfg.AI_LEVELS:
+                self.ai_level = int(d["ai_level"])
+            self._set_ai_elixir(float(d.get("ai_elixir", self.ai_elixir)), save=False)
+            if d.get("ai_deck") in cards.AI_DECK_PRESETS or d.get("ai_deck") in (
+                    "Random", "Custom"):
+                self.ai_deck_choice = d["ai_deck"]
+        except Exception:
+            pass
+
+    def _save_settings(self):
+        try:
+            with open(SETTINGS_FILE, "w") as f:
+                json.dump({"ai_level": self.ai_level, "ai_elixir": self.ai_elixir,
+                           "ai_deck": self.ai_deck_choice}, f)
+        except Exception:
+            pass
+
+    def _set_ai_elixir(self, v, save=True):
+        step = cfg.AI_ELIXIR_MULT_STEP
+        v = round(round(v / step) * step, 2)
+        self.ai_elixir = min(max(v, cfg.AI_ELIXIR_MULT_MIN), cfg.AI_ELIXIR_MULT_MAX)
+        if save:
+            self._save_settings()
+
+    def _set_ai_level(self, lv):
+        if lv in cfg.AI_LEVELS:
+            self.ai_level = lv
+            self._save_settings()
+
+    # ---- records / stats (per AI intelligence level) ----
+    @staticmethod
+    def _level_key(lv):
+        return "L%d" % lv
+
     def _blank_stats(self):
-        return {d: {"wins": 0, "losses": 0, "draws": 0, "cf": 0, "ca": 0}
-                for d in cfg.DIFFICULTIES}
+        return {self._level_key(lv): {"wins": 0, "losses": 0, "draws": 0,
+                                      "cf": 0, "ca": 0, "best": 0.0, "even_w": 0}
+                for lv in cfg.AI_LEVELS}
 
     def _load_stats(self):
         s = self._blank_stats()
+        self._legacy_stats = {}
         if os.path.exists(STATS_FILE):
             try:
                 with open(STATS_FILE) as f:
                     saved = json.load(f)
                 for d, rec in saved.items():
                     if d in s and isinstance(rec, dict):
-                        s[d].update({k: int(rec.get(k, 0)) for k in s[d]})
+                        for k in s[d]:
+                            if k in rec:
+                                s[d][k] = type(s[d][k])(rec[k])
+                    else:
+                        self._legacy_stats[d] = rec    # old Easy/Hard/... records
             except Exception:
                 pass
         return s
 
     def _save_stats(self):
         try:
+            out = dict(self._legacy_stats)
+            out.update(self.stats)
             with open(STATS_FILE, "w") as f:
-                json.dump(self.stats, f, indent=1)
+                json.dump(out, f, indent=1)
         except Exception:
             pass
 
     def _record_result(self):
-        m, d = self.match, self.difficulty
-        rec = self.stats.setdefault(d, {"wins": 0, "losses": 0, "draws": 0,
-                                        "cf": 0, "ca": 0})
+        m = self.match
+        rec = self.stats.setdefault(self._level_key(self.ai_level),
+                                    self._blank_stats()["L1"])
         rec["cf"] += m.crowns[PLAYER]
         rec["ca"] += m.crowns[ENEMY]
         if m.winner == PLAYER:
             rec["wins"] += 1
+            rec["best"] = max(rec["best"], self.ai_elixir)
+            if self.ai_elixir >= 1.0:
+                rec["even_w"] += 1
         elif m.winner == ENEMY:
             rec["losses"] += 1
         else:
@@ -339,9 +393,10 @@ class Game:
             self._open_player_deck("prematch")
             self.deck_msg = "Pick 8 cards first!"
             return
-        cfg.apply_difficulty(self.difficulty)
+        cfg.apply_ai_settings(self.ai_level, self.ai_elixir)
+        self._save_settings()
         self.match = Match(self.player_deck, self._resolve_ai_deck())
-        self.ai = AIController(self.match)
+        self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
         self.selected = None
         self.state = "match"
 
@@ -398,6 +453,14 @@ class Game:
             if e.type == pygame.QUIT:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
+                if self.state == "prematch" and e.key in (pygame.K_LEFT, pygame.K_RIGHT,
+                                                          pygame.K_MINUS, pygame.K_EQUALS,
+                                                          pygame.K_KP_MINUS, pygame.K_KP_PLUS):
+                    up = e.key in (pygame.K_RIGHT, pygame.K_EQUALS, pygame.K_KP_PLUS)
+                    self._set_ai_elixir(self.ai_elixir + (1 if up else -1)
+                                        * cfg.AI_ELIXIR_MULT_STEP)
+                elif self.state == "prematch" and pygame.K_1 <= e.key <= pygame.K_5:
+                    self._set_ai_level(e.key - pygame.K_0)
                 if e.key == pygame.K_ESCAPE:
                     if self.state == "match":
                         self.state = "menu"
@@ -405,18 +468,29 @@ class Game:
                         self._deck_cancel()
                     elif self.state == "aideck":
                         self.state = self.aideck_return
+                        self._save_settings()
                     elif self.state in ("help", "result", "prematch", "records"):
                         self.state = "menu"
             elif e.type == pygame.MOUSEWHEEL:
                 # the wheel ONLY scrolls - it never selects anything
                 if self.state == "deck":
                     self._deck_set_scroll(self.deck_scroll - e.y * 48)
+                elif self.state == "prematch":
+                    mpos = pygame.mouse.get_pos()
+                    if self._slider_zone().collidepoint(mpos):
+                        self._set_ai_elixir(self.ai_elixir + (1 if e.y > 0 else -1)
+                                            * cfg.AI_ELIXIR_MULT_STEP)
             elif e.type == pygame.MOUSEBUTTONUP:
                 if e.button == 1:
                     self.deck_drag = False
+                    if self.slider_drag:
+                        self.slider_drag = False
+                        self._save_settings()
             elif e.type == pygame.MOUSEMOTION:
                 if self.state == "deck" and self.deck_drag:
                     self._deck_drag_to(e.pos[1])
+                elif self.state == "prematch" and self.slider_drag:
+                    self._slider_set_from_x(e.pos[0], save=False)
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 # pygame reports wheel turns as buttons 4-7 as well; those
                 # must never count as clicks (it used to toggle cards)
@@ -485,14 +559,50 @@ class Game:
                 self.selected = None
 
     # ================================================================= PREMATCH
-    def _prematch_diff_rects(self):
-        names = ["Easy", "Medium", "Hard", "Master", "Insane"]
-        w = (cfg.WINDOW_W - 48) // 3
-        rects = []
-        for i, n in enumerate(names):
-            r, c = divmod(i, 3)
-            rects.append((pygame.Rect(16 + c * (w + 8), 96 + r * 48, w, 42), n))
-        return rects
+    # Battle Setup layout ------------------------------------------------
+    PM_LEVEL_Y = 74         # intelligence buttons
+    PM_SLIDER_Y = 214       # elixir slider centre line
+
+    def _prematch_level_rects(self):
+        n = len(cfg.AI_LEVELS)
+        gap = 6
+        w = (cfg.WINDOW_W - 24 - gap * (n - 1)) // n
+        return [(pygame.Rect(12 + i * (w + gap), self.PM_LEVEL_Y, w, 52), lv)
+                for i, lv in enumerate(sorted(cfg.AI_LEVELS))]
+
+    def _slider_track(self):
+        """The draggable track (wide, with room for the -/+ buttons)."""
+        return pygame.Rect(62, self.PM_SLIDER_Y - 7, cfg.WINDOW_W - 124, 14)
+
+    def _slider_zone(self):
+        """Generous click / wheel area around the track."""
+        t = self._slider_track()
+        return pygame.Rect(t.x - 14, t.y - 18, t.w + 28, t.h + 36)
+
+    def _slider_pm_rects(self):
+        y = self.PM_SLIDER_Y - 20
+        return (pygame.Rect(12, y, 40, 40),                       # minus
+                pygame.Rect(cfg.WINDOW_W - 52, y, 40, 40))        # plus
+
+    def _slider_presets(self):
+        vals = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
+        gap = 6
+        w = (cfg.WINDOW_W - 24 - gap * (len(vals) - 1)) // len(vals)
+        y = self.PM_SLIDER_Y + 34
+        return [(pygame.Rect(12 + i * (w + gap), y, w, 28), v)
+                for i, v in enumerate(vals)]
+
+    def _slider_x_for(self, v):
+        t = self._slider_track()
+        f = (v - cfg.AI_ELIXIR_MULT_MIN) / (cfg.AI_ELIXIR_MULT_MAX - cfg.AI_ELIXIR_MULT_MIN)
+        return t.x + f * t.w
+
+    def _slider_set_from_x(self, x, save=True):
+        t = self._slider_track()
+        f = min(max((x - t.x) / t.w, 0.0), 1.0)
+        self._set_ai_elixir(cfg.AI_ELIXIR_MULT_MIN
+                            + f * (cfg.AI_ELIXIR_MULT_MAX - cfg.AI_ELIXIR_MULT_MIN),
+                            save=save)
 
     def _prematch_buttons(self):
         cx = cfg.WINDOW_W // 2
@@ -509,10 +619,25 @@ class Game:
         ]
 
     def _prematch_click(self, pos):
-        for r, name in self._prematch_diff_rects():
+        for r, lv in self._prematch_level_rects():
             if r.collidepoint(pos):
-                self.difficulty = name
+                self._set_ai_level(lv)
                 return
+        minus, plus = self._slider_pm_rects()
+        if minus.collidepoint(pos):
+            self._set_ai_elixir(self.ai_elixir - cfg.AI_ELIXIR_MULT_STEP)
+            return
+        if plus.collidepoint(pos):
+            self._set_ai_elixir(self.ai_elixir + cfg.AI_ELIXIR_MULT_STEP)
+            return
+        for r, v in self._slider_presets():
+            if r.collidepoint(pos):
+                self._set_ai_elixir(v)
+                return
+        if self._slider_zone().collidepoint(pos):
+            self.slider_drag = True
+            self._slider_set_from_x(pos[0], save=False)
+            return
         for b in self._prematch_buttons():
             if b.click(pos):
                 return
@@ -835,29 +960,111 @@ class Game:
                 self.screen.blit(sprites.get_sprite(k, sz),
                                  (x0 + i * (sz + gap), cfg.WINDOW_H - 64))
 
+    LEVEL_COLORS = {1: (110, 200, 110), 2: (150, 200, 240), 3: (240, 200, 110),
+                    4: (240, 150, 90), 5: (235, 110, 200)}
+
+    @staticmethod
+    def _elixir_color(v):
+        if v < 0.999:
+            return (120, 210, 130)        # AI handicapped
+        if v <= 1.001:
+            return (235, 235, 235)        # even
+        if v < 1.5:
+            return (245, 200, 100)
+        return (245, 120, 110)
+
     def _draw_prematch(self):
         cx = cfg.WINDOW_W // 2
         mouse = pygame.mouse.get_pos()
-        self._text("Battle Setup", self.font_l, (240, 220, 120), center=(cx, 28))
+        self._text("Battle Setup", self.font_l, (240, 220, 120), center=(cx, 24))
 
-        # difficulty
-        self._text("Difficulty", self.font_m, cfg.COLOR_TEXT, topleft=(16, 68))
-        for r, name in self._prematch_diff_rects():
-            sel = (self.difficulty == name)
-            bg = (70, 120, 90) if sel else (44, 50, 62)
+        # ---- AI intelligence: 5 big buttons ----
+        info = cfg.AI_LEVELS[self.ai_level]
+        self._text("AI Intelligence", self.font_m, cfg.COLOR_TEXT, topleft=(12, 48))
+        self._text(info["name"], self.font_m, self.LEVEL_COLORS[self.ai_level],
+                   topleft=(cfg.WINDOW_W - 12 - self.font_m.size(info["name"])[0], 48))
+        for r, lv in self._prematch_level_rects():
+            sel = lv == self.ai_level
+            col = self.LEVEL_COLORS[lv]
+            bg = dk_c(col, 120) if sel else (44, 50, 62)
             if r.collidepoint(mouse):
-                bg = tuple(min(255, c + 18) for c in bg)
-            pygame.draw.rect(self.screen, bg, r, border_radius=8)
-            if sel:
-                pygame.draw.rect(self.screen, (250, 240, 140), r, 3, border_radius=8)
-            self._text(name, self.font_m, cfg.COLOR_TEXT, center=r.center)
-        self._text(cfg.DIFFICULTY_DESC.get(self.difficulty, ""), self.font_s,
-                   (190, 190, 190), center=(cx, 200))
+                bg = lt_c(bg, 18)
+            pygame.draw.rect(self.screen, (16, 18, 26), r.move(0, 3), border_radius=9)
+            pygame.draw.rect(self.screen, bg, r, border_radius=9)
+            pygame.draw.rect(self.screen, col if sel else dk_c(col, 70), r,
+                             3 if sel else 1, border_radius=9)
+            self._text(str(lv), self.font_l, col if sel else (200, 200, 205),
+                       center=(r.centerx, r.y + 19))
+            name = cfg.AI_LEVELS[lv]["name"]
+            self._text(self._fit(name, self.font_s, r.w - 4), self.font_s,
+                       cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 10))
+        self._text(info["desc"], self.font_s, (200, 200, 200),
+                   center=(cx, self.PM_LEVEL_Y + 66))
 
-        # AI deck (chosen on the AI Deck screen) and your own deck
-        self._deck_preview_panel(222, "AI Deck:  " + self.ai_deck_choice,
+        # ---- AI elixir boost slider ----
+        v = self.ai_elixir
+        vcol = self._elixir_color(v)
+        ly = self.PM_SLIDER_Y - 62
+        self._text("AI Elixir", self.font_m, cfg.COLOR_TEXT, topleft=(12, ly + 4))
+        val = self.font_xl.render("%.2fx" % v, True, vcol)
+        self.screen.blit(val, (cfg.WINDOW_W - 12 - val.get_width(), ly - 8))
+        bonus = (v - 1.0) * cfg.AI_START_BONUS_PER_MULT
+        sub = ("even fight" if abs(v - 1.0) < 1e-6 else
+               "regen x%.2f, start %+.1f" % (v, bonus))
+        self._text(sub, self.font_s, (170, 178, 195), topleft=(12, ly + 26))
+        t = self._slider_track()
+        # track: green (handicap) -> white (even) -> red (boost)
+        for i in range(t.w):
+            f = i / max(t.w - 1, 1)
+            vv = cfg.AI_ELIXIR_MULT_MIN + f * (cfg.AI_ELIXIR_MULT_MAX - cfg.AI_ELIXIR_MULT_MIN)
+            c = dk_c(self._elixir_color(vv), 70)
+            pygame.draw.line(self.screen, c, (t.x + i, t.y + 2), (t.x + i, t.bottom - 3))
+        kx = int(self._slider_x_for(v))
+        fill = pygame.Rect(t.x, t.y, max(0, kx - t.x), t.h)
+        pygame.draw.rect(self.screen, (40, 44, 58), t, 2, border_radius=7)
+        # ticks: every 0.05, bigger every 0.25, labels every 0.5
+        nsteps = int(round((cfg.AI_ELIXIR_MULT_MAX - cfg.AI_ELIXIR_MULT_MIN)
+                           / cfg.AI_ELIXIR_MULT_STEP))
+        for i in range(nsteps + 1):
+            tv = cfg.AI_ELIXIR_MULT_MIN + i * cfg.AI_ELIXIR_MULT_STEP
+            x = int(self._slider_x_for(tv))
+            big = abs((tv * 4) - round(tv * 4)) < 1e-6
+            h = 7 if big else 3
+            pygame.draw.line(self.screen, (150, 156, 175) if big else (90, 96, 115),
+                             (x, t.bottom + 3), (x, t.bottom + 3 + h), 1)
+            if abs(tv * 2 - round(tv * 2)) < 1e-6:
+                self._text("%gx" % tv, self.font_s, (170, 178, 195),
+                           center=(x, t.bottom + 18))
+        # knob
+        pygame.draw.circle(self.screen, (15, 18, 26), (kx, t.centery + 2), 15)
+        pygame.draw.circle(self.screen, vcol, (kx, t.centery), 15)
+        pygame.draw.circle(self.screen, (255, 255, 255) if self.slider_drag else dk_c(vcol, 80),
+                           (kx, t.centery), 15, 3)
+        # -/+ buttons
+        for r, sym in zip(self._slider_pm_rects(), ("-", "+")):
+            hov = r.collidepoint(mouse)
+            pygame.draw.rect(self.screen, (15, 18, 26), r.move(0, 3), border_radius=10)
+            pygame.draw.rect(self.screen, cfg.COLOR_BUTTON_HOVER if hov else cfg.COLOR_BUTTON,
+                             r, border_radius=10)
+            pygame.draw.rect(self.screen, (20, 24, 32), r, 2, border_radius=10)
+            self._text(sym, self.font_l, cfg.COLOR_TEXT, center=(r.centerx, r.centery - 2))
+        # presets
+        for r, pv in self._slider_presets():
+            sel = abs(pv - v) < 1e-6
+            bg = (70, 90, 130) if sel else (40, 46, 60)
+            if r.collidepoint(mouse):
+                bg = lt_c(bg, 16)
+            pygame.draw.rect(self.screen, bg, r, border_radius=7)
+            pygame.draw.rect(self.screen, self._elixir_color(pv) if sel else (70, 78, 98),
+                             r, 2 if sel else 1, border_radius=7)
+            self._text("%gx" % pv, self.font_s, cfg.COLOR_TEXT, center=r.center)
+        self._text("drag / click  |  -/+ or arrow keys / wheel = 0.05 steps",
+                   self.font_s, (130, 138, 158), center=(cx, self.PM_SLIDER_Y + 74))
+
+        # ---- decks ----
+        self._deck_preview_panel(self.PM_SLIDER_Y + 88, "AI Deck:  " + self.ai_deck_choice,
                                  (240, 150, 150), self._ai_deck_preview_cards())
-        self._deck_preview_panel(338, "Your Deck", (150, 200, 240),
+        self._deck_preview_panel(self.PM_SLIDER_Y + 198, "Your Deck", (150, 200, 240),
                                  self.player_deck)
 
         for b in self._prematch_buttons():
@@ -892,40 +1099,40 @@ class Game:
     def _draw_records(self):
         cx = cfg.WINDOW_W // 2
         self._text("Records", self.font_l, (240, 220, 120), center=(cx, 30))
-        self._text("crowns won vs lost, per AI level", self.font_s,
+        self._text("per AI intelligence level (any elixir boost)", self.font_s,
                    (170, 178, 195), center=(cx, 54))
-        order = ["Easy", "Medium", "Hard", "Master", "Insane"]
-        diff_col = {"Easy": (110, 200, 110), "Medium": (150, 200, 240),
-                    "Hard": (240, 190, 110), "Master": (230, 140, 220),
-                    "Insane": (240, 110, 110)}
-        y = 80
+        y = 74
         tot_w = tot_l = tot_cf = tot_ca = 0
-        for d in order:
-            rec = self.stats.get(d, {})
+        for lv in sorted(cfg.AI_LEVELS):
+            col = self.LEVEL_COLORS[lv]
+            rec = self.stats.get(self._level_key(lv), {})
             w, l, dr = rec.get("wins", 0), rec.get("losses", 0), rec.get("draws", 0)
             cf, ca = rec.get("cf", 0), rec.get("ca", 0)
             tot_w += w; tot_l += l; tot_cf += cf; tot_ca += ca
             games = w + l + dr
-            panel = pygame.Rect(14, y, cfg.WINDOW_W - 28, 78)
+            panel = pygame.Rect(14, y, cfg.WINDOW_W - 28, 92)
             pygame.draw.rect(self.screen, (34, 38, 52), panel, border_radius=8)
-            pygame.draw.rect(self.screen, diff_col[d], panel, 1, border_radius=8)
-            self._text(d, self.font_m, diff_col[d], topleft=(24, y + 8))
+            pygame.draw.rect(self.screen, col, panel, 1, border_radius=8)
+            self._text("%d  %s" % (lv, cfg.AI_LEVELS[lv]["name"]), self.font_m, col,
+                       topleft=(24, y + 8))
             wr = (w / games * 100) if games else 0
             self._text("%d-%d-%d   %.0f%% win" % (w, l, dr, wr), self.font_s,
-                       cfg.COLOR_TEXT, topleft=(24, y + 30))
-            # crown tally bar (won green vs lost red)
-            bx, by, bw = 24, y + 54, cfg.WINDOW_W - 28 - 20
+                       cfg.COLOR_TEXT, topleft=(24, y + 32))
+            best = rec.get("best", 0.0)
+            self._text("best win vs %.2fx elixir   |   %d wins at 1.0x+"
+                       % (best, rec.get("even_w", 0)) if w else "no wins yet",
+                       self.font_s, (200, 200, 170), topleft=(24, y + 50))
+            bx, by, bw = 24, y + 70, cfg.WINDOW_W - 28 - 20
             tot = max(cf + ca, 1)
             gw = int(bw * cf / tot)
             pygame.draw.rect(self.screen, (70, 40, 44), (bx, by, bw, 12), border_radius=6)
             if gw > 0:
                 pygame.draw.rect(self.screen, (90, 200, 110), (bx, by, gw, 12),
                                  border_radius=6)
-            self._text("%d" % cf, self.font_s, (150, 230, 160),
-                       topleft=(bx + 2, by - 1))
+            self._text("%d" % cf, self.font_s, (150, 230, 160), topleft=(bx + 2, by - 1))
             self._text("%d" % ca, self.font_s, (240, 150, 150),
                        topleft=(bx + bw - 18, by - 1))
-            y += 84
+            y += 98
         self._text("Total crowns  won %d  -  lost %d   (W-L %d-%d)"
                    % (tot_cf, tot_ca, tot_w, tot_l), self.font_s,
                    (220, 220, 160), center=(cx, y + 6))
@@ -952,8 +1159,8 @@ class Game:
             "Elixir refills over time (max 10). It doubles",
             "in the last minute and triples in overtime.",
             "",
-            "The AI gets an elixir advantage on purpose -",
-            "tune it in config.py (AI_* settings).",
+            "Battle Setup: pick the AI's intelligence (1-5)",
+            "and its elixir boost (0.5x-2x, 1x = even).",
             "",
             "Click anywhere / Esc to return to the menu.",
         ]
@@ -1686,8 +1893,22 @@ class Game:
         # champion face icon
         self.screen.blit(sprites.get_sprite(champ.key, rad + 6),
                          (cx - (rad + 6) // 2, cy - (rad + 6) // 2))
-        # cooldown wedge
-        if champ.ability_cd > 0:
+        used_up = champ.ability_uses <= 0
+        if used_up:                        # one-shot ability already spent
+            overlay = pygame.Surface((r.w, r.h), pygame.SRCALPHA)
+            pygame.draw.circle(overlay, (0, 0, 0, 170), (rad, rad), rad)
+            self.screen.blit(overlay, r.topleft)
+            self._text("USED", self.font_s, (230, 230, 230), center=(cx, cy))
+        # uses left (Boss Bandit has 2)
+        if champ.card.ability_uses > 1:
+            for k in range(champ.card.ability_uses):
+                lit = k < champ.ability_uses
+                pygame.draw.circle(self.screen, (255, 230, 120) if lit else (60, 60, 60),
+                                   (cx - 5 + k * 10, r.bottom + 5), 4)
+                pygame.draw.circle(self.screen, (20, 20, 20),
+                                   (cx - 5 + k * 10, r.bottom + 5), 4, 1)
+        # cooldown wedge (between uses)
+        if champ.ability_cd > 0 and not used_up:
             frac = min(1.0, champ.ability_cd / max(champ.card.ability_cooldown, 0.1))
             overlay = pygame.Surface((r.w, r.h), pygame.SRCALPHA)
             pygame.draw.circle(overlay, (0, 0, 0, 150), (rad, rad), rad)
@@ -1698,7 +1919,8 @@ class Game:
         pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.right - 4, r.y + 4), 8)
         self._text(str(cost), self.font_s, (255, 255, 255), center=(r.right - 4, r.y + 4))
         # ability name on a small chip to the right of the button
-        label = self.font_s.render(champ.card.ability_name, True, (240, 230, 170))
+        label = self.font_s.render(champ.card.ability_name, True,
+                                   (240, 230, 170) if not used_up else (150, 150, 150))
         chip = pygame.Rect(r.right + 6, cy - 9, label.get_width() + 10, 18)
         pygame.draw.rect(self.screen, (20, 24, 34), chip, border_radius=6)
         pygame.draw.rect(self.screen, (150, 130, 70), chip, 1, border_radius=6)
