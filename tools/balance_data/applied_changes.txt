@@ -1,0 +1,87 @@
+archer_queen       x0.94  hp 500->484; damage 126->122
+archers            x1.58  hp 125->147; damage 42->57
+arrows             x1.33  spell_damage 115->153; tower_damage 46->61
+baby_dragon        x0.72  hp 800->678; damage 100->85
+balloon            x1.13  hp 1050->1139; damage 600->627
+bandit             x0.45  hp 750->503; damage 160->107
+barbarian_barrel   x0.58  spell_damage 120->70; tower_damage 48->28; sub_hp_mult 1.00->0.76; sub_dmg_mult 1.00->0.76
+barbarian_hut      x1.59  hp 1300->1638; sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+barbarians         x0.93  hp 262->253; damage 88->85
+bats               x0.88  hp 32->31; damage 32->30
+battle_healer      x1.59  hp 810->1021; damage 70->88; heal_on_attack 55->69
+battle_ram         x1.23  hp 520->595; damage 110->118; sub_hp_mult 1.00->1.14; sub_dmg_mult 1.00->1.08
+bomb_tower         x0.83  hp 1050->957; damage 180->164
+bomber             x1.17  hp 130->137; damage 110->122
+boss_bandit        x0.55  hp 1700->1256; damage 200->148
+bowler             x1.59  hp 940->1185; damage 145->183
+cannon             x0.89  hp 742->700; damage 127->120
+cannon_cart        x0.81  hp 600->541; shield_hp 440->396; damage 130->117
+dark_prince        x0.85  hp 680->627; shield_hp 180->166; damage 140->129
+dart_goblin        x1.47  hp 115->132; damage 60->77
+earthquake         x1.04  spell_damage 36->37; tower_damage 44->46
+electro_dragon     x0.85  hp 640->591; damage 100->92
+electro_giant      x0.33  hp 2500->1204; damage 130->88
+electro_spirit     x1.59  hp 90->106; damage 39->53
+electro_wizard     x0.76  hp 340->309; damage 100->84; spawn_damage 100->84
+elite_barbarians   x1.58  hp 524->659; damage 180->226
+elixir_golem       x0.49  hp 1400->885; damage 150->117; sub_hp_mult 1.00->0.63; sub_dmg_mult 1.00->0.78
+executioner        x0.67  hp 650->533; damage 110->90
+fire_spirit        x1.59  hp 70->82; damage 120->162; death_damage 120->162
+fireball           x0.86  spell_damage 340->294; tower_damage 110->95
+flying_machine     x0.89  hp 340->327; damage 96->89
+furnace            x1.59  hp 600->756; sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+giant              x1.56  hp 2200->2936; damage 120->140
+giant_skeleton     x0.69  hp 2100->1651; damage 140->123
+goblin_barrel      x1.59  sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+goblin_giant       x0.83  hp 2400->2132; damage 110->103; sub_hp_mult 1.00->0.89; sub_dmg_mult 1.00->0.94
+goblin_hut         x1.59  hp 1000->1260; sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+goblins            x1.59  hp 79->93; damage 47->64
+goblinstein        x0.40  hp 900->570; damage 110->70; sub_hp_mult 1.00->0.63; sub_dmg_mult 1.00->0.63
+golden_knight      x0.49  hp 1400->979; damage 170->119
+golem              x0.79  hp 4200->3599; damage 280->258; sub_hp_mult 1.00->0.86; sub_dmg_mult 1.00->0.92
+graveyard          x1.59  sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+guards             x1.54  hp 75->87; shield_hp 150->175; damage 60->80
+hog_rider          x1.31  hp 1000->1195; damage 175->193
+hunter             x0.51  hp 650->463; damage 45->32
+ice_golem          x1.29  hp 1200->1414; damage 42->46
+ice_spirit         x1.59  hp 70->82; damage 42->57; death_damage 42->57
+ice_wizard         x1.59  hp 310->365; damage 55->74; spawn_damage 70->95
+inferno_dragon     x0.20  hp 1000->447; damage 45->20
+inferno_tower      x0.35  hp 1600->941; damage 40->24
+knight             x1.59  hp 690->871; damage 79->100
+lava_hound         x1.59  hp 3000->4052; damage 40->47; sub_hp_mult 1.00->1.35; sub_dmg_mult 1.00->1.18
+little_prince      x0.20  hp 560->250; damage 60->27
+lumberjack         x0.73  hp 660->564; damage 175->149; sub_hp_mult 1.00->0.85; sub_dmg_mult 1.00->0.85
+magic_archer       x1.28  hp 340->371; damage 75->88
+mega_knight        x0.55  hp 2700->1835; damage 170->138; spawn_damage 240->195; dash_damage 240->195
+mega_minion        x0.76  hp 350->319; damage 150->126
+mighty_miner       x0.42  hp 1400->904; damage 32->21
+miner              x1.40  hp 900->1067; damage 75->89
+mini_pekka         x1.06  hp 642->661; damage 340->350
+minion_horde       x0.59  hp 90->69; damage 42->32
+minions            x0.96  hp 90->89; damage 42->41
+monk               x0.38  hp 1900->1020; damage 120->86
+mortar             x1.02  hp 800->807; damage 260->262
+musketeer          x1.07  hp 340->348; damage 120->125
+night_witch        x1.57  hp 560->702; damage 150->188; sub_hp_mult 1.00->1.25; sub_dmg_mult 1.00->1.25
+pekka              x0.47  hp 2600->1593; damage 510->392
+prince             x0.76  hp 980->855; damage 245->214
+princess           x0.54  hp 130->104; damage 140->93
+rocket             x0.83  spell_damage 700->582; tower_damage 280->233
+royal_giant        x1.20  hp 2100->2363; damage 180->192
+skeleton_army      x0.35  hp 32->19; damage 32->19
+skeleton_barrel    x1.59  hp 310->420; sub_hp_mult 1.00->1.35; sub_dmg_mult 1.00->1.18
+skeleton_king      x0.43  hp 1800->1039; damage 176->131
+skeletons          x1.59  hp 32->38; damage 32->43
+sparky             x0.24  hp 1200->587; damage 1050->513
+spear_goblins      x0.77  hp 52->48; damage 32->27
+tesla              x0.67  hp 800->654; damage 132->108
+the_log            x0.89  spell_damage 120->106; tower_damage 48->43
+three_musketeers   x0.60  hp 340->264; damage 120->93
+tombstone          x1.59  hp 400->504; sub_hp_mult 1.00->1.26; sub_dmg_mult 1.00->1.26
+valkyrie           x1.55  hp 880->1096; damage 126->157
+wall_breakers      x1.59  hp 140->189; damage 180->212; death_damage 180->212
+witch              x1.17  hp 460->498; damage 90->97; sub_hp_mult 1.00->1.08; sub_dmg_mult 1.00->1.08
+wizard             x1.29  hp 340->371; damage 130->153
+xbow               x1.59  hp 1000->1260; damage 26->33
+zappies            x1.11  hp 140->148; damage 48->51

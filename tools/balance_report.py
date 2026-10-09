@@ -65,7 +65,7 @@ def main(before_p, after_p, factors_p, notes=""):
             pb -= B.SPELL_TARGET
             pa -= B.SPELL_TARGET
         flag = ""
-        if f <= B.F_MIN + 1e-3 or f >= B.F_MAX - 1e-3:
+        if f <= 0.25 or f >= B.F_MAX - 0.05:
             flag = " ⚠"
         lines.append("| %s | %d | %+.2f | %+.2f | x%.2f%s | %s |" % (
             c.name, c.elixir, pb, pa, f, flag, stat_line(key, f)))
