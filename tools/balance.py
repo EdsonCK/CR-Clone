@@ -472,7 +472,8 @@ def matrix(snapshot, procs=4):
 # ===========================================================================
 #  tuning (one round against a frozen snapshot)
 # ===========================================================================
-F_MIN, F_MAX = 0.3, 1.6     # total power change allowed: nerf to x0.3, buff to x1.6
+F_MIN = float(os.environ.get("F_MIN", "0.3"))  # most a card may be nerfed (total)
+F_MAX = 1.6                 # most a card may be buffed (total)
                             # (cards whose value is mostly outside a 1-v-1 fight -
                             #  huts, siege, spirits - would otherwise inflate)
 SPELL_TARGET = 0.0    # set from the baseline: median spell performance
@@ -528,6 +529,9 @@ def _tune_job(args):
 
 def tune(snapshot, procs=4, skip=()):
     keys = [k for k in pool() if k not in skip]
+    only = os.environ.get("ONLY")            # tune just these cards (comma list)
+    if only:
+        keys = [k for k in keys if k in only.split(",")]
     jobs = [(x, snapshot, keys) for x in keys]
     out = {}
     with mp.Pool(procs) as p:

@@ -9,3 +9,4 @@ tools/balance_data/*.log
 tools/balance_data/*.sh
 tools/balance_data/pipeline.done
 tools/balance_data/pipeline2.done
+tools/balance_data/final.done
