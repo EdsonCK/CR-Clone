@@ -22,19 +22,48 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 ## How to play
 
 1. **Battle** from the main menu opens the **Battle Setup** screen, where you
-   pick the AI's **difficulty** (Easy / Medium / Hard — Hard is the original,
-   punishing tuning), then hit **Start Battle**.
-   * The AI's deck is chosen on the separate **AI Deck** menu (from the main
-     menu, or "Change AI Deck" in Battle Setup). Pick from 11 archetype decks
+   pick the AI's **difficulty** (Easy / Medium / Hard / Master / Insane — Hard
+   is the original, punishing tuning), see both decks, then hit
+   **Start Battle!**
+   * **Change AI Deck** opens the AI Deck screen; **Back to Battle Setup**
+     returns you straight to the battle screen. Pick from 11 archetype decks
      (Hog Cycle, P.E.K.K.A Bridge, Golem Beatdown, Classic, Log Bait, Miner
      Control, Lava Loon, X-Bow, Sparky GG, MK Bats WB, Royal Giant),
      **Random**, or build your own **Custom** AI deck.
+   * **Edit My Deck** opens your deck editor and comes back here too.
 2. Click a card in your hand (bottom bar), then click **your side** of the
    arena to deploy it. Right-click (or click the card again) cancels.
 3. Elixir refills over time (max 10). It **doubles** in the last minute and
    **triples** in overtime.
 4. Destroy more enemy towers than the AI before time runs out. Destroying the
    **King Tower** is an instant win. A tie goes to **overtime** (sudden death).
+5. After a match, **Play Again** rematches with the same settings.
+
+### Deck editor
+
+Your 8 cards sit at the top in two rows of four. Below is the full collection.
+
+* **Left-click** a card to add it (or remove it if it's already in your deck).
+* **Right-click** removes a card (in the collection or in your 8 slots).
+* The **mouse wheel** only scrolls; you can also drag the scrollbar.
+* Hover a card to see its stats. **Cancel** / Esc leaves without saving.
+* Max 1 Champion per deck.
+
+### Champions
+
+Once a champion is on the field, the yellow button (bottom-left of the arena)
+activates its ability for a little extra elixir.
+
+| Champion | Passive | Ability |
+|---|---|---|
+| Mighty Miner | Drill ramps up in 3 damage stages on one target | **Explosive Escape**: drops a bomb, burrows to the mirrored spot in the other lane |
+| Archer Queen | — | **Cloaking Cape**: invisible + double attack speed |
+| Little Prince | Shoots faster the longer he attacks | **Royal Rescue**: the Guardian charges in, knocking enemies back |
+| Golden Knight | — | **Dashing Dash**: chain-dashes through up to 10 enemies |
+| Skeleton King | Collects souls from nearby deaths | **Soul Summoning**: 6 skeletons + 1 per soul (max 16) |
+| Monk | Every 3rd hit is a knockback combo | **Pensive Protection**: −80% damage taken, reflects projectiles |
+| Goblinstein | Doctor + Monster deploy together | **Lightning Link**: damaging beam between the two |
+| Boss Bandit | Dashes onto targets, invulnerable mid-dash | **Getaway Grenade**: smoke bomb, vanishes and leaps back |
 
 The AI is deliberately given an **elixir/tempo advantage** (a simple AI can't
 out-skill a real player) — all of that is tunable, see below.
@@ -109,6 +138,6 @@ game modes yet — base cards only, as requested.)
 ## Notes / simplifications
 
 - Some ultra-unique mechanics are approximated to keep the engine readable
-  (e.g. charge, shields, and ramping damage are simplified). Tune or extend
+  (e.g. charge, shields, dashes and champion abilities are simplified). Tune or extend
   them in `engine.py` if you want more fidelity.
 - Troops don't physically collide/push each other yet (they can overlap).

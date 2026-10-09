@@ -4,10 +4,12 @@
 ============================================================================
 
 Screens:
-  * MENU  -- Battle / Edit Deck / How To Play / Quit
-  * DECK  -- pick your 8 cards
-  * MATCH -- the live battle (arena + HUD)
-  * RESULT-- victory / defeat / draw
+  * MENU     -- Battle / Edit Deck / AI Deck / Records / How To Play / Quit
+  * PREMATCH -- Battle Setup: difficulty, both decks, Start Battle
+  * AIDECK   -- choose the AI's deck (returns to wherever you came from)
+  * DECK     -- pick 8 cards (left-click add/remove, right-click remove)
+  * MATCH    -- the live battle (arena + HUD)
+  * RESULT   -- victory / defeat / draw, Play Again / Main Menu
 
 Controls in a match:
   * Click a card in your hand (bottom), then click the arena to deploy it.
@@ -84,6 +86,12 @@ PROJ_STYLES = {
 
 
 STEEL_COL = (225, 228, 236)
+
+# Colour of chain / link lightning per source card (default electric blue).
+CHAIN_COLORS = {
+    "golden_knight": (255, 210, 80),
+    "goblinstein": (150, 255, 170),
+}
 
 
 def dk_c(c, n=40):
@@ -164,6 +172,9 @@ class Game:
         self.deck_scroll = 0        # vertical scroll offset in the deck builder
         self.deck_mode = "player"   # "player" or "ai" - which deck is being edited
         self.deck_return = "menu"   # screen to return to after editing a deck
+        self.deck_backup = []       # deck as it was when the editor opened
+        self.deck_drag = False      # dragging the deck-builder scrollbar
+        self.aideck_return = "menu" # where the AI Deck screen goes back to
         self.stats = self._load_stats()   # per-difficulty crown/win records
 
         self._build_menu_buttons()
@@ -278,8 +289,8 @@ class Game:
         gap = 50
         labels = [
             ("Battle", self._open_prematch),
-            ("Edit Deck", self._open_player_deck),
-            ("AI Deck", lambda: self._goto("aideck")),
+            ("Edit Deck", lambda: self._open_player_deck("menu")),
+            ("AI Deck", lambda: self._open_aideck("menu")),
             ("Records", lambda: self._goto("records")),
             ("How To Play", lambda: self._goto("help")),
             ("Quit", self._quit),
@@ -289,19 +300,26 @@ class Game:
             for i, (lbl, cb) in enumerate(labels)
         ]
 
-    def _open_player_deck(self):
-        self.deck_mode = "player"
-        self.deck_return = "menu"
+    def _open_deck_editor(self, mode, return_to):
+        self.deck_mode = mode
+        self.deck_return = return_to
         self.deck_scroll = 0
         self.deck_msg = ""
+        self.deck_drag = False
+        self.deck_backup = list(self._active_deck())
         self.state = "deck"
 
+    def _open_player_deck(self, return_to="menu"):
+        self._open_deck_editor("player", return_to)
+
     def _open_ai_custom_deck(self):
-        self.deck_mode = "ai"
-        self.deck_return = "aideck"
-        self.deck_scroll = 0
-        self.deck_msg = ""
-        self.state = "deck"
+        # returns to the AI Deck screen, which still remembers where IT
+        # should go back to (main menu or Battle Setup)
+        self._open_deck_editor("ai", "aideck")
+
+    def _open_aideck(self, return_to="menu"):
+        self.aideck_return = return_to
+        self.state = "aideck"
 
     def _goto(self, state):
         self.state = state
@@ -311,14 +329,15 @@ class Game:
 
     def _open_prematch(self):
         if len(self.player_deck) != cfg.DECK_SIZE:
+            self._open_player_deck("prematch")
             self.deck_msg = "Pick 8 cards first!"
-            self.state = "deck"
             return
         self.state = "prematch"
 
     def _begin_battle(self):
         if len(self.player_deck) != cfg.DECK_SIZE:
-            self._open_player_deck()
+            self._open_player_deck("prematch")
+            self.deck_msg = "Pick 8 cards first!"
             return
         cfg.apply_difficulty(self.difficulty)
         self.match = Match(self.player_deck, self._resolve_ai_deck())
@@ -383,15 +402,31 @@ class Game:
                     if self.state == "match":
                         self.state = "menu"
                     elif self.state == "deck":
-                        self.state = self.deck_return
-                    elif self.state in ("help", "result", "prematch", "aideck",
-                                        "records"):
+                        self._deck_cancel()
+                    elif self.state == "aideck":
+                        self.state = self.aideck_return
+                    elif self.state in ("help", "result", "prematch", "records"):
                         self.state = "menu"
             elif e.type == pygame.MOUSEWHEEL:
+                # the wheel ONLY scrolls - it never selects anything
                 if self.state == "deck":
-                    self.deck_scroll = max(0, min(self._deck_max_scroll(),
-                                                  self.deck_scroll - e.y * 40))
+                    self._deck_set_scroll(self.deck_scroll - e.y * 48)
+            elif e.type == pygame.MOUSEBUTTONUP:
+                if e.button == 1:
+                    self.deck_drag = False
+            elif e.type == pygame.MOUSEMOTION:
+                if self.state == "deck" and self.deck_drag:
+                    self._deck_drag_to(e.pos[1])
             elif e.type == pygame.MOUSEBUTTONDOWN:
+                # pygame reports wheel turns as buttons 4-7 as well; those
+                # must never count as clicks (it used to toggle cards)
+                if e.button not in (1, 3):
+                    continue
+                if self.state == "deck":
+                    self._deck_click(e.pos, e.button)
+                    continue
+                if e.button == 3 and self.state != "match":
+                    continue      # right-click only means something in decks/match
                 if self.state == "menu":
                     for b in self.menu_buttons:
                         b.click(e.pos)
@@ -399,14 +434,12 @@ class Game:
                     self._prematch_click(e.pos)
                 elif self.state == "aideck":
                     self._aideck_click(e.pos)
-                elif self.state == "deck":
-                    self._deck_click(e.pos)
                 elif self.state == "help":
                     self.state = "menu"
                 elif self.state == "records":
                     self.state = "menu"
                 elif self.state == "result":
-                    self.state = "menu"
+                    self._result_click(e.pos)
                 elif self.state == "match":
                     self._match_click(e.pos, e.button)
 
@@ -465,11 +498,13 @@ class Game:
         cx = cfg.WINDOW_W // 2
         bw = (cfg.WINDOW_W - 16 * 2 - 12) // 2
         return [
-            Button((16, cfg.WINDOW_H - 116, bw, 46), "Change AI Deck",
-                   lambda: self._goto("aideck")),
-            Button((cfg.WINDOW_W - 16 - bw, cfg.WINDOW_H - 116, bw, 46),
-                   "Start Battle", self._begin_battle),
-            Button((cx - 60, cfg.WINDOW_H - 58, 120, 34), "Back",
+            Button((16, cfg.WINDOW_H - 168, bw, 40), "Change AI Deck",
+                   lambda: self._open_aideck("prematch")),
+            Button((cfg.WINDOW_W - 16 - bw, cfg.WINDOW_H - 168, bw, 40),
+                   "Edit My Deck", lambda: self._open_player_deck("prematch")),
+            Button((16, cfg.WINDOW_H - 116, cfg.WINDOW_W - 32, 48),
+                   "Start Battle!", self._begin_battle),
+            Button((cx - 60, cfg.WINDOW_H - 56, 120, 34), "Back",
                    lambda: self._goto("menu")),
         ]
 
@@ -490,7 +525,7 @@ class Game:
         opts = self._aideck_options()
         cols = 2
         w = (cfg.WINDOW_W - 32 - 8) // cols
-        h, gap_y, top = 30, 6, 56
+        h, gap_y, top = 30, 6, 60
         rects = []
         for i, name in enumerate(opts):
             r, c = divmod(i, cols)
@@ -499,12 +534,20 @@ class Game:
 
     def _aideck_buttons(self):
         cx = cfg.WINDOW_W // 2
-        return [
-            Button((cx - 115, cfg.WINDOW_H - 104, 230, 40),
-                   "Build / Edit Custom Deck", self._open_ai_custom_deck),
-            Button((cx - 60, cfg.WINDOW_H - 52, 120, 34), "Back",
-                   lambda: self._goto("menu")),
-        ]
+        btns = [Button((cx - 115, cfg.WINDOW_H - 112, 230, 40),
+                       "Build / Edit Custom Deck", self._open_ai_custom_deck)]
+        y = cfg.WINDOW_H - 58
+        if self.aideck_return == "prematch":
+            # came here from Battle Setup -> go straight back to it
+            btns.append(Button((cx - 110, y, 220, 40), "Back to Battle Setup",
+                               lambda: self._goto("prematch")))
+        else:
+            bw = (cfg.WINDOW_W - 32 - 12) // 2
+            btns.append(Button((16, y, bw, 40), "Main Menu",
+                               lambda: self._goto("menu")))
+            btns.append(Button((cfg.WINDOW_W - 16 - bw, y, bw, 40),
+                               "Battle Setup", self._open_prematch))
+        return btns
 
     def _aideck_click(self, pos):
         for r, name in self._aideck_preset_rects():
@@ -518,7 +561,9 @@ class Game:
     def _draw_aideck(self):
         cx = cfg.WINDOW_W // 2
         mouse = pygame.mouse.get_pos()
-        self._text("AI Deck", self.font_l, (240, 220, 120), center=(cx, 26))
+        self._text("AI Deck", self.font_l, (240, 220, 120), center=(cx, 24))
+        self._text("Pick the deck the AI will play", self.font_s,
+                   (170, 178, 195), center=(cx, 44))
         rects = self._aideck_preset_rects()
         for r, name in rects:
             sel = (self.ai_deck_choice == name)
@@ -556,46 +601,73 @@ class Game:
             b.draw(self.screen, self.font_s)
 
     # ================================================================= DECK INPUT
+    # Layout (top to bottom): title, your 8 cards as 2 rows of 4 big slots,
+    # an info line, the scrollable card collection, then the buttons.
     DECK_COLS = 6
-    DECK_CELL_H = 60
+    DECK_CELL_H = 74
+    DECK_ICON = 40          # collection icon size (was 30)
+    SLOT_ICON = 56          # icon size of your 8 chosen cards
+    DECK_MARGIN = 12
+
+    def _deck_slot_rects(self):
+        """Your 8 chosen cards: 2 rows of 4 large slots at the top."""
+        m, gap = self.DECK_MARGIN, 8
+        w = (cfg.WINDOW_W - m * 2 - gap * 3) // 4
+        h = 78
+        top = 58
+        return [pygame.Rect(m + (i % 4) * (w + gap), top + (i // 4) * (h + gap), w, h)
+                for i in range(cfg.DECK_SIZE)]
 
     def _deck_viewport(self):
-        return 52, cfg.WINDOW_H - 112   # (top, bottom) y of the scrollable grid
+        """(top, bottom) y of the scrollable card collection."""
+        slots = self._deck_slot_rects()
+        return slots[-1].bottom + 34, cfg.WINDOW_H - 50
 
     def _deck_max_scroll(self):
         rows = (len(cards.DEPLOYABLE_CARDS) + self.DECK_COLS - 1) // self.DECK_COLS
         top, bottom = self._deck_viewport()
         return max(0, rows * self.DECK_CELL_H - (bottom - top) + 6)
 
+    def _deck_set_scroll(self, v):
+        self.deck_scroll = int(max(0, min(self._deck_max_scroll(), v)))
+
+    def _deck_scrollbar_track(self):
+        top, bottom = self._deck_viewport()
+        return pygame.Rect(cfg.WINDOW_W - 11, top, 10, bottom - top)
+
+    def _deck_drag_to(self, y):
+        top, bottom = self._deck_viewport()
+        frac = (y - top) / max(1, bottom - top)
+        self._deck_set_scroll(frac * self._deck_max_scroll())
+
     def _deck_grid(self):
-        margin = 12
-        cell_w = (cfg.WINDOW_W - margin * 2) // self.DECK_COLS
+        m = self.DECK_MARGIN
+        cell_w = (cfg.WINDOW_W - m * 2) // self.DECK_COLS
         top, _ = self._deck_viewport()
         rects = []
         for idx, card in enumerate(cards.DEPLOYABLE_CARDS):
             r = idx // self.DECK_COLS
             c = idx % self.DECK_COLS
             y = top + r * self.DECK_CELL_H - self.deck_scroll
-            rects.append((pygame.Rect(margin + c * cell_w, y,
+            rects.append((pygame.Rect(m + c * cell_w, y,
                                       cell_w - 4, self.DECK_CELL_H - 4), card))
         return rects
 
-    def _deck_slot_rects(self):
-        n = cfg.DECK_SIZE
-        slot_w = 40
-        gap = 4
-        total = n * slot_w + (n - 1) * gap
-        x0 = (cfg.WINDOW_W - total) // 2
-        y0 = cfg.WINDOW_H - 96
-        return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 52) for i in range(n)]
-
     def _deck_buttons(self):
-        y = cfg.WINDOW_H - 36
-        return [
-            Button((12, y, 110, 28), "Save & Back", self._deck_save_back),
-            Button((132, y, 80, 28), "Clear", self._deck_clear),
-            Button((222, y, 90, 28), "Default", self._deck_default),
-        ]
+        y = cfg.WINDOW_H - 40
+        m = self.DECK_MARGIN
+        widths = [112, 70, 78]
+        gap = (cfg.WINDOW_W - 2 * m - sum(widths) - 78) // 3
+        x = m
+        out = []
+        for w, (lbl, cb) in zip(widths + [78],
+                                [("Save & Back", self._deck_save_back),
+                                 ("Clear", self._deck_clear),
+                                 ("Default", self._deck_default),
+                                 ("Cancel", self._deck_cancel)]):
+            out.append(Button((x, y, w, 30), lbl, cb))
+            x += w + gap
+        return out
 
     def _deck_save_back(self):
         if len(self._active_deck()) == cfg.DECK_SIZE:
@@ -607,39 +679,94 @@ class Game:
         else:
             self.deck_msg = "Deck must have exactly 8 cards."
 
+    def _deck_cancel(self):
+        """Leave without saving (restores the deck as it was)."""
+        self._set_active_deck(list(self.deck_backup))
+        self.deck_msg = ""
+        self.deck_drag = False
+        if self.deck_return == "prematch" and len(self.player_deck) != cfg.DECK_SIZE:
+            self.state = "menu"
+        else:
+            self.state = self.deck_return
+
     def _deck_clear(self):
         self._set_active_deck([])
+        self.deck_msg = ""
 
     def _deck_default(self):
         d = cards.DEFAULT_AI_DECK if self.deck_mode == "ai" else cards.DEFAULT_PLAYER_DECK
         self._set_active_deck(list(d))
+        self.deck_msg = ""
 
-    def _deck_click(self, pos):
+    def _deck_add(self, card):
         deck = self._active_deck()
-        for b in self._deck_buttons():
-            if b.click(pos):
+        if card.key in deck:
+            return
+        if len(deck) >= cfg.DECK_SIZE:
+            self.deck_msg = "Deck is full - remove a card first."
+            return
+        if card.is_champion and any(cards.CARDS[k].is_champion for k in deck):
+            self.deck_msg = "Only 1 Champion per deck."
+            return
+        deck.append(card.key)
+        self.deck_msg = ""
+
+    def _deck_click(self, pos, button=1):
+        """Left click: add / remove.  Right click: remove only.
+        (Mouse-wheel events never get here - they only scroll.)"""
+        deck = self._active_deck()
+        if button == 1:
+            for b in self._deck_buttons():
+                if b.click(pos):
+                    return
+            if self._deck_scrollbar_track().collidepoint(pos):
+                self.deck_drag = True
+                self._deck_drag_to(pos[1])
                 return
-        # remove from deck slots
+        # your 8 cards: either button removes
         for i, r in enumerate(self._deck_slot_rects()):
-            if r.collidepoint(pos) and i < len(deck):
-                deck.pop(i)
+            if r.collidepoint(pos):
+                if i < len(deck):
+                    deck.pop(i)
+                    self.deck_msg = ""
                 return
-        # add/remove from grid (only within the scrollable viewport)
+        # card collection (only within the scrollable viewport)
         top, bottom = self._deck_viewport()
         if top <= pos[1] <= bottom:
             for r, card in self._deck_grid():
                 if r.collidepoint(pos):
                     if card.key in deck:
                         deck.remove(card.key)
-                    elif len(deck) < cfg.DECK_SIZE:
-                        # only one champion allowed per deck
-                        if card.is_champion and any(
-                                cards.CARDS[k].is_champion for k in deck):
-                            self.deck_msg = "Only 1 Champion per deck."
-                            return
-                        deck.append(card.key)
                         self.deck_msg = ""
+                    elif button == 1:
+                        self._deck_add(card)
                     return
+
+    def _deck_hover_card(self):
+        mouse = pygame.mouse.get_pos()
+        deck = self._active_deck()
+        for i, r in enumerate(self._deck_slot_rects()):
+            if r.collidepoint(mouse) and i < len(deck):
+                return cards.CARDS[deck[i]]
+        top, bottom = self._deck_viewport()
+        if top <= mouse[1] <= bottom:
+            for r, card in self._deck_grid():
+                if r.collidepoint(mouse):
+                    return card
+        return None
+
+    # ================================================================= RESULT
+    def _result_buttons(self):
+        cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
+        return [Button((cx - 132, cy + 40, 124, 36), "Play Again",
+                       self._begin_battle),
+                Button((cx + 8, cy + 40, 124, 36), "Main Menu",
+                       lambda: self._goto("menu"))]
+
+    def _result_click(self, pos):
+        for b in self._result_buttons():
+            if b.click(pos):
+                return
 
     # ================================================================= DRAW
     def _draw(self):
@@ -727,28 +854,40 @@ class Game:
         self._text(cfg.DIFFICULTY_DESC.get(self.difficulty, ""), self.font_s,
                    (190, 190, 190), center=(cx, 200))
 
-        # AI deck (chosen on the AI Deck screen; shown read-only here)
-        self._text("AI Deck:  " + self.ai_deck_choice, self.font_m,
-                   (150, 200, 240), topleft=(16, 226))
-        py = 274
-        preview = self._ai_deck_preview_cards()
-        if preview is None:
-            self._text("A different random 8-card deck each match.",
-                       self.font_s, cfg.COLOR_TEXT, topleft=(16, py))
-        else:
-            sz = 38
-            gap = max(2, min(12, (cfg.WINDOW_W - 32 - sz * len(preview)) //
-                             max(1, len(preview) - 1)))
-            x = 16
-            for k in preview:
-                self.screen.blit(sprites.get_sprite(k, sz), (x, py))
-                x += sz + gap
-            avg = sum(cards.CARDS[k].elixir for k in preview) / len(preview)
-            self._text("avg elixir %.1f" % avg, self.font_s, (190, 190, 190),
-                       topleft=(16, py + sz + 6))
+        # AI deck (chosen on the AI Deck screen) and your own deck
+        self._deck_preview_panel(222, "AI Deck:  " + self.ai_deck_choice,
+                                 (240, 150, 150), self._ai_deck_preview_cards())
+        self._deck_preview_panel(338, "Your Deck", (150, 200, 240),
+                                 self.player_deck)
 
         for b in self._prematch_buttons():
             b.draw(self.screen, self.font_m)
+
+    def _deck_preview_panel(self, y, label, col, deck):
+        """Framed strip showing an 8-card deck (None = random deck)."""
+        panel = pygame.Rect(12, y, cfg.WINDOW_W - 24, 104)
+        pygame.draw.rect(self.screen, (28, 32, 46), panel, border_radius=10)
+        pygame.draw.rect(self.screen, dk_c(col, 60), panel, 1, border_radius=10)
+        self._text(label, self.font_m, col, topleft=(panel.x + 10, y + 6))
+        if deck is None:
+            self._text("A different random 8-card deck each match.",
+                       self.font_s, cfg.COLOR_TEXT, topleft=(panel.x + 10, y + 44))
+            return
+        if deck:
+            avg = sum(cards.CARDS[k].elixir for k in deck) / len(deck)
+            self._text("avg %.1f" % avg, self.font_s, (190, 190, 190),
+                       topleft=(panel.right - 60, y + 9))
+        if len(deck) != cfg.DECK_SIZE:
+            self._text("Needs 8 cards - edit it first.", self.font_s,
+                       (240, 180, 120), topleft=(panel.x + 10, y + 44))
+            return
+        sz = 38
+        gap = (panel.w - 20 - sz * 8) // 7
+        for i, k in enumerate(deck):
+            x = panel.x + 10 + i * (sz + gap)
+            self.screen.blit(sprites.get_sprite(k, sz), (x, y + 32))
+            self._text(str(cards.CARDS[k].elixir), self.font_s, cfg.COLOR_ELIXIR,
+                       center=(x + sz // 2, y + 82))
 
     def _draw_records(self):
         cx = cfg.WINDOW_W // 2
@@ -804,6 +943,12 @@ class Game:
             "side of the arena to deploy it.",
             "Right-click cancels the selected card.",
             "",
+            "Champions (max 1 per deck): once deployed, the",
+            "yellow button bottom-left fires their ability.",
+            "",
+            "Deck editor: click to add/remove, right-click",
+            "to remove, mouse wheel or the bar to scroll.",
+            "",
             "Elixir refills over time (max 10). It doubles",
             "in the last minute and triples in overtime.",
             "",
@@ -818,58 +963,137 @@ class Game:
             y += 22
 
     # --------------------------------------------------------- deck screen
+    @staticmethod
+    def _fit(text, font, maxw):
+        """Shorten `text` with a trailing '.' until it fits in maxw pixels."""
+        if font.size(text)[0] <= maxw:
+            return text
+        while len(text) > 2 and font.size(text + ".")[0] > maxw:
+            text = text[:-1]
+        return text.rstrip() + "."
+
+    def _elixir_badge(self, x, y, cost, r=9):
+        pygame.draw.circle(self.screen, dk_c(cfg.COLOR_ELIXIR, 50), (x + 1, y + 1), r)
+        pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (x, y), r)
+        pygame.draw.circle(self.screen, lt_c(cfg.COLOR_ELIXIR, 60), (x, y), r, 1)
+        self._text(str(cost), self.font_s, (255, 255, 255), center=(x, y))
+
     def _draw_deck(self):
         cx = cfg.WINDOW_W // 2
         deck = self._active_deck()
-        title = "Edit AI Deck" if self.deck_mode == "ai" else "Edit Your Deck"
-        self._text("%s  (%d/8)" % (title, len(deck)), self.font_l,
-                   (240, 220, 120), center=(cx, 22))
-        self._text("%d cards available" % len(cards.DEPLOYABLE_CARDS),
-                   self.font_s, (170, 178, 195), center=(cx, 42))
         mouse = pygame.mouse.get_pos()
+        title = "Edit AI Deck" if self.deck_mode == "ai" else "Edit Your Deck"
+        self._text(title, self.font_l, (240, 220, 120), center=(cx, 22))
+        avg = (sum(cards.CARDS[k].elixir for k in deck) / len(deck) if deck else 0)
+        full = len(deck) == cfg.DECK_SIZE
+        self._text("%d/8 cards   |   avg elixir %.1f   |   %d available"
+                   % (len(deck), avg, len(cards.DEPLOYABLE_CARDS)),
+                   self.font_s, (150, 230, 150) if full else (170, 178, 195),
+                   center=(cx, 45))
+
+        # ---- your 8 cards: 2 rows x 4 big slots ----
+        for i, r in enumerate(self._deck_slot_rects()):
+            filled = i < len(deck)
+            hover = r.collidepoint(mouse) and filled
+            pygame.draw.rect(self.screen, (16, 18, 26), r.move(0, 3), border_radius=9)
+            if not filled:
+                pygame.draw.rect(self.screen, (30, 34, 44), r, border_radius=9)
+                pygame.draw.rect(self.screen, (64, 72, 92), r, 1, border_radius=9)
+                self._text("+", self.font_l, (64, 72, 92), center=r.center)
+                continue
+            card = cards.CARDS[deck[i]]
+            bg = (92, 58, 58) if hover else ((78, 66, 40) if card.is_champion
+                                             else (48, 58, 80))
+            pygame.draw.rect(self.screen, bg, r, border_radius=9)
+            pygame.draw.rect(self.screen, lt_c(bg, 14),
+                             (r.x + 2, r.y + 2, r.w - 4, r.h // 2), border_radius=7)
+            border = (245, 205, 85) if card.is_champion else (110, 124, 156)
+            if hover:
+                border = (240, 120, 120)
+            pygame.draw.rect(self.screen, border, r, 2, border_radius=9)
+            sz = self.SLOT_ICON
+            self.screen.blit(sprites.get_sprite(card.key, sz),
+                             (r.centerx - sz // 2, r.y + 3))
+            self._elixir_badge(r.x + 11, r.y + 11, card.elixir)
+            self._text(self._fit(card.name, self.font_s, r.w - 6), self.font_s,
+                       cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 10))
+            if hover:   # "click to remove" mark
+                xr = (r.right - 11, r.y + 11)
+                pygame.draw.circle(self.screen, (200, 70, 70), xr, 8)
+                pygame.draw.line(self.screen, (255, 255, 255), (xr[0] - 3, xr[1] - 3),
+                                 (xr[0] + 3, xr[1] + 3), 2)
+                pygame.draw.line(self.screen, (255, 255, 255), (xr[0] - 3, xr[1] + 3),
+                                 (xr[0] + 3, xr[1] - 3), 2)
+
+        # ---- info line: message > hovered card > controls hint ----
         top, bottom = self._deck_viewport()
+        info_y = top - 17
+        hc = self._deck_hover_card()
+        if self.deck_msg:
+            self._text(self.deck_msg, self.font_m, (240, 140, 140), center=(cx, info_y))
+        elif hc is not None:
+            if hc.category == "spell":
+                stats = "Spell"
+                if hc.spell_damage:
+                    stats += "  |  dmg %d" % hc.spell_damage
+            else:
+                kind = "Champion" if hc.is_champion else hc.category.title()
+                stats = "%s  |  HP %d  |  dmg %d" % (kind, hc.hp, hc.damage)
+                if hc.count > 1:
+                    stats += "  x%d" % hc.count
+            if hc.is_champion:
+                stats += "  |  " + hc.ability_name
+            line = "%s (%d):  %s" % (hc.name, hc.elixir, stats)
+            self._text(self._fit(line, self.font_s, cfg.WINDOW_W - 20), self.font_s,
+                       (225, 225, 200), center=(cx, info_y))
+        else:
+            self._text("Click: add / remove    Right-click: remove    Wheel: scroll",
+                       self.font_s, (150, 158, 178), center=(cx, info_y))
+        pygame.draw.line(self.screen, (60, 66, 88), (12, top - 4),
+                         (cfg.WINDOW_W - 12, top - 4), 1)
+
+        # ---- card collection ----
         self.screen.set_clip(pygame.Rect(0, top, cfg.WINDOW_W, bottom - top))
+        sz = self.DECK_ICON
         for r, card in self._deck_grid():
             if r.bottom < top or r.top > bottom:
                 continue   # off-screen; skip
             in_deck = card.key in deck
-            bg = (70, 110, 80) if in_deck else (44, 50, 62)
-            if r.collidepoint(mouse):
-                bg = tuple(min(255, c + 20) for c in bg)
+            bg = (62, 104, 74) if in_deck else (44, 50, 62)
             if card.is_champion:   # gold-tinted cell + border for champions
                 bg = (120, 100, 55) if in_deck else (74, 64, 40)
-            pygame.draw.rect(self.screen, bg, r, border_radius=6)
+            if r.collidepoint(mouse) and top <= mouse[1] <= bottom:
+                bg = lt_c(bg, 20)
+            pygame.draw.rect(self.screen, bg, r, border_radius=7)
             if card.is_champion:
-                pygame.draw.rect(self.screen, (245, 205, 85), r, 1, border_radius=6)
-            spr = sprites.get_sprite(card.key, 30)
-            self.screen.blit(spr, (r.x + 4, r.y + 4))
-            self._text(str(card.elixir), self.font_m, cfg.COLOR_ELIXIR,
-                       topleft=(r.right - 14, r.y + 2))
-            name = card.name if len(card.name) <= 12 else card.name[:11] + "."
-            self._text(name, self.font_s, cfg.COLOR_TEXT, topleft=(r.x + 2, r.bottom - 16))
+                pygame.draw.rect(self.screen, (245, 205, 85), r, 1, border_radius=7)
+            elif in_deck:
+                pygame.draw.rect(self.screen, (130, 220, 140), r, 2, border_radius=7)
+            self.screen.blit(sprites.get_sprite(card.key, sz),
+                             (r.centerx - sz // 2, r.y + 6))
+            self._elixir_badge(r.x + 9, r.y + 9, card.elixir, r=8)
+            if in_deck:            # check mark
+                ck = (r.right - 9, r.y + 9)
+                pygame.draw.circle(self.screen, (70, 170, 90), ck, 7)
+                pygame.draw.lines(self.screen, (255, 255, 255), False,
+                                  [(ck[0] - 3, ck[1]), (ck[0] - 1, ck[1] + 3),
+                                   (ck[0] + 4, ck[1] - 3)], 2)
+            self._text(self._fit(card.name, self.font_s, r.w - 4), self.font_s,
+                       cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
         self.screen.set_clip(None)
-        # scrollbar
+
+        # ---- scrollbar (drag it, or use the mouse wheel) ----
         max_scroll = self._deck_max_scroll()
         if max_scroll > 0:
-            track_h = bottom - top
-            frac = track_h / (track_h + max_scroll)
-            bar_h = max(24, int(track_h * frac))
-            bar_y = top + int((track_h - bar_h) * self.deck_scroll / max_scroll)
-            pygame.draw.rect(self.screen, (90, 100, 120),
-                             (cfg.WINDOW_W - 6, bar_y, 4, bar_h), border_radius=2)
-        # deck slots
-        for i, r in enumerate(self._deck_slot_rects()):
-            pygame.draw.rect(self.screen, (30, 34, 44), r, border_radius=6)
-            pygame.draw.rect(self.screen, (80, 90, 110), r, 1, border_radius=6)
-            if i < len(deck):
-                spr = sprites.get_sprite(deck[i], 34)
-                self.screen.blit(spr, (r.x + 3, r.y + 3))
-        avg = (sum(cards.CARDS[k].elixir for k in deck) / len(deck) if deck else 0)
-        self._text("Avg elixir: %.1f" % avg, self.font_s, cfg.COLOR_TEXT,
-                   topleft=(cfg.WINDOW_W - 100, cfg.WINDOW_H - 110))
-        if self.deck_msg:
-            self._text(self.deck_msg, self.font_s, (240, 140, 140),
-                       topleft=(16, cfg.WINDOW_H - 110))
+            track = self._deck_scrollbar_track()
+            pygame.draw.rect(self.screen, (34, 38, 52), track.inflate(-4, 0),
+                             border_radius=3)
+            frac = track.h / (track.h + max_scroll)
+            bar_h = max(30, int(track.h * frac))
+            bar_y = track.y + int((track.h - bar_h) * self.deck_scroll / max_scroll)
+            col = (170, 180, 210) if self.deck_drag else (110, 120, 145)
+            pygame.draw.rect(self.screen, col, (track.x + 2, bar_y, track.w - 4, bar_h),
+                             border_radius=3)
         for b in self._deck_buttons():
             b.draw(self.screen, self.font_s)
 
@@ -967,6 +1191,28 @@ class Game:
         base = (2.6 if e.is_building else 1.5) * cfg.TILE_SIZE
         size = int(base * sprites.render_scale(e.key))
         cloaked = e.invis_timer > 0
+        dashing = e.dash is not None
+        # dash streak (Bandit, Golden Knight, Guardian charge...)
+        if dashing:
+            sx, sy = tile_to_px(e.dash["sx"], e.dash["sy"])
+            col = (255, 215, 90) if e.card.is_champion else self._team_color(e.team)
+            streak = pygame.Surface((cfg.WINDOW_W, cfg.WINDOW_H), pygame.SRCALPHA)
+            pygame.draw.line(streak, col + (90,), (sx, sy), (px, py), max(4, size // 3))
+            self.screen.blit(streak, (0, 0))
+        # airborne lift: Mega Knight jump arc, Hog Rider vaulting the river
+        lift = 0
+        if dashing and e.card.dash_damage:
+            done = dist(e.dash["sx"], e.dash["sy"], e.x, e.y)
+            left = dist(e.x, e.y, e.dash["tx"], e.dash["ty"])
+            lift = int(math.sin(math.pi * done / max(done + left, 1e-6)) * 26)
+        elif e.card.river_jump and RIVER_TOP <= e.y <= RIVER_BOTTOM:
+            f = (e.y - RIVER_TOP) / max(RIVER_BOTTOM - RIVER_TOP, 1e-6)
+            lift = int(math.sin(math.pi * f) * 14)
+        if lift:
+            sh = pygame.Surface((size, size // 3), pygame.SRCALPHA)
+            pygame.draw.ellipse(sh, (0, 0, 0, 70), sh.get_rect())
+            self.screen.blit(sh, (px - size // 2, py + size // 4))
+        py -= lift
         # team ring (gold for champions)
         ring = (245, 205, 85) if e.card.is_champion else self._team_color(e.team)
         pygame.draw.circle(self.screen, ring, (int(px), int(py)), size // 2 + 2, 3)
@@ -975,9 +1221,17 @@ class Game:
             spr = spr.copy()
             spr.set_alpha(110 if cloaked else 200)
         self.screen.blit(spr, (px - size // 2, py - size // 2))
-        if e.immune_timer > 0:   # shield shimmer
+        if e.immune_timer > 0 or (dashing and e.dash.get("immune")):   # shimmer
             pygame.draw.circle(self.screen, (180, 230, 255),
                                (int(px), int(py)), size // 2 + 4, 2)
+        if e.protect_timer > 0:   # Monk's Pensive Protection: golden bubble
+            pulse = 0.5 + 0.5 * math.sin(self._now() * 9)
+            rr = size // 2 + 6
+            bub = pygame.Surface((rr * 2 + 4, rr * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(bub, (255, 210, 110, 50), (rr + 2, rr + 2), rr)
+            pygame.draw.circle(bub, (255, 225, 140, int(150 + 90 * pulse)),
+                               (rr + 2, rr + 2), rr, 3)
+            self.screen.blit(bub, (px - rr - 2, py - rr - 2))
         if e.card.is_champion:    # little gold crown above
             cyy = py - size // 2 - 6
             pygame.draw.polygon(self.screen, (245, 205, 85),
@@ -985,6 +1239,16 @@ class Game:
                                  (px, cyy - 4), (px + 3, cyy + 1), (px + 6, cyy - 2),
                                  (px + 6, cyy + 3)])
         self._draw_hp_bar(e, px, py - size // 2 - 5, size)
+        # ramp-up stage pips (Mighty Miner drill, Little Prince)
+        if e.card.ramp_stages:
+            n = len(e.card.ramp_stages)
+            stage = e.ramp_stage() if e.ramp_time > 0 else -1
+            y0 = int(py + size // 2 + 3)
+            for i in range(n):
+                xx = int(px - (n - 1) * 4 + i * 8)
+                lit = i <= stage
+                col = (255, 150, 50) if lit else (60, 60, 70)
+                pygame.draw.circle(self.screen, col, (xx, y0), 3)
         # status tint markers
         if e.freeze_timer > 0:
             pygame.draw.circle(self.screen, (150, 220, 255), (int(px), int(py)), size // 2 + 2, 2)
@@ -1055,11 +1319,17 @@ class Game:
         if fx.kind == "blast":
             self._draw_blast(fx, px, py)
             return
-        if fx.kind == "chain":
-            # electric arcs between chained points (Electro units, Tesla beam)
+        if fx.kind == "timed_bomb":
+            self._draw_timed_bomb(fx, px, py)
+            return
+        if fx.kind in ("chain", "link"):
+            # electric arcs between chained points (Electro units, Tesla beam,
+            # Goblinstein's Lightning Link) - gold for Golden Knight's dash
             prog = min(1.0, fx.elapsed / fx.duration)
-            alpha = 1.0 - prog
-            col = (110, 205, 255)
+            alpha = 1.0 - prog if fx.kind == "chain" else 0.75 + 0.25 * math.sin(fx.elapsed * 20)
+            col = CHAIN_COLORS.get(fx.card_key, (110, 205, 255))
+            if len(fx.points) < 2:
+                return
             t = self._now()
             pts = [tile_to_px(x, y) for (x, y) in fx.points]
             for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
@@ -1110,6 +1380,24 @@ class Game:
             color = (150, 110, 70, 160)
         pygame.draw.circle(surf, color, (rad, rad), rad)
         self.screen.blit(surf, (px - rad, py - rad))
+
+    def _draw_timed_bomb(self, fx, px, py):
+        """Mighty Miner's dropped bomb: fuse sparks + countdown ring."""
+        prog = min(1.0, fx.elapsed / fx.duration)
+        rad = int(fx.radius * cfg.TILE_SIZE)
+        surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
+        c = (rad + 2, rad + 2)
+        pygame.draw.circle(surf, (255, 120, 60, 30 + int(50 * prog)), c, rad)
+        pygame.draw.circle(surf, (255, 140, 70, 200), c, rad, 2)
+        self.screen.blit(surf, (px - rad - 2, py - rad - 2))
+        flash = int(prog * 10) % 2 == 0
+        body = (70, 70, 82) if flash else (120, 60, 50)
+        pygame.draw.circle(self.screen, (20, 20, 26), (int(px) + 1, int(py) + 2), 8)
+        pygame.draw.circle(self.screen, body, (int(px), int(py)), 8)
+        pygame.draw.circle(self.screen, (170, 170, 185), (int(px) - 3, int(py) - 3), 2)
+        pygame.draw.line(self.screen, (150, 110, 70), (px + 4, py - 6), (px + 7, py - 11), 2)
+        spark = 2 + int(2 * math.sin(self._now() * 30))
+        pygame.draw.circle(self.screen, (255, 220, 90), (int(px) + 7, int(py) - 11), spark)
 
     def _draw_incoming(self, fx, px, py):
         """Telegraph shown while a spell is inbound (before it detonates)."""
@@ -1423,7 +1711,7 @@ class Game:
         cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
         color = (120, 240, 120) if self.result_text == "VICTORY!" else \
                 (240, 120, 120) if self.result_text == "DEFEAT" else (230, 230, 230)
-        panel = pygame.Rect(cx - 150, cy - 92, 300, 178)
+        panel = pygame.Rect(cx - 150, cy - 92, 300, 190)
         pygame.draw.rect(self.screen, (28, 32, 46), panel, border_radius=14)
         pygame.draw.rect(self.screen, color, panel, 2, border_radius=14)
         self._text(self.result_text, self.font_xl, color, center=(cx, cy - 46))
@@ -1431,5 +1719,5 @@ class Game:
         self._crown_icon(cx + 62, cy + 4, cfg.COLOR_TEAM_ENEMY)
         self._text("%d  -  %d" % (self.match.crowns[PLAYER], self.match.crowns[ENEMY]),
                    self.font_l, cfg.COLOR_TEXT, center=(cx, cy + 4))
-        self._text("Click anywhere to return to the menu", self.font_s,
-                   (200, 200, 200), center=(cx, cy + 58))
+        for b in self._result_buttons():
+            b.draw(self.screen, self.font_m)

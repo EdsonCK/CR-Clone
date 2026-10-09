@@ -40,6 +40,16 @@ def dist(ax, ay, bx, by):
     return math.hypot(ax - bx, ay - by)
 
 
+def _seg_dist(px, py, ax, ay, bx, by):
+    """Distance from point P to segment AB."""
+    abx, aby = bx - ax, by - ay
+    L = abx * abx + aby * aby
+    if L < 1e-9:
+        return dist(px, py, ax, ay)
+    t = max(0.0, min(1.0, ((px - ax) * abx + (py - ay) * aby) / L))
+    return dist(px, py, ax + abx * t, ay + aby * t)
+
+
 def river_side(y):
     """-1 = top (enemy) half, +1 = bottom (player) half, 0 = on the river."""
     if y < RIVER_TOP:
@@ -102,7 +112,13 @@ class Entity:
         self.atk_buff_timer = 0.0
         self.ability_cd = 0.0      # champion ability cooldown remaining
         self.souls = 0            # Skeleton King soul counter
-        self.ramp_time = 0.0           # for inferno ramping
+        self.protect_timer = 0.0   # Monk: damage reduction + projectile deflect
+        self.partner = None        # Goblinstein Doctor <-> Monster link
+        self.combo_n = 0           # Monk combo counter
+        self.ramp_time = 0.0           # for inferno ramping / ramp_stages
+        # dash state (Bandit, Mega Knight jump, Golden Knight, Guardian...)
+        self.dash = None           # dict while dashing, else None
+        self.dash_cd = 0.0
         self.spawn_timer = card.spawner[2] if card.spawner else 0.0
         self.elixir_timer = card.generates_elixir[1] if card.generates_elixir else 0.0
         self.lifetime = card.lifetime
@@ -160,11 +176,42 @@ class Entity:
         m = (1.35 if self.rage_timer > 0 else 1.0)
         if self.atk_buff_timer > 0:
             m *= self.atk_buff
+        if self.card.ramp_stages and self.card.ramp_kind == "speed":
+            m *= self.ramp_mult()
         return self.hit_speed / m
+
+    def is_dashing(self):
+        return self.dash is not None
+
+    def ramps(self):
+        """True for anything whose attack builds up over time."""
+        return self.card.ramp or self.card.ramp_stages is not None
+
+    def ramp_mult(self):
+        """Current stage multiplier for ramp_stages units (1.0 otherwise)."""
+        m = 1.0
+        if self.card.ramp_stages:
+            for t, mult in self.card.ramp_stages:
+                if self.ramp_time >= t:
+                    m = mult
+        return m
+
+    def ramp_stage(self):
+        """0-based stage index for ramp_stages units (for the HUD pips)."""
+        n = 0
+        if self.card.ramp_stages:
+            for i, (t, _) in enumerate(self.card.ramp_stages):
+                if self.ramp_time >= t:
+                    n = i
+        return n
 
     def take_damage(self, amount):
         if self.immune_timer > 0:
             return
+        if self.dash is not None and self.dash.get("immune"):
+            return
+        if self.protect_timer > 0:
+            amount *= (1.0 - self.card.ability_value)
         if self.is_king:
             self.active = True
         if self.card.reflect:
@@ -200,10 +247,18 @@ class Entity:
             self.atk_buff_timer -= dt
         if self.ability_cd > 0:
             self.ability_cd -= dt
+        if self.protect_timer > 0:
+            self.protect_timer -= dt
+        if self.dash_cd > 0:
+            self.dash_cd -= dt
+        # mid-dash: nothing else happens until we land (stuns can't stop it)
+        if self.dash is not None:
+            self._dash_update(dt, match)
+            return
         if self.stun_timer > 0:
             self.stun_timer -= dt
-            if self.card.ramp:
-                self.ramp_time = 0.0   # a zap/stun resets inferno-style ramps
+            if self.ramps():
+                self.ramp_time = 0.0   # a zap/stun resets any ramp-up
             return
         if self.freeze_timer > 0:
             self.freeze_timer -= dt
@@ -254,8 +309,9 @@ class Entity:
         # unit attacking a tower from abandoning it to chase newly-placed troops.
         if not self._keep_target(match):
             self.target = match.find_target(self)
-        # inferno-style ramp resets the moment the target changes or is lost
-        if self.card.ramp:
+        # inferno-style / drill ramp resets the moment the target changes
+        if self.card.ramp or (self.card.ramp_stages
+                              and self.card.ramp_kind == "damage"):
             tid = id(self.target) if (self.target and self.target.alive) else None
             if tid != getattr(self, "_ramp_id", None):
                 self.ramp_time = 0.0
@@ -266,10 +322,74 @@ class Entity:
         d = dist(self.x, self.y, self.target.x, self.target.y)
         reach = self.range + self.target.radius
 
+        # dashers (Bandit, Mega Knight, Boss Bandit) leap onto targets that
+        # are a few tiles away instead of walking up to them
+        if self.card.dash and self.dash_cd <= 0 and d > reach:
+            dmin, dmax = self.card.dash
+            gap = d - self.target.radius
+            same_bank = river_side(self.y) * river_side(self.target.y) >= 0
+            if dmin <= gap <= dmax and (same_bank or self.flying):
+                self.start_dash(self.target, kind="unit",
+                                immune=self.card.dash_immune,
+                                speed=9.0 if self.card.dash_damage else 13.0)
+                return
+
         if d <= reach:
             self._attack(match)
         elif not self.is_building and not self.is_tower:
             self._move_toward(self.target, dt, match)
+
+    # ---- dashing -----------------------------------------------------------
+    def start_dash(self, target=None, kind="unit", immune=False, speed=13.0,
+                   point=None, sweep=None, **extra):
+        """Begin a dash toward `target` (stops at melee reach) or to `point`."""
+        if point is not None:
+            tx, ty = point
+        else:
+            d = dist(self.x, self.y, target.x, target.y)
+            stop = min(d, self.range * 0.6 + target.radius)
+            tx = target.x - (target.x - self.x) / max(d, 1e-6) * stop
+            ty = target.y - (target.y - self.y) / max(d, 1e-6) * stop
+        self.dash = {"tx": tx, "ty": ty, "target": target, "kind": kind,
+                     "immune": immune, "speed": speed, "sweep": sweep,
+                     "hit": set(), "sx": self.x, "sy": self.y}
+        self.dash.update(extra)
+        self.ramp_time = 0.0
+
+    def _dash_update(self, dt, match):
+        dsh = self.dash
+        t = dsh["target"]
+        if t is not None and t.alive and dsh["kind"] != "point":
+            # follow a moving target, stopping at melee reach
+            d = dist(self.x, self.y, t.x, t.y)
+            stop = min(d, self.range * 0.6 + t.radius)
+            if d > 1e-6:
+                dsh["tx"] = t.x - (t.x - self.x) / d * stop
+                dsh["ty"] = t.y - (t.y - self.y) / d * stop
+        dx, dy = dsh["tx"] - self.x, dsh["ty"] - self.y
+        dd = math.hypot(dx, dy)
+        step = dsh["speed"] * dt
+        if dd > step:
+            self.x += dx / dd * step
+            self.y += dy / dd * step
+        else:
+            self.x, self.y = dsh["tx"], dsh["ty"]
+        # sweeping dash (Royal Guardian charge): bowls over enemies en route
+        if dsh["sweep"]:
+            sdmg, skb = dsh["sweep"]
+            nx, ny = (dx / dd, dy / dd) if dd > 1e-6 else (0.0, 0.0)
+            for e in match.entities:
+                if (e.alive and e.team != self.team and not e.flying
+                        and id(e) not in dsh["hit"]
+                        and dist(self.x, self.y, e.x, e.y) <= 0.9 + e.radius):
+                    dsh["hit"].add(id(e))
+                    e.take_damage(sdmg)
+                    if not (e.is_tower or e.is_building):
+                        e.x += nx * skb
+                        e.y += ny * skb
+        if dd <= step:
+            self.dash = None
+            match._dash_landed(self, dsh)
 
     def _update_back_riders(self, dt, match):
         """Riders on this unit's back fire at the nearest enemy in their range."""
@@ -297,7 +417,7 @@ class Entity:
             match.projectiles.append(Projectile(
                 self.team, self.x, self.y, best,
                 rc.damage * cfg.GLOBAL_DAMAGE_MULT, 0, rc.attacks,
-                0.0, None, style=rkey))
+                0.0, None, style=rkey, owner=self))
 
     def _keep_target(self, match):
         """True if we should hold our current target (don't re-scan).
@@ -321,7 +441,8 @@ class Entity:
     def _move_toward(self, target, dt, match):
         # bridge pathing for ground units crossing the river
         tx, ty = target.x, target.y
-        if not self.flying and river_side(self.y) * river_side(ty) < 0:
+        if (not self.flying and not self.card.river_jump
+                and river_side(self.y) * river_side(ty) < 0):
             bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
             tx, ty = bx, RIVER_CENTER
         dx, dy = tx - self.x, ty - self.y
@@ -334,7 +455,7 @@ class Entity:
         self.dist_since_attack += step
         if self.card.charge and self.dist_since_attack >= 3.0:
             self.charged = True
-        if self.card.ramp:
+        if self.ramps():
             self.ramp_time = 0.0   # moving = not attacking -> ramp decays fully
 
     def _attack(self, match):
@@ -384,6 +505,27 @@ class Entity:
                 self.target.x += 0  # (charge knockback handled via card spells)
         self.dist_since_attack = 0.0
 
+        # stepped ramp (Mighty Miner drill / Little Prince): the multiplier
+        # grows with time spent attacking. Damage-kind multiplies the hit;
+        # speed-kind is applied in effective_hitspeed().
+        if self.card.ramp_stages:
+            if self.card.ramp_kind == "damage":
+                dmg *= self.ramp_mult()
+            self.ramp_time += self.attack_cd
+
+        # Monk-style combo: every Nth hit is a heavy splash + knockback
+        if self.card.combo_every:
+            self.combo_n += 1
+            if self.combo_n >= self.card.combo_every:
+                self.combo_n = 0
+                t = self.target
+                match.effects.append(Effect("aoe", self.team, t.x, t.y, 1.5,
+                                            0.35, card_key=self.key))
+                match.area_damage(self.team, t.x, t.y, 1.5, dmg * 1.5,
+                                  hit_air=False, knockback=self.card.knockback,
+                                  kb_from=(self.x, self.y))
+                return
+
         # inferno-style ramp: continuous beam, no projectile, direct damage
         if self.card.ramp:
             self.ramp_time += self.effective_hitspeed()
@@ -420,7 +562,7 @@ class Entity:
                 match.projectiles.append(Projectile(
                     self.team, self.x, self.y, None, dmg, 0, self.attacks,
                     stun, slow, style=self.key, homing=False, dest=dest,
-                    hit_radius=0.35))
+                    hit_radius=0.35, owner=self))
             return
 
         # piercing shots (Magic Archer arrow, Bowler boulder, Executioner axe):
@@ -434,14 +576,34 @@ class Entity:
                 self.team, self.x, self.y, None, dmg, 0, self.attacks,
                 stun, slow, style=self.key, homing=False, dest=dest,
                 pierce=True, hit_radius=max(0.35, self.card.splash * 0.5),
-                knockback=self.card.knockback))
+                knockback=self.card.knockback, owner=self,
+                boomerang=self.card.boomerang))
+            return
+
+        # multi-bolt attackers (Electro Wizard): one bolt per target, extra
+        # bolts go to other nearby enemies, or all into a lone target
+        if self.card.multi_target > 1 and self.range >= PROJECTILE_RANGE_MIN:
+            targets = [self.target]
+            others = sorted(
+                (e for e in match.entities
+                 if e is not self.target and self.can_attack(e)
+                 and not (e.is_king and not e.active)
+                 and dist(self.x, self.y, e.x, e.y) <= self.range + e.radius),
+                key=lambda e: dist(self.x, self.y, e.x, e.y))
+            targets += others[:self.card.multi_target - 1]
+            while len(targets) < self.card.multi_target:
+                targets.append(self.target)
+            for t in targets:
+                match.projectiles.append(Projectile(
+                    self.team, self.x, self.y, t, dmg, self.card.splash,
+                    self.attacks, stun, slow, style=self.key, owner=self))
             return
 
         if self.range >= PROJECTILE_RANGE_MIN:
             match.projectiles.append(Projectile(
                 self.team, self.x, self.y, self.target,
                 dmg, self.card.splash, self.attacks, stun, slow,
-                style=self.key))
+                style=self.key, owner=self))
         else:
             match.apply_hit(self, self.target, dmg, self.card.splash, stun, slow)
 
@@ -500,7 +662,7 @@ class Projectile:
 
     def __init__(self, team, x, y, target, dmg, splash, attacks, stun, slow,
                  style=None, homing=True, dest=None, hit_radius=0.55,
-                 pierce=False, knockback=0.0):
+                 pierce=False, knockback=0.0, owner=None, boomerang=False):
         self.team = team
         self.x = x
         self.y = y
@@ -516,6 +678,10 @@ class Projectile:
         self.pierce = pierce
         self.knockback = knockback
         self.hits = set()      # ids already damaged (pierce hits once each)
+        self.owner = owner     # shooter (deflected shots fly back at it)
+        self.boomerang = boomerang
+        self.returning = False
+        self.deflected = False
         if dest is not None:
             self.tx, self.ty = dest
         else:
@@ -527,6 +693,8 @@ class Projectile:
     def update(self, dt, match):
         if self.homing and self.target and self.target.alive:
             self.tx, self.ty = self.target.x, self.target.y
+        if self.returning and self.owner is not None and self.owner.alive:
+            self.tx, self.ty = self.owner.x, self.owner.y
         dx, dy = self.tx - self.x, self.ty - self.y
         dd = math.hypot(dx, dy)
         if dd > 1e-6:
@@ -534,6 +702,14 @@ class Projectile:
         step = self.speed * dt
         if dd <= step:
             self.x, self.y = self.tx, self.ty
+            if self.boomerang and not self.returning:
+                # boomerang (Executioner axe): turn around and fly home,
+                # able to hit everything a second time on the way back
+                self.returning = True
+                self.hits.clear()
+                if self.owner is None or not self.owner.alive:
+                    self.alive = False
+                return
             self._impact(match)
             self.alive = False
         else:
@@ -547,7 +723,7 @@ class Projectile:
                 if id(e) in self.hits or not self._can_hit(e):
                     continue
                 if dist(self.x, self.y, e.x, e.y) <= self.hit_radius + e.radius * 0.7:
-                    self._apply(e)
+                    self._apply(e, match)
                     if self.knockback and not (e.is_tower or e.is_building):
                         e.x += self.vx * self.knockback
                         e.y += self.vy * self.knockback
@@ -559,7 +735,7 @@ class Projectile:
                 if not self._can_hit(e):
                     continue
                 if dist(self.x, self.y, e.x, e.y) <= self.hit_radius + e.radius * 0.7:
-                    self._apply(e)
+                    self._apply(e, match)
                     self.alive = False
                     return
 
@@ -572,7 +748,19 @@ class Projectile:
             return False
         return True
 
-    def _apply(self, e):
+    def _apply(self, e, match=None):
+        # Monk's Pensive Protection: deflect single-target shots back at the
+        # shooter (the Monk still takes the reduced damage)
+        if (match is not None and e.protect_timer > 0 and not self.deflected
+                and not self.pierce and self.owner is not None
+                and self.owner.alive):
+            back = Projectile(e.team, e.x, e.y, self.owner, self.dmg, 0,
+                              "air_ground", 0.0, None, style=self.style,
+                              owner=e)
+            back.deflected = True
+            match.projectiles.append(back)
+            match.effects.append(Effect("aoe", e.team, e.x, e.y, 0.8, 0.25,
+                                        card_key=e.key))
         e.take_damage(self.dmg)
         if self.stun:
             e.stun_timer = max(e.stun_timer, self.stun)
@@ -600,7 +788,7 @@ class Projectile:
                               stun=self.stun, slow=self.slow)
         elif self.homing:
             if self.target and self.target.alive:
-                self._apply(self.target)
+                self._apply(self.target, match)
         else:
             # pellet: hit whoever is standing where it lands (nearest first)
             best, best_d = None, self.hit_radius
@@ -611,7 +799,7 @@ class Projectile:
                 if d < best_d:
                     best, best_d = e, d
             if best is not None:
-                self._apply(best)
+                self._apply(best, match)
 
 
 # ===========================================================================
@@ -620,8 +808,9 @@ class Projectile:
 class Effect:
     def __init__(self, kind, team, x, y, radius, duration,
                  dps=0, slow=None, direction=0, speed=0, damage=0, knockback=0,
-                 card_key=None, building_mult=0.4, points=None):
-        self.kind = kind    # incoming|blast|aoe|poison|rage|log|tornado|graveyard|chain
+                 card_key=None, building_mult=0.4, points=None, ends=None):
+        self.kind = kind    # incoming|blast|aoe|poison|rage|log|tornado|graveyard|
+                            #   chain|timed_bomb|link
         self.card_key = card_key
         self.building_mult = building_mult
         self.spawn_t = 0.0
@@ -640,6 +829,8 @@ class Effect:
         self.knockback = knockback
         self.hit = set()
         self.alive = True
+        self.ends = ends             # (entity, entity) for a "link" beam
+        self.tick = 0.0
 
     def update(self, dt, match):
         self.elapsed += dt
@@ -654,6 +845,44 @@ class Effect:
                 self.alive = False
             return
         if self.kind == "blast":
+            if self.elapsed >= self.duration:
+                self.alive = False
+            return
+        if self.kind == "timed_bomb":
+            # Mighty Miner's bomb: fuse burns down, then it explodes
+            if self.elapsed >= self.duration:
+                match.effects.append(Effect("blast", self.team, self.x, self.y,
+                                            self.radius, 0.45,
+                                            card_key="fireball"))
+                match.area_damage(self.team, self.x, self.y, self.radius,
+                                  self.damage, hit_air=False,
+                                  tower_damage=int(self.damage * 0.35))
+                self.alive = False
+            return
+        if self.kind == "link":
+            # Goblinstein's Lightning Link between Doctor and Monster
+            a, b = self.ends
+            if not a.alive:
+                self.alive = False
+                return
+            if b is not None and b.alive:
+                bx, by = b.x, b.y
+            else:           # Monster gone: beam juts forward from the Doctor
+                fwd = -1 if self.team == PLAYER else 1
+                bx, by = a.x, a.y + fwd * 3.5
+            self.points = [(a.x, a.y), (bx, by)]
+            self.x, self.y = a.x, a.y
+            self.tick -= dt
+            if self.tick <= 0:
+                self.tick += 0.25
+                for e in match.entities:
+                    if not e.alive or e.team == self.team or e.is_tower:
+                        continue
+                    if _seg_dist(e.x, e.y, a.x, a.y, bx, by) <= self.radius + e.radius:
+                        e.take_damage(self.dps * 0.25)
+                        if id(e) not in self.hit:     # first touch stuns
+                            self.hit.add(id(e))
+                            e.stun_timer = max(e.stun_timer, 0.5)
             if self.elapsed >= self.duration:
                 self.alive = False
             return
@@ -826,28 +1055,37 @@ class Match:
         if card.category == "spell":
             self._cast_spell(team, card, x, y)
         else:
-            self.spawn_units(team, key, card.count, x, y)
+            units = self.spawn_units(team, key, card.count, x, y)
             if card.companion:   # Goblinstein's Monster, etc.
                 ck, cc = card.companion
-                self.spawn_units(team, ck, cc, x + 1.2, y, deploy=0.0)
+                cx = x + 1.2 if x + 1.2 < cfg.GRID_COLS - 0.5 else x - 1.2
+                comp = self.spawn_units(team, ck, cc, cx, y)
+                if units and comp:      # remember each other (Lightning Link)
+                    units[0].partner = comp[0]
+                    comp[0].partner = units[0]
 
     def spawn_units(self, team, key, count, x, y, deploy=None):
+        """Create `count` units of `key` around (x, y); returns them."""
         card = cards.CARDS[key]
+        made = []
         if count <= 1:
-            self.entities.append(Entity(card, team, x, y, deploy=deploy))
+            made.append(Entity(card, team, x, y, deploy=deploy))
         else:
             r = card.spawn_radius
             for i in range(count):
                 ang = 2 * math.pi * i / count
                 ox = max(0.4, min(cfg.GRID_COLS - 0.4, x + math.cos(ang) * r))
                 oy = max(0.4, min(cfg.GRID_ROWS - 0.4, y + math.sin(ang) * r))
-                self.entities.append(Entity(card, team, ox, oy, deploy=deploy))
-        # landing shockwave (e.g. Mega Knight)
+                made.append(Entity(card, team, ox, oy, deploy=deploy))
+        self.entities.extend(made)
+        # landing shockwave (Mega Knight slam, Electro Wizard zap, Ice Wizard)
         if card.spawn_damage:
             rad, dmg = card.spawn_damage
             self.effects.append(Effect("aoe", team, x, y, rad, 0.35,
                                        card_key=card.key))
-            self.area_damage(team, x, y, rad, dmg, hit_air=True)
+            self.area_damage(team, x, y, rad, dmg, hit_air=True,
+                             stun=card.spawn_stun, slow=card.spawn_slow)
+        return made
 
     def _cast_spell(self, team, card, x, y):
         # spells no longer hit instantly: show an incoming marker for a short
@@ -917,7 +1155,8 @@ class Match:
                     target.slow_timer = slow[1]
 
     def area_damage(self, team, x, y, radius, dmg, hit_air=True, stun=0.0,
-                    freeze=0.0, slow=None, tower_damage=None, knockback=0.0):
+                    freeze=0.0, slow=None, tower_damage=None, knockback=0.0,
+                    kb_from=None):
         for e in self.entities:
             if not e.alive or e.team == team:
                 continue
@@ -936,7 +1175,8 @@ class Match:
                     e.slow_factor = slow[0]
                     e.slow_timer = slow[1]
                 if knockback and not (e.is_tower or e.is_building):
-                    dx, dy = e.x - x, e.y - y
+                    ox, oy = kb_from if kb_from is not None else (x, y)
+                    dx, dy = e.x - ox, e.y - oy
                     dd = math.hypot(dx, dy) or 1.0
                     e.x += dx / dd * knockback
                     e.y += dy / dd * knockback
@@ -981,7 +1221,7 @@ class Match:
         for e in self.entities:
             if (e.alive and e.card.ability_type == "skeletons"
                     and dist(e.x, e.y, dead.x, dead.y) <= 5.0):
-                e.souls = min(e.souls + 1, 6)
+                e.souls = min(e.souls + 1, 10)
 
     def champion_on_field(self, team):
         for e in self.entities:
@@ -995,7 +1235,8 @@ class Match:
         if champ is None:
             return None, False, 0
         cost = champ.card.ability_cost
-        ready = champ.ability_cd <= 0 and self.elixir[team] >= cost
+        ready = (champ.ability_cd <= 0 and self.elixir[team] >= cost
+                 and not champ.is_dashing())
         return champ, ready, cost
 
     def activate_ability(self, team):
@@ -1005,14 +1246,28 @@ class Match:
         card = champ.card
         if self.elixir[team] < card.ability_cost:
             return False
+        if not self.ability_has_target(champ):
+            return False
         self.elixir[team] -= card.ability_cost
         champ.ability_cd = card.ability_cooldown
         self._do_ability(champ, card)
         return True
 
-    def _nearest_enemy(self, champ, rng):
+    def ability_has_target(self, champ):
+        """Abilities that need someone to hit refuse to fire into thin air."""
+        if champ.is_dashing():
+            return False
+        if champ.card.ability_type == "chain_dash":
+            return self._nearest_enemy(champ, champ.card.ability_radius) is not None
+        return True
+
+    def _nearest_enemy(self, champ, rng, ground_only=False):
         best, bd = None, rng
         for e in self.entities:
+            if ground_only and e.flying:
+                continue
+            if e.is_king and not e.active:
+                continue
             if champ.can_attack(e):
                 d = dist(champ.x, champ.y, e.x, e.y)
                 if d < bd:
@@ -1024,49 +1279,127 @@ class Match:
         fwd = -1 if team == PLAYER else 1
         typ = card.ability_type
         if typ == "cloak":
+            # Archer Queen: invisible + rapid fire
             champ.invis_timer = card.ability_duration
             champ.atk_buff = card.ability_value
             champ.atk_buff_timer = card.ability_duration
-        elif typ == "bomb":
-            self.effects.append(Effect("aoe", team, champ.x, champ.y,
-                                       card.ability_radius, 0.4, card_key=champ.key))
-            self.area_damage(team, champ.x, champ.y, card.ability_radius,
-                             card.ability_value, hit_air=True)
-            champ.immune_timer = card.ability_duration   # dig/untargetable burst
-            champ.invis_timer = card.ability_duration
-        elif typ == "summon":
-            self.spawn_units(team, "royal_guardian", 1,
-                             champ.x, champ.y + fwd * 1.2, deploy=0.0)
-        elif typ in ("dash", "shield_dash"):
-            tgt = self._nearest_enemy(champ, 5.5)
+        elif typ == "escape":
+            # Mighty Miner: drop a timed bomb, burrow to the mirrored spot
+            # in the other lane (reflected across the vertical centre line)
+            self.effects.append(Effect("timed_bomb", team, champ.x, champ.y,
+                                       card.ability_radius,
+                                       card.ability_duration,
+                                       damage=card.ability_value,
+                                       card_key=champ.key))
+            self.effects.append(Effect("aoe", team, champ.x, champ.y, 0.9,
+                                       0.3, card_key="earthquake"))
+            champ.x = min(max(cfg.GRID_COLS - champ.x, 0.5), cfg.GRID_COLS - 0.5)
+            champ.target = None
+            champ.ramp_time = 0.0
+            champ.deploy_timer = 0.5        # pops back out of the ground
+            self.effects.append(Effect("aoe", team, champ.x, champ.y, 0.9,
+                                       0.4, card_key="earthquake"))
+        elif typ == "rescue":
+            # Little Prince: the Guardian charges in and bowls enemies over
+            g = self.spawn_units(team, "royal_guardian", 1, champ.x,
+                                 champ.y + fwd * 0.8, deploy=0.0)[0]
+            tgt = self._nearest_enemy(g, 6.0, ground_only=True)
             if tgt is not None:
-                d = dist(champ.x, champ.y, tgt.x, tgt.y)
-                if d > 0.1:
-                    champ.x += (tgt.x - champ.x) / d * max(d - 1.0, 0)
-                    champ.y += (tgt.y - champ.y) / d * max(d - 1.0, 0)
+                pt = (tgt.x, tgt.y)
             else:
-                champ.y += fwd * 3.0
-            self.effects.append(Effect("aoe", team, champ.x, champ.y,
-                                       card.ability_radius, 0.35, card_key=champ.key))
-            self.area_damage(team, champ.x, champ.y, card.ability_radius,
-                             card.ability_value, hit_air=True, stun=0.3)
-            if typ == "shield_dash":
-                champ.shield += int(card.ability_value)
+                pt = (champ.x, champ.y + fwd * 4.0)
+            pt = (pt[0], min(max(pt[1], 0.5), cfg.GRID_ROWS - 0.5))
+            g.start_dash(None, kind="point", point=pt, speed=10.0,
+                         sweep=(card.ability_value, card.ability_radius))
+        elif typ == "chain_dash":
+            # Golden Knight: dash through up to 10 enemies in a row
+            tgt = self._nearest_enemy(champ, card.ability_radius)
+            if tgt is not None:
+                champ.start_dash(tgt, kind="chain", immune=True, speed=16.0,
+                                 left=9, visited={id(tgt)},
+                                 pts=[(champ.x, champ.y)])
         elif typ == "skeletons":
             n = int(card.ability_value) + champ.souls
             champ.souls = 0
             self.spawn_units(team, "skeleton", n, champ.x, champ.y, deploy=0.0)
-        elif typ == "immune":
-            champ.immune_timer = card.ability_duration
+        elif typ == "protect":
+            # Monk: big damage reduction + deflect projectiles
+            champ.protect_timer = card.ability_duration
+        elif typ == "link":
+            # Goblinstein: lightning beam between the Doctor and his Monster
+            self.effects.append(Effect("link", team, champ.x, champ.y,
+                                       card.ability_radius,
+                                       card.ability_duration,
+                                       dps=card.ability_value,
+                                       card_key=champ.key,
+                                       ends=(champ, champ.partner)))
+        elif typ == "getaway":
+            # Boss Bandit: smoke grenade, then vanish and leap back home
             self.effects.append(Effect("aoe", team, champ.x, champ.y,
-                                       card.ability_radius, 0.35, card_key=champ.key))
+                                       card.ability_radius, 0.5,
+                                       card_key="tornado"))
             self.area_damage(team, champ.x, champ.y, card.ability_radius,
-                             card.ability_value, hit_air=True, stun=0.6, knockback=1.6)
-        elif typ == "chain_stun":
-            tgt = self._nearest_enemy(champ, champ.sight + 2)
-            if tgt is not None:
-                self.chain_damage(team, champ.x, champ.y, tgt, card.damage,
-                                  1.0, int(card.ability_value), 2.5, champ.key)
+                             card.ability_value, hit_air=False, stun=0.5)
+            champ.invis_timer = card.ability_duration
+            champ.target = None
+            back_y = champ.y - fwd * 4.0      # 4 tiles toward her own side
+            if team == PLAYER:
+                if champ.y < RIVER_TOP:          # can't leap across the river
+                    back_y = max(champ.y, min(back_y, RIVER_TOP - 0.6))
+                back_y = min(back_y, cfg.GRID_ROWS - 1.0)
+            else:
+                if champ.y > RIVER_BOTTOM:
+                    back_y = min(champ.y, max(back_y, RIVER_BOTTOM + 0.6))
+                back_y = max(back_y, 1.0)
+            champ.start_dash(None, kind="point", point=(champ.x, back_y),
+                             immune=True, speed=12.0)
+            champ.dash_cd = 1.0
+
+    def _dash_landed(self, ent, dsh):
+        """Called when a dash reaches its destination."""
+        kind = dsh["kind"]
+        t = dsh["target"]
+        if kind == "unit":
+            ent.dash_cd = 1.2
+            if ent.card.dash_damage:          # Mega Knight jump slam
+                rad, dmg = ent.card.dash_damage
+                self.effects.append(Effect("aoe", ent.team, ent.x, ent.y, rad,
+                                           0.4, card_key=ent.key))
+                self.area_damage(ent.team, ent.x, ent.y, rad,
+                                 dmg * cfg.GLOBAL_DAMAGE_MULT, hit_air=False)
+            elif t is not None and t.alive:   # Bandit: double-damage strike
+                t.take_damage(ent.dmg * ent.card.charge_mult)
+                self.effects.append(Effect("aoe", ent.team, t.x, t.y, 0.7,
+                                           0.25, card_key=ent.key))
+            ent.attack_cd = ent.effective_hitspeed()
+            ent.target = t if (t is not None and t.alive) else None
+        elif kind == "chain":                 # Golden Knight
+            card = ent.card
+            pts = dsh["pts"] + [(ent.x, ent.y)]
+            if t is not None and t.alive:
+                t.take_damage(card.ability_value)
+            left = dsh["left"]
+            nxt = None
+            if left > 0:
+                best = card.ability_radius
+                for e in self.entities:
+                    if id(e) in dsh["visited"] or not ent.can_attack(e):
+                        continue
+                    if e.is_king and not e.active:
+                        continue
+                    d = dist(ent.x, ent.y, e.x, e.y)
+                    if d < best:
+                        nxt, best = e, d
+            if nxt is not None:
+                dsh["visited"].add(id(nxt))
+                ent.start_dash(nxt, kind="chain", immune=True, speed=16.0,
+                               left=left - 1, visited=dsh["visited"], pts=pts)
+            else:
+                self.effects.append(Effect("chain", ent.team, pts[0][0],
+                                           pts[0][1], 0, 0.45,
+                                           card_key=ent.key, points=pts))
+                ent.target = None
+        # "point" dashes (Guardian charge, Boss Bandit getaway) just stop
 
     def find_target(self, ent):
         """Nearest attackable enemy in sight; else march to nearest enemy tower."""

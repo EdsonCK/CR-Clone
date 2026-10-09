@@ -133,12 +133,37 @@ class CardDef:
                                 #   target (Valkyrie's spin attack).
     companion: Optional[Tuple[str, int]] = None  # extra unit spawned alongside
                                 #   this one on deploy (Goblinstein's Monster).
+    ramp_stages: Optional[Tuple[Tuple[float, float], ...]] = None
+                                # ((secs_attacking, multiplier), ...) stepped
+                                #   ramp-up WITHOUT an inferno beam. Resets when
+                                #   the unit moves or is stunned.
+    ramp_kind: str = "damage"   # "damage": multiplier applies to damage and
+                                #   resets on a new target (Mighty Miner drill)
+                                #   "speed": multiplier applies to attack speed
+                                #   (Little Prince)
+    combo_every: int = 0        # every Nth hit is a heavy combo finisher that
+                                #   splashes + knocks back (Monk)
+    multi_target: int = 1       # bolts per attack aimed at different enemies;
+                                #   with a lone target all bolts hit it (E-Wiz)
+    boomerang: bool = False     # piercing shot flies out, then RETURNS to the
+                                #   thrower, hitting along both ways (Executioner)
+    river_jump: bool = False    # vaults over the river instead of using a
+                                #   bridge (Hog Rider)
+    dash: Optional[Tuple[float, float]] = None
+                                # (min, max) tiles: dashes/jumps onto a target
+                                #   between these distances (Bandit, Mega Knight)
+    dash_damage: Optional[Tuple[float, int]] = None
+                                # (radius, dmg) splash on dash landing. If None
+                                #   the dash ends with a charge_mult hit.
+    dash_immune: bool = False   # takes no damage while dashing (Bandit)
+    spawn_stun: float = 0.0     # stun applied by spawn_damage (E-Wiz deploy zap)
+    spawn_slow: Optional[Tuple[float, float]] = None   # slow from spawn_damage
 
     # -- champions (activatable ability via the ability button) --
     is_champion: bool = False
     ability_name: str = ""
-    ability_type: str = ""      # cloak|bomb|summon|dash|skeletons|immune|
-                                #   chain_stun|shield_dash
+    ability_type: str = ""      # cloak|escape|rescue|chain_dash|skeletons|
+                                #   protect|link|getaway
     ability_cost: int = 0       # extra elixir to activate
     ability_cooldown: float = 8.0
     ability_duration: float = 0.0
@@ -176,7 +201,7 @@ B = "buildings"
 
 
 # ===========================================================================
-#  THE ROSTER  --  ~45 iconic cards + the sub-units they spawn
+#  THE ROSTER  --  95 cards + the sub-units they spawn
 # ===========================================================================
 _CARD_LIST = [
 
@@ -213,7 +238,7 @@ _CARD_LIST = [
     CardDef("archers", "Archers", 3, rarity="common",
             hp=125, damage=42, hit_speed=1.2, range=5.5, speed=SPEED_MEDIUM,
             count=2, attacks=AG, spawn_radius=0.8),
-    CardDef("bomber", "Bomber", 3, rarity="common",
+    CardDef("bomber", "Bomber", 2, rarity="common",
             hp=130, damage=110, hit_speed=1.9, range=4.5, speed=SPEED_MEDIUM,
             count=1, attacks=G, splash=1.5),
     CardDef("valkyrie", "Valkyrie", 4, rarity="rare",
@@ -227,7 +252,7 @@ _CARD_LIST = [
             attacks=AG),
     CardDef("barbarians", "Barbarians", 5, rarity="common",
             hp=262, damage=88, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
-            count=4, attacks=G, spawn_radius=1.1),
+            count=5, attacks=G, spawn_radius=1.2),
     CardDef("elite_barbarians", "Elite Barbarians", 6, rarity="common",
             hp=524, damage=180, hit_speed=1.7, range=1.2, speed=SPEED_FAST,
             count=2, attacks=G, spawn_radius=1.0),
@@ -254,8 +279,10 @@ _CARD_LIST = [
             hp=660, damage=175, hit_speed=0.7, range=1.2, speed=SPEED_VERY_FAST,
             attacks=G, death_spawn=("rage_pickup", 0)),  # rage handled on death
     CardDef("bandit", "Bandit", 3, rarity="legendary",
-            hp=750, damage=160, hit_speed=1.0, range=1.2, speed=SPEED_VERY_FAST,
-            attacks=G, charge=True, charge_mult=2.0),
+            hp=750, damage=160, hit_speed=1.0, range=1.2, speed=SPEED_FAST,
+            attacks=G, dash=(3.5, 6.0), dash_immune=True, charge_mult=2.0),
+            # dashes onto targets 3.5-6 tiles away, invulnerable mid-dash;
+            # the dash hit deals double damage
 
     # -------------------- WIN CONDITIONS (target buildings) --------------------
     CardDef("giant", "Giant", 5, rarity="rare",
@@ -263,7 +290,7 @@ _CARD_LIST = [
             attacks=B),   # tanky, but now clearly below P.E.K.K.A (2600 hp)
     CardDef("hog_rider", "Hog Rider", 4, rarity="rare",
             hp=1000, damage=175, hit_speed=1.6, range=1.2, speed=SPEED_VERY_FAST,
-            attacks=B),
+            attacks=B, river_jump=True),   # vaults the river, no bridge needed
     CardDef("royal_giant", "Royal Giant", 6, rarity="common",
             hp=2100, damage=180, hit_speed=1.7, range=5.0, speed=SPEED_SLOW,
             attacks=B),
@@ -300,10 +327,15 @@ _CARD_LIST = [
             attacks=AG, splash=2.0),
     CardDef("electro_wizard", "Electro Wizard", 4, rarity="legendary",
             hp=340, damage=100, hit_speed=1.8, range=5.0, speed=SPEED_MEDIUM,
-            attacks=AG, stun=0.5, death_spawn=None),
+            attacks=AG, stun=0.5, multi_target=2,
+            spawn_damage=(2.5, 100), spawn_stun=0.5),
+            # 2 bolts per attack at different targets (both hit a lone
+            # target); zaps + stuns everything where he lands
     CardDef("ice_wizard", "Ice Wizard", 3, rarity="legendary",
             hp=310, damage=55, hit_speed=1.5, range=5.5, speed=SPEED_MEDIUM,
-            attacks=AG, splash=1.2, slow=(0.65, 1.5)),
+            attacks=AG, splash=1.2, slow=(0.65, 1.5),
+            spawn_damage=(3.0, 70), spawn_slow=(0.65, 2.0)),
+            # chilly entrance: damages + slows where he lands
     CardDef("three_musketeers", "Three Musketeers", 9, rarity="rare",
             hp=340, damage=120, hit_speed=1.1, range=6.0, speed=SPEED_MEDIUM,
             count=3, attacks=AG, spawn_radius=1.4),
@@ -379,7 +411,7 @@ _CARD_LIST = [
 
     # ==================== EXPANSION SET (v0.1.3) ====================
     # -------- swarms & fast cheap troops --------
-    CardDef("skeleton_army", "Skeleton Army", 4, rarity="epic",
+    CardDef("skeleton_army", "Skeleton Army", 3, rarity="epic",
             hp=32, damage=32, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
             count=15, attacks=G, spawn_radius=1.7),
     CardDef("guards", "Guards", 3, rarity="epic",
@@ -397,8 +429,9 @@ _CARD_LIST = [
             # pellets connect; point-blank all 7 hit (brutal up close).
     CardDef("executioner", "Executioner", 5, rarity="epic",
             hp=650, damage=110, hit_speed=1.6, range=5.0, speed=SPEED_MEDIUM,
-            attacks=AG, splash=1.6, pierce=True),
-            # axe pierces: full flight, damages everything along the line
+            attacks=AG, splash=1.6, pierce=True, boomerang=True),
+            # axe flies out to full range and comes BACK, hitting
+            # everything along the line both ways
     CardDef("bowler", "Bowler", 5, rarity="epic",
             hp=940, damage=145, hit_speed=2.5, range=4.5, speed=SPEED_SLOW,
             attacks=G, splash=1.4, knockback=0.6, pierce=True),
@@ -426,8 +459,10 @@ _CARD_LIST = [
     # -------- tanks / bruisers --------
     CardDef("mega_knight", "Mega Knight", 7, rarity="legendary",
             hp=2700, damage=170, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
-            attacks=G, splash=1.6, charge=True, charge_mult=1.8,
-            spawn_damage=(2.5, 240)),   # slams the ground where it lands
+            attacks=G, splash=1.6, dash=(3.5, 5.0), dash_damage=(2.2, 240),
+            spawn_damage=(2.5, 240)),
+            # slams the ground where it lands, and JUMPS onto enemies
+            # 3.5-5 tiles away (splash damage on landing)
     CardDef("goblin_giant", "Goblin Giant", 6, rarity="epic",
             hp=2400, damage=110, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, death_spawn=("spear_goblin", 2),
@@ -498,47 +533,74 @@ _CARD_LIST = [
     # Each has an activatable ability (yellow button in-match). Only ONE
     # champion may be in a deck. Abilities cost extra elixir + have a cooldown.
     CardDef("mighty_miner", "Mighty Miner", 4, rarity="champion",
-            hp=1400, damage=57, hit_speed=0.6, range=1.2, speed=SPEED_FAST,
-            attacks=G, deploy_anywhere=True, ramp=True, is_champion=True,
-            ability_name="Mine Bomb", ability_type="bomb", ability_cost=1,
-            ability_cooldown=6.0, ability_duration=1.4, ability_radius=2.6,
-            ability_value=520),
+            hp=1400, damage=32, hit_speed=0.4, range=1.2, speed=SPEED_MEDIUM,
+            attacks=G, is_champion=True,
+            ramp_stages=((0.0, 1.0), (2.0, 2.0), (4.0, 3.0)),
+            # drill: 3 damage stages (x1 -> x2 after 2s -> x3 after 4s on the
+            # same target). Melee drill, NOT an inferno beam. Max ~240 dps.
+            ability_name="Explosive Escape", ability_type="escape",
+            ability_cost=1, ability_cooldown=12.0, ability_duration=1.0,
+            ability_radius=2.5, ability_value=380),
+            # drops a bomb (explodes after 1s) and burrows to the OTHER lane:
+            # his new spot is mirrored across the arena's vertical centre line
     CardDef("archer_queen", "Archer Queen", 5, rarity="champion",
             hp=500, damage=126, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True,
             ability_name="Cloaking Cape", ability_type="cloak", ability_cost=1,
-            ability_cooldown=8.0, ability_duration=3.0, ability_value=2.0),
+            ability_cooldown=12.0, ability_duration=3.5, ability_value=2.0),
+            # invisible (untargetable) + attacks twice as fast for 3.5s
     CardDef("little_prince", "Little Prince", 3, rarity="champion",
-            hp=560, damage=60, hit_speed=1.3, range=6.0, speed=SPEED_MEDIUM,
-            attacks=AG, ramp=True, is_champion=True,
-            ability_name="Call the Guardian", ability_type="summon",
-            ability_cost=3, ability_cooldown=12.0, ability_value=1),
+            hp=560, damage=60, hit_speed=1.2, range=6.0, speed=SPEED_MEDIUM,
+            attacks=AG, is_champion=True,
+            ramp_stages=((0.0, 1.0), (2.5, 1.6), (5.0, 2.3)), ramp_kind="speed",
+            # keeps shooting faster the longer he attacks (normal shots)
+            ability_name="Royal Rescue", ability_type="rescue",
+            ability_cost=3, ability_cooldown=18.0, ability_radius=1.0,
+            ability_value=150),
+            # the Guardian charges in, knocking back + damaging enemies on
+            # his path, then stays to fight
     CardDef("golden_knight", "Golden Knight", 4, rarity="champion",
             hp=1400, damage=170, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, is_champion=True,
-            ability_name="Dashing Dash", ability_type="dash", ability_cost=1,
-            ability_cooldown=7.0, ability_radius=1.7, ability_value=220),
+            ability_name="Dashing Dash", ability_type="chain_dash",
+            ability_cost=1, ability_cooldown=10.0, ability_radius=5.5,
+            ability_value=220),
+            # chain-dashes through up to 10 enemies (each within 5.5 tiles of
+            # the last), hitting each one; can't be damaged while dashing
     CardDef("skeleton_king", "Skeleton King", 4, rarity="champion",
             hp=1800, damage=176, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.3, is_champion=True,
             ability_name="Soul Summoning", ability_type="skeletons",
-            ability_cost=2, ability_cooldown=10.0, ability_value=6),
+            ability_cost=2, ability_cooldown=14.0, ability_value=6),
+            # 6 skeletons + 1 per soul collected from nearby deaths (max 10)
     CardDef("monk", "Monk", 5, rarity="champion",
-            hp=1900, damage=190, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
-            attacks=G, is_champion=True,
-            ability_name="Pancake", ability_type="immune", ability_cost=2,
-            ability_cooldown=9.0, ability_duration=1.6, ability_radius=3.0,
-            ability_value=160),
-    CardDef("goblinstein", "Goblinstein", 6, rarity="champion",
-            hp=1200, damage=120, hit_speed=1.4, range=4.5, speed=SPEED_MEDIUM,
+            hp=1900, damage=120, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
+            attacks=G, is_champion=True, combo_every=3, knockback=1.2,
+            # 3-hit combo: every 3rd strike splashes and knocks enemies back
+            ability_name="Pensive Protection", ability_type="protect",
+            ability_cost=1, ability_cooldown=14.0, ability_duration=4.0,
+            ability_value=0.8),
+            # takes 80% less damage for 4s and deflects incoming single-target
+            # projectiles back at whoever fired them
+    CardDef("goblinstein", "Goblinstein", 5, rarity="champion",
+            hp=900, damage=110, hit_speed=1.4, range=4.5, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True, companion=("goblin_monster", 1),
-            ability_name="Electrify", ability_type="chain_stun", ability_cost=1,
-            ability_cooldown=7.0, ability_value=6),
-    CardDef("boss_bandit", "Boss Bandit", 5, rarity="champion",
-            hp=1600, damage=200, hit_speed=1.3, range=1.2, speed=SPEED_FAST,
-            attacks=G, charge=True, charge_mult=2.0, is_champion=True,
-            ability_name="Boss Dash", ability_type="shield_dash", ability_cost=1,
-            ability_cooldown=7.0, ability_radius=1.8, ability_value=400),
+            # the Doctor (ranged) deploys together with his Monster
+            ability_name="Lightning Link", ability_type="link",
+            ability_cost=2, ability_cooldown=14.0, ability_duration=4.0,
+            ability_radius=0.7, ability_value=160),
+            # a crackling beam joins Doctor and Monster for 4s: enemies
+            # touching it take damage (per second) and are briefly stunned
+    CardDef("boss_bandit", "Boss Bandit", 6, rarity="champion",
+            hp=1700, damage=200, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            attacks=G, is_champion=True, dash=(3.5, 6.0), dash_immune=True,
+            charge_mult=2.0,
+            # dashes like the Bandit (invulnerable, double-damage landing)
+            ability_name="Getaway Grenade", ability_type="getaway",
+            ability_cost=1, ability_cooldown=12.0, ability_duration=2.5,
+            ability_radius=2.0, ability_value=150),
+            # smoke grenade at her feet (damage + stun), then she vanishes and
+            # leaps back toward her own side, cloaked for 2.5s
 
     # ==================== NON-DEPLOYABLE SUB-UNITS ====================
     # These are spawned by other cards; they don't appear in the deck builder.
@@ -572,7 +634,7 @@ _CARD_LIST = [
             hp=190, damage=40, hit_speed=1.3, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_gives_elixir=1.0),
     CardDef("royal_guardian", "Guardian", 0, deployable=False,
-            hp=900, damage=90, hit_speed=1.3, range=1.2, speed=SPEED_MEDIUM,
+            hp=900, damage=110, hit_speed=1.3, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, shield_hp=250),   # Little Prince's summoned guardian
     CardDef("goblin_monster", "Goblin Monster", 0, deployable=False,
             hp=1100, damage=150, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,

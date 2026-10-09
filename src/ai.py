@@ -235,7 +235,21 @@ class AIController:
             near = any(champ.can_attack(e) and
                        ((e.x - champ.x) ** 2 + (e.y - champ.y) ** 2) ** 0.5 <= 6.0
                        for e in m.entities)
-            if near or champ.card.ability_type in ("summon", "skeletons"):
+            typ = champ.card.ability_type
+            hurt = champ.hp < champ.max_hp * 0.45
+            if typ in ("escape", "getaway"):
+                # escapes: bail out when hurt (Mighty Miner also likes to
+                # leave his bomb on a tower he's drilling)
+                use = near and (hurt or (typ == "escape" and champ.target is not None
+                                         and champ.target.is_tower
+                                         and champ.ramp_stage() >= 2))
+            elif typ == "link":
+                use = near and champ.partner is not None and champ.partner.alive
+            elif typ == "skeletons":
+                use = near or champ.souls >= 4
+            else:
+                use = near
+            if use:
                 m.activate_ability(ENEMY)
 
         if self.decision_timer > 0:
