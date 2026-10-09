@@ -86,10 +86,10 @@ Every level keeps the skills of the ones below it.
 | 5 Master | Exact elixir count, remembers your cards, and **simulates every decision** (defence, attack, spells) 10 seconds ahead while assuming you keep playing well |
 
 Benchmarked by having the AIs play each other at 1.0x elixir (both deck
-orders, preset decks): Casual beats Novice 59%, Skilled beats Casual 58%,
-Expert beats Skilled 61%, Master beats Expert 58% (Master beats Skilled 79%).
-Elixir is the bigger lever: Master at 1.0x roughly equals Skilled at 1.15x,
-and Skilled at 1.5x beats Master at 1.0x about 4 games in 5.
+orders, preset decks, v0.3.0 card stats): Casual beats Novice 63%, Skilled
+beats Casual 52%, Expert beats Skilled 62%, Master beats Expert 67% (Master
+beats Skilled 80%). Elixir is the bigger lever: Master at 1.0x roughly
+equals Skilled at 1.15x.
 
 Master "thinks" for about half a second per decision, spread over frames so
 the game stays smooth.
