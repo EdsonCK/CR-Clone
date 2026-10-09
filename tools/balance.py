@@ -472,14 +472,14 @@ def matrix(snapshot, procs=4):
 # ===========================================================================
 #  tuning (one round against a frozen snapshot)
 # ===========================================================================
-F_MIN, F_MAX = 0.5, 1.6     # total power change allowed: nerf to x0.5, buff to x1.6
+F_MIN, F_MAX = 0.3, 1.6     # total power change allowed: nerf to x0.3, buff to x1.6
                             # (cards whose value is mostly outside a 1-v-1 fight -
                             #  huts, siege, spirits - would otherwise inflate)
 SPELL_TARGET = 0.0    # set from the baseline: median spell performance
 TOL = 0.12
 
 
-STEP = 1.35           # max power change per card per round (x or /)
+STEP = float(os.environ.get("STEP", "1.5"))   # max power change per card per round
 
 
 def _tune_job(args):
