@@ -421,10 +421,10 @@ class AIController:
                 continue
             if c.spell_damage <= 0 or c.graveyard:
                 continue
-            delay = cfg.SPELL_CAST_TIMES.get(c.key, cfg.SPELL_CAST_DELAY)
-            lead = delay if self.lv(3) else 0.0
             cands = []
             for e in units:
+                lead = (self.match.spell_delay(self.me, c, e.x, e.y)
+                        if self.lv(3) else 0.0)
                 x, y = self._predict(e, lead)
                 if c.rolling:
                     y = self.W(self.L(y) - 0.6)
@@ -745,6 +745,8 @@ class AIController:
 
     def _rollout(self, cand, horizon, seed=0):
         sim = copy.deepcopy(self.match, self._memo())
+        sim.record_events = False
+        sim.events = []
         if cand is not None:
             idx, key, x, ly = cand
             if sim.hands[self.me][idx] != key:
@@ -820,10 +822,9 @@ class AIController:
                 if c.category != "spell" or c.spell_damage <= 0 or c.graveyard \
                         or (c.spawn_troops and not c.rolling):
                     continue
-                delay = cfg.SPELL_CAST_TIMES.get(c.key, cfg.SPELL_CAST_DELAY)
                 best, bv = None, 0.0
                 for e in units:
-                    x, y = self._predict(e, delay)
+                    x, y = self._predict(e, self.match.spell_delay(self.me, c, e.x, e.y))
                     if c.rolling:
                         y = self.W(self.L(y) - 0.6)
                     v, n = self._spell_value(c, x, y, units)

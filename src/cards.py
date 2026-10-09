@@ -156,6 +156,10 @@ class CardDef:
                                 # (radius, dmg) splash on dash landing. If None
                                 #   the dash ends with a charge_mult hit.
     dash_immune: bool = False   # takes no damage while dashing (Bandit)
+    sub_hp_mult: float = 1.0    # hp / damage multipliers for units this card
+    sub_dmg_mult: float = 1.0   #   SPAWNS (huts, Witch, Golem's golemites, Goblin
+                                #   Barrel's goblins, Graveyard...). Lets one
+                                #   card be tuned without touching shared units.
     spawn_stun: float = 0.0     # stun applied by spawn_damage (E-Wiz deploy zap)
     spawn_slow: Optional[Tuple[float, float]] = None   # slow from spawn_damage
 

@@ -119,6 +119,36 @@ spell fields, etc.).
 
 ---
 
+## Music & sound
+
+All music and sound effects are **synthesised from scratch** in
+`src/sounds.py` (oscillators, filtered noise, plucked strings). There are no
+samples and nothing copyrighted. That includes:
+
+* menu music, battle music, and a faster track for the last minute;
+* victory / defeat jingles and announcements (double elixir, overtime, the
+  final 10-second countdown, the King waking up);
+* UI clicks, card select / deselect, and an "invalid placement" buzz;
+* a **unique deploy sound and attack sound for every card**, plus a cast
+  and impact sound for every spell.
+
+Sounds are panned left/right by where they happen. Toggle **Music** (M key)
+and **Sound** (N key) on the main menu; volumes are in `config.py`. The
+WAVs live in `assets/sounds/`. Drop in your own WAV with the same name
+(e.g. `knight_attack.wav`) and it is used and never overwritten.
+
+## Spells & effects
+
+Fireball, Arrows, Rocket, Goblin Barrel and Snowball are **thrown from the
+caster's King Tower** and visibly fly in an arc to the target (flight speeds
+are in `SPELL_FLIGHT_SPEED` in `config.py`). Every spell has its own
+telegraph, impact and lingering look (scorch marks, frost, arrows stuck in
+the ground, earthquake cracks, poison haze...). See `src/fx.py`.
+
+Melee troops wait one full attack cooldown after engaging a new target
+before their first hit lands. Ranged troops fire straight away, spirits
+explode on contact, and a finished charge hits on impact.
+
 ## Swapping in your own art
 
 Every card has its own original, hand-built art (in `src/sprite_art.py`),
@@ -135,6 +165,26 @@ the `SCALES` table at the top of `src/sprites.py`.
 
 ---
 
+## Card balance (tools/)
+
+All card stats were balanced with an automated benchmark,
+`tools/balance.py`. Its docstring explains it in full. In short:
+
+* Every card meets every other card in a real arena with towers, in both
+  roles (attacking at the bridge and defending at the tower), in
+  **equal-elixir** engagements: the cheaper side deploys extra copies.
+* Each engagement is scored as an elixir trade plus tower damage. A card's
+  performance is the average over the whole pool (weighted toward cards of
+  similar cost, with the most extreme 10% trimmed off each end), so no card
+  is balanced around one counter.
+* Damage spells are judged on their best 40% of targets (how they're used).
+* Each round tunes every card's power (hp/damage split by role) against a
+  **frozen snapshot** of all the others. The results are saved separately
+  and only applied when the round ends.
+
+`tools/balance_data/` holds the benchmark results, and `BALANCE.md` lists
+every stat change.
+
 ## Project layout
 
 ```
@@ -146,9 +196,15 @@ src/
   ai.py       the single-player opponent
   sprites.py  saves/loads unit art, in-game unit sizes
   sprite_art.py  the original card art (one function per card)
+  sounds.py   procedural music & sound effects
+  fx.py       particles & spell visuals
   game.py     window, menus, deck builder, rendering, input, main loop
 assets/
   sprites/    generated (and user-replaceable) PNGs
+  sounds/     generated (and user-replaceable) WAVs
+tools/
+  balance.py        card benchmark & auto-balancer
+  apply_balance.py  writes balanced stats into src/cards.py
 ```
 
 ## Cards included (95, including 8 Champions)

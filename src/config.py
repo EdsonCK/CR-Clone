@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "0.2.3"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "0.3.0"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
@@ -186,6 +186,15 @@ SPELL_CAST_TIMES     = {
     "rage": 0.35, "freeze": 0.65, "poison": 0.6, "rocket": 1.0, "lightning": 0.6,
 }
 
+# Thrown spells fly from the caster's KING TOWER to the target, so you can see
+# where they come from (and Goblin Barrel goblins don't just appear). Values
+# are flight speeds in tiles/second; the spell lands when it arrives (never
+# sooner than its SPELL_CAST_TIMES entry above).
+SPELL_FLIGHT_SPEED   = {
+    "fireball": 16.0, "arrows": 19.0, "rocket": 12.0,
+    "goblin_barrel": 15.0, "snowball": 17.0,
+}
+
 # Named movement speeds (tiles/second). Cards reference these by name so you
 # can retune "fast" globally. Clash Royale speed tiers, roughly.
 SPEED_SLOW      = 1.1
@@ -211,6 +220,11 @@ COLOR_BUTTON      = (60, 90, 140)
 COLOR_BUTTON_HOVER= (85, 120, 180)
 COLOR_HP_GOOD     = (90, 200, 90)
 COLOR_HP_BAD      = (200, 70, 70)
+
+# Sound (toggle in-game with the Music / Sound chips on the main menu, or the
+# M and N keys anywhere)
+MUSIC_VOLUME      = 0.45    # 0.0 - 1.0
+SFX_VOLUME        = 0.75    # 0.0 - 1.0
 
 SHOW_TILE_GRID    = False   # set True to see the tile grid while balancing
 SHOW_RANGES       = False   # set True to see attack ranges (debug)

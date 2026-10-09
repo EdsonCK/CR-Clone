@@ -28,6 +28,8 @@ import pygame
 import config as cfg
 import cards
 import sprites
+import sounds
+import fx as fxmod
 from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
 from ai import AIController
@@ -137,8 +139,12 @@ class Button:
         surf.blit(txt, (r.centerx - txt.get_width() // 2,
                         r.centery - txt.get_height() // 2))
 
+    click_sound = None      # set by Game: plays the UI click
+
     def click(self, pos):
         if self.rect.collidepoint(pos):
+            if Button.click_sound:
+                Button.click_sound()
             self.cb()
             return True
         return False
@@ -146,6 +152,10 @@ class Button:
 
 class Game:
     def __init__(self):
+        try:
+            pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
+        except Exception:
+            pass
         pygame.init()
         pygame.display.set_caption("Clash Clone - Singleplayer")
         self.screen = pygame.display.set_mode((cfg.WINDOW_W, cfg.WINDOW_H))
@@ -156,6 +166,15 @@ class Game:
         self.font_m = pygame.font.SysFont("arial", 18, bold=True)
         self.font_l = pygame.font.SysFont("arial", 30, bold=True)
         self.font_xl = pygame.font.SysFont("arial", 44, bold=True)
+
+        # music & sound effects (rendered once into assets/sounds)
+        sounds.ensure_sounds(progress=self._loading_screen)
+        self.sfx = sounds.SoundManager(cfg.MUSIC_VOLUME, cfg.SFX_VOLUME)
+        Button.click_sound = lambda: self.sfx.play("ui_click", 0.6, min_gap=0.02)
+        self.music_on = True
+        self.sfx_on = True
+        self._audio = {}
+        self.fx = fxmod.FX()
 
         self.state = "menu"
         self.running = True
@@ -173,6 +192,8 @@ class Game:
         self.slider_drag = False
         self.ai_deck_choice = "Classic"
         self._load_settings()
+        self.sfx.set_music_on(self.music_on)
+        self.sfx.set_sfx_on(self.sfx_on)
         self.ai_custom_deck = self._load_deck(AI_DECK_FILE, cards.DEFAULT_AI_DECK)
         self.deck_scroll = 0        # vertical scroll offset in the deck builder
         self.deck_mode = "player"   # "player" or "ai" - which deck is being edited
@@ -248,6 +269,8 @@ class Game:
             if d.get("ai_deck") in cards.AI_DECK_PRESETS or d.get("ai_deck") in (
                     "Random", "Custom"):
                 self.ai_deck_choice = d["ai_deck"]
+            self.music_on = bool(d.get("music", True))
+            self.sfx_on = bool(d.get("sfx", True))
         except Exception:
             pass
 
@@ -255,7 +278,8 @@ class Game:
         try:
             with open(SETTINGS_FILE, "w") as f:
                 json.dump({"ai_level": self.ai_level, "ai_elixir": self.ai_elixir,
-                           "ai_deck": self.ai_deck_choice}, f)
+                           "ai_deck": self.ai_deck_choice,
+                           "music": self.music_on, "sfx": self.sfx_on}, f)
         except Exception:
             pass
 
@@ -353,6 +377,11 @@ class Game:
             Button((cx - w // 2, y0 + i * gap, w, h), lbl, cb)
             for i, (lbl, cb) in enumerate(labels)
         ]
+        # sound toggles (top corners); labels refreshed every frame
+        self.music_btn = Button((8, 8, 104, 28), "Music", lambda: self._toggle_music())
+        self.sfx_btn = Button((cfg.WINDOW_W - 112, 8, 104, 28), "Sound",
+                              lambda: self._toggle_sfx())
+        self.menu_buttons += [self.music_btn, self.sfx_btn]
 
     def _open_deck_editor(self, mode, return_to):
         self.deck_mode = mode
@@ -396,7 +425,11 @@ class Game:
         cfg.apply_ai_settings(self.ai_level, self.ai_elixir)
         self._save_settings()
         self.match = Match(self.player_deck, self._resolve_ai_deck())
+        self.match.record_events = True
         self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
+        self._audio = {}
+        self.fx.clear()
+        self.sfx.play("match_start", 0.9, min_gap=0.0)
         self.selected = None
         self.state = "match"
 
@@ -432,9 +465,115 @@ class Game:
                 self.ai.update(dt)
                 if self.match.finished:
                     self._on_match_end()
+            self._update_audio(dt)
+            if self.state in ("match", "result") and self.match is not None:
+                self.fx.update(dt, self.match)
             self._draw()
             pygame.display.flip()
         pygame.quit()
+
+    # ================================================================= AUDIO
+    def _loading_screen(self, n, total):
+        """Shown while sounds are rendered on the very first launch."""
+        if n % 6:
+            return
+        pygame.event.pump()
+        self.screen.fill((24, 28, 44))
+        cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
+        self._text("Composing music & sounds...", self.font_m, (240, 220, 120),
+                   center=(cx, cy - 20))
+        w = cfg.WINDOW_W - 80
+        pygame.draw.rect(self.screen, (50, 56, 74), (40, cy + 6, w, 10), border_radius=5)
+        pygame.draw.rect(self.screen, (240, 200, 90),
+                         (40, cy + 6, int(w * n / max(total, 1)), 10), border_radius=5)
+        self._text("(first launch only)", self.font_s, (170, 178, 195), center=(cx, cy + 34))
+        pygame.display.flip()
+
+    def _toggle_music(self):
+        self.music_on = not self.music_on
+        self.sfx.set_music_on(self.music_on)
+        self._save_settings()
+
+    def _toggle_sfx(self):
+        self.sfx_on = not self.sfx_on
+        self.sfx.set_sfx_on(self.sfx_on)
+        if self.sfx_on:
+            self.sfx.play("ui_toggle")
+        self._save_settings()
+
+    def _pan(self, x):
+        return max(0.0, min(1.0, x / cfg.GRID_COLS))
+
+    def _update_audio(self, dt):
+        self.sfx.tick(dt)
+        m = self.match
+        # ---- music follows the screen ----
+        if self.state == "match" and m is not None:
+            final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
+            self.sfx.music("final" if final else "battle")
+        elif self.state == "result":
+            self.sfx.music(None)
+        else:
+            self.sfx.music("menu")
+        if m is None or self.state not in ("match", "result"):
+            return
+        evs = m.take_events()
+        self._handle_events(evs)
+        if self.state != "match":
+            return
+        a = self._audio
+        # announcements: double elixir, overtime, final countdown, king wakes
+        mult = m.elixir_multiplier()
+        if mult >= 2 and not m.overtime and not a.get("double"):
+            a["double"] = True
+            self.sfx.play("double_elixir", 0.9)
+        if m.overtime and not a.get("ot"):
+            a["ot"] = True
+            self.sfx.play("overtime", 0.9)
+        sec = int(math.ceil(m.time_left))
+        if 0 < sec <= 10 and sec != a.get("tick"):
+            a["tick"] = sec
+            self.sfx.play("tick", 0.7)
+        for team in (PLAYER, ENEMY):
+            k = m.towers[(team, "king")]
+            if k.active and not a.get(("king", team)):
+                a[("king", team)] = True
+                if k.alive:
+                    self.sfx.play("king_wake", 0.8, self._pan(k.x))
+
+    def _handle_events(self, evs):
+        for ev in evs:
+            kind, key = ev["kind"], ev["key"]
+            pan = self._pan(ev["x"])
+            mine = ev.get("team") == PLAYER
+            if kind == "attack":
+                tower = key in ("princess_tower", "king_tower")
+                self.sfx.play(key + "_attack", 0.32 if tower else 0.5, pan, min_gap=0.07)
+            elif kind == "deploy":
+                c = cards.CARDS.get(key)
+                if c is not None and c.category == "spell":
+                    self.sfx.play(key + "_cast", 0.85 if mine else 0.7, pan, min_gap=0.02)
+                else:
+                    self.sfx.play(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
+            elif kind == "impact":
+                self.sfx.play(key + "_impact", 0.95, pan, min_gap=0.02)
+            elif kind == "death":
+                if ev.get("tower"):
+                    self.sfx.play("tower_down", 1.0, pan, min_gap=0.0)
+                    self.sfx.play("crown", 0.8, 0.5, min_gap=0.0)
+                elif ev.get("building"):
+                    self.sfx.play("death_building", 0.7, pan)
+                elif ev.get("big"):
+                    self.sfx.play("death_big", 0.7, pan)
+                else:
+                    self.sfx.play("death_small", 0.35, pan, min_gap=0.09)
+            elif kind == "ability":
+                self.sfx.play("ability", 1.0, pan, min_gap=0.0)
+            elif kind == "dash":
+                self.sfx.play("dash", 0.6, pan)
+            elif kind == "land" and ev.get("slam"):
+                self.sfx.play("slam", 0.85, pan)
+        self.fx.handle_events(evs, self.match)
 
     def _on_match_end(self):
         w = self.match.winner
@@ -444,6 +583,9 @@ class Game:
             self.result_text = "DEFEAT"
         else:
             self.result_text = "DRAW"
+        self._handle_events(self.match.take_events())
+        self.sfx.music(None)
+        self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
         self._record_result()
         self.state = "result"
 
@@ -453,6 +595,10 @@ class Game:
             if e.type == pygame.QUIT:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_m:
+                    self._toggle_music()
+                elif e.key == pygame.K_n:
+                    self._toggle_sfx()
                 if self.state == "prematch" and e.key in (pygame.K_LEFT, pygame.K_RIGHT,
                                                           pygame.K_MINUS, pygame.K_EQUALS,
                                                           pygame.K_KP_MINUS, pygame.K_KP_PLUS):
@@ -540,23 +686,33 @@ class Game:
 
     def _match_click(self, pos, button):
         if button == 3:
+            if self.selected is not None:
+                self.sfx.play("ui_deselect", 0.6, min_gap=0.0)
             self.selected = None
             return
         # champion ability button (bottom-left)
         champ, ready, cost = self.match.ability_status(PLAYER)
         if champ is not None and self._ability_btn_rect().collidepoint(pos):
-            self.match.activate_ability(PLAYER)
+            if not self.match.activate_ability(PLAYER):
+                self.sfx.play("ui_invalid", 0.6)
             return
         rects = self._hand_slot_rects()
         for i, r in enumerate(rects):
             if r.collidepoint(pos):
-                self.selected = None if self.selected == i else i
+                if self.selected == i:
+                    self.selected = None
+                    self.sfx.play("ui_deselect", 0.6, min_gap=0.0)
+                else:
+                    self.selected = i
+                    self.sfx.play("ui_select", 0.6, min_gap=0.0)
                 return
         # click on arena to deploy
         if self.selected is not None:
             tx, ty = px_to_tile(*pos)
             if self.match.play_card(PLAYER, self.selected, tx, ty):
                 self.selected = None
+            else:
+                self.sfx.play("ui_invalid", 0.6)
 
     # ================================================================= PREMATCH
     # Battle Setup layout ------------------------------------------------
@@ -943,8 +1099,11 @@ class Game:
                          (cx - 120, 148 + bob), (cx + 120, 148 + bob), 2)
         self._text("Singleplayer  v" + cfg.GAME_VERSION, self.font_m,
                    (205, 210, 225), center=(cx, 170 + bob))
+        self.music_btn.label = "Music: %s (M)" % ("On" if self.music_on else "Off")
+        self.sfx_btn.label = "Sound: %s (N)" % ("On" if self.sfx_on else "Off")
         for b in self.menu_buttons:
-            b.draw(self.screen, self.font_m)
+            b.draw(self.screen, self.font_s if b in (self.music_btn, self.sfx_btn)
+                   else self.font_m)
         # your current deck, shown as sprites in a framed strip
         if self.player_deck:
             n = len(self.player_deck)
@@ -1162,6 +1321,8 @@ class Game:
             "Battle Setup: pick the AI's intelligence (1-5)",
             "and its elixir boost (0.5x-2x, 1x = even).",
             "",
+            "M = music on/off      N = sound on/off",
+            "",
             "Click anywhere / Esc to return to the menu.",
         ]
         y = 90
@@ -1308,6 +1469,7 @@ class Game:
     def _draw_match(self):
         self._draw_arena()
         m = self.match
+        self.fx.draw_decals(self.screen)
         for e in m.entities:
             self._draw_entity(e)
         for fx in m.effects:
@@ -1315,6 +1477,8 @@ class Game:
         self._draw_beams()
         for p in m.projectiles:
             self._draw_projectile(p)
+        self.fx.draw_particles(self.screen)
+        self.fx.draw_flash(self.screen)
         self._draw_placement_preview()
         self._draw_topbar()
         self._draw_hud()
@@ -1519,6 +1683,8 @@ class Game:
             pygame.draw.rect(self.screen, (150, 200, 255), (x, top - 3, w, 2))
 
     def _draw_effect(self, fx):
+        if self.fx.draw_spell(self.screen, fx):
+            return                       # spells have bespoke visuals (fx.py)
         px, py = tile_to_px(fx.x, fx.y)
         if fx.kind == "incoming":
             self._draw_incoming(fx, px, py)

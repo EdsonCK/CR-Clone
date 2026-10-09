@@ -5,3 +5,6 @@ player_deck.json
 ai_custom_deck.json
 records.json
 settings.json
+tools/balance_data/*.log
+tools/balance_data/*.sh
+tools/balance_data/pipeline.done
