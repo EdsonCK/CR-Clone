@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+player_deck.json
+.DS_Store
+ai_custom_deck.json
+records.json
