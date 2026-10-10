@@ -33,18 +33,20 @@ HERO_COL = (255, 196, 80)
 
 class ScreensMixin:
     # screens drawn/handled by this mixin: _draw_<name>, _<name>_click
-    EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats")
+    EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats", "achievements")
 
     def _extra_escape(self):
         back = {"cards": getattr(self, "cards_return", "menu"),
                 "draft": "modes"}.get(self.state, "menu")
         if self.state == "stats":
-            back = "result"
+            back = getattr(self, "stats_return", "result")
         self.state = back
 
     def _extra_wheel(self, dy):
         if self.state == "cards":
             self._cards_set_scroll(self.cards_scroll - dy * 60)
+        elif self.state == "achievements":
+            self._ach_set_scroll(getattr(self, "ach_scroll", 0) - dy * 60)
         elif self.state == "modes":
             pass
 
@@ -58,9 +60,13 @@ class ScreensMixin:
         elif self.state == "settings" and getattr(self, "settings_drag", None):
             self._settings_drag_to(pos[0])
 
+    def _open_stats(self, back="result"):
+        self.stats_return = back
+        self.state = "stats"
+
     def _stats_buttons(self):
         return [Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
-                       lambda: self._goto("result"), "dark")]
+                       lambda: self._goto(getattr(self, "stats_return", "result")), "dark")]
 
     def _stats_click(self, pos):
         for b in self._stats_buttons():
@@ -631,3 +637,91 @@ class ScreensMixin:
         self._text("Sandbox never changes your saved progress or rewards.",
                    self.font_s, (160, 166, 186),
                    center=(cfg.WINDOW_W // 2, cfg.WINDOW_H - 70))
+
+    # ======================================================== ACHIEVEMENTS
+    ACH_ROW = 66
+
+    def _open_achievements(self):
+        self.ach_scroll = 0
+        self.ach_msg = ""
+        self.state = "achievements"
+
+    def _ach_view(self):
+        return pygame.Rect(0, 84, cfg.WINDOW_W, cfg.WINDOW_H - 84 - 70)
+
+    def _ach_set_scroll(self, v):
+        import achievements as ach
+        mx = max(0, len(ach.ACHIEVEMENTS) * self.ACH_ROW + 8 - self._ach_view().h)
+        self.ach_scroll = int(max(0, min(mx, v)))
+
+    def _ach_rows(self):
+        import achievements as ach
+        v = self._ach_view()
+        out = []
+        for i, a in enumerate(ach.status(self)):
+            r = pygame.Rect(12, v.y + 4 + i * self.ACH_ROW - getattr(self, "ach_scroll", 0),
+                            cfg.WINDOW_W - 24, self.ACH_ROW - 6)
+            out.append((r, a))
+        return out
+
+    def _achievements_click(self, pos):
+        import achievements as ach
+        if Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
+                  lambda: self._goto("menu"), "dark").click(pos):
+            return
+        v = self._ach_view()
+        if not v.collidepoint(pos):
+            return
+        for r, a in self._ach_rows():
+            btn = pygame.Rect(r.right - 84, r.y + 14, 74, 30)
+            if btn.collidepoint(pos) and a[6] and not a[7]:
+                got = ach.claim(self, a[0])
+                if got:
+                    self.sfx.play("crown", 0.8, min_gap=0.0)
+                    self.ach_msg = "Claimed: %s" % got[1]
+                return
+
+    def _draw_achievements(self):
+        import achievements as ach
+        mouse = pygame.mouse.get_pos()
+        self._screen_title("Achievements", 26)
+        self._wallet(cfg.WINDOW_W // 2, 62)
+        v = self._ach_view()
+        self.screen.set_clip(v)
+        for r, (aid, title, desc, reward, cur, goal, done, claimed) in self._ach_rows():
+            if r.bottom < v.top or r.top > v.bottom:
+                continue
+            border = (120, 200, 120) if claimed else ((250, 206, 92) if done else (80, 88, 112))
+            self._panel(r, border=border)
+            self._text(title, self.font_sb, topleft=(r.x + 10, r.y + 6))
+            self._text(self._fit(desc, self.font_s, r.w - 110), self.font_s,
+                       (200, 204, 220), topleft=(r.x + 10, r.y + 24))
+            bw = r.w - 110
+            pygame.draw.rect(self.screen, (30, 34, 46), (r.x + 10, r.y + 42, bw, 8),
+                             border_radius=4)
+            pygame.draw.rect(self.screen, (120, 200, 120) if done else (110, 150, 230),
+                             (r.x + 10, r.y + 42, int(bw * cur / max(goal, 1)), 8),
+                             border_radius=4)
+            self._text("%d/%d" % (cur, goal), self.font_s, (200, 204, 220),
+                       topleft=(r.x + 14 + bw, r.y + 38))
+            btn = pygame.Rect(r.right - 84, r.y + 14, 74, 30)
+            if claimed:
+                self._text("Done", self.font_sb, (120, 200, 120), center=btn.center)
+            elif done:
+                Button(btn, "Claim", lambda: None, "gold").draw(self.screen, self.font_sb)
+            else:
+                g, sh = reward
+                x = btn.x + 4
+                if g:
+                    self._coin(x + 6, btn.centery, 6)
+                    self._text("%d" % g, self.font_s, (250, 206, 92), topleft=(x + 14, btn.y + 7))
+                    x += 40
+                if sh:
+                    self._shard(x + 6, btn.centery, 6)
+                    self._text("%d" % sh, self.font_s, (196, 120, 255), topleft=(x + 14, btn.y + 7))
+        self.screen.set_clip(None)
+        if getattr(self, "ach_msg", ""):
+            self._text(self.ach_msg, self.font_sb, (150, 240, 160),
+                       center=(cfg.WINDOW_W // 2, cfg.WINDOW_H - 64))
+        Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
+               lambda: None, "dark").draw(self.screen, self.font_m)

@@ -400,13 +400,15 @@ class Game(ModesMixin, ScreensMixin):
             ("Records", lambda: self._goto("records")),
             ("Settings", lambda: self._open_settings()),
             ("How To Play", lambda: self._goto("help")),
+            ("Achievements", lambda: self._open_achievements()),
+            ("Last Match", lambda: self._open_stats("menu") if self.match else None),
         ]
         hw = (w - 8) // 2
         for i, (lbl, cb) in enumerate(small):
             r, c = divmod(i, 2)
             self.menu_buttons.append(Button((cx - w // 2 + c * (hw + 8), 412 + r * 48, hw, 40),
                                             lbl, cb, "primary"))
-        self.menu_buttons.append(Button((cx - w // 2, 560, w, 40), "Quit", self._quit,
+        self.menu_buttons.append(Button((cx - w // 2, 608, w, 40), "Quit", self._quit,
                                         "danger"))
         # sound toggles (top corners); labels refreshed every frame
         self.music_btn = Button((10, 10, 118, 30), "Music", lambda: self._toggle_music(),
@@ -772,6 +774,8 @@ class Game(ModesMixin, ScreensMixin):
                     self.sfx.play(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
                 if ev.get("evo"):
                     self.sfx.play("evo_deploy", 0.8, pan, min_gap=0.0)
+                    if mine:
+                        self.profile.totals["evo_plays"] = self.profile.totals.get("evo_plays", 0) + 1
             elif kind == "impact":
                 self.sfx.play(key + "_impact", 0.95, pan, min_gap=0.02)
                 amt = {"rocket": 6, "fireball": 3.5, "lightning": 4, "earthquake": 3,
@@ -849,6 +853,7 @@ class Game(ModesMixin, ScreensMixin):
                           and levels.stars_needed(i) <= self._total_stars()]
                 for nm in opened:
                     self.last_rewards.append(("Unlocked: " + nm, 0, 0))
+                self._daily(True)
             self._save_progress()
             self.profile.save()
             self._handle_events(self.match.take_events())
@@ -863,6 +868,9 @@ class Game(ModesMixin, ScreensMixin):
         else:
             self.result_text = "DRAW"
         self.last_rewards = []
+        if w == PLAYER:
+            self.profile.totals["battle_wins" if self.mode is None else "special_wins"] = \
+                self.profile.totals.get("battle_wins" if self.mode is None else "special_wins", 0) + 1
         if self.mode is not None:
             self._mode_rewards(w)
         else:
@@ -880,12 +888,18 @@ class Game(ModesMixin, ScreensMixin):
                     self.last_rewards.append(("AI %s is now Lv %d" % (
                         cfg.AI_LEVELS[self.ai_level]["name"],
                         self.profile.ladder_level(self.ai_level)), 0, 0))
+        self._daily(w == PLAYER)
         self.profile.save()
         self._handle_events(self.match.take_events())
         self.sfx.music(None)
         self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
         self._record_result()
         self.state = "result"
+
+    def _daily(self, won):
+        import achievements as ach
+        if won and ach.daily_bonus(self):
+            self._reward("First win of the day", ach.DAILY_GOLD, ach.DAILY_SHARDS)
 
     def _reward(self, label, gold=0, shards=0):
         self.profile.add(gold, shards)
@@ -1449,7 +1463,7 @@ class Game(ModesMixin, ScreensMixin):
             out += [Button((cx - 150, y, 145, 40), "Play Again", self._begin_battle, "go"),
                     Button((cx + 5, y, 145, 40), "Main Menu", lambda: self._goto("menu"))]
         out += [Button((cx - 150, y + 48, 145, 36), "Match Stats",
-                       lambda: self._goto("stats"), "dark"),
+                       lambda: self._open_stats("result"), "dark"),
                 Button((cx + 5, y + 48, 145, 36), "Cards",
                        lambda: self._open_cards("result"), "dark")]
         return out
@@ -1562,8 +1576,15 @@ class Game(ModesMixin, ScreensMixin):
         self.music_btn.label = "Music: %s (M)" % ("On" if self.music_on else "Off")
         self.sfx_btn.label = "Sound: %s (N)" % ("On" if self.sfx_on else "Off")
         for b in self.menu_buttons:
+            b.enabled = not (b.label == "Last Match" and self.match is None)
             b.draw(self.screen, self.font_sb if b in (self.music_btn, self.sfx_btn)
                    else self.font_m)
+            if b.label == "Achievements":
+                import achievements as ach
+                n = ach.claimable(self)
+                if n:
+                    pygame.draw.circle(self.screen, (220, 60, 60), (b.rect.right - 6, b.rect.y + 4), 10)
+                    self._text(str(n), self.font_sb, center=(b.rect.right - 6, b.rect.y + 4))
         # your current deck, shown as sprites in a framed strip
         if self.player_deck:
             n = len(self.player_deck)
