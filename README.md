@@ -76,28 +76,62 @@ above that adds +10% HP and damage (compounding), as in Clash Royale. Each
 unit's level is shown on a badge next to its health bar, and bosses carry a
 red **BOSS** tag.
 
-**Level 1 – The Bone Crypt** sends every kind of skeleton in 7 waves:
-Skeletons, Guards + Bomber, Skeleton Army, Wall Breakers + Skeleton Barrel,
-Tombstone + a Graveyard on your tower, the Skeleton King (level 12), and
-finally a boss wave of **two Giant Skeletons with double HP and damage**
-(their death bombs too). You get +6 elixir when the boss wave starts.
+There are **20 levels**, each built around a theme, and they get harder as
+you go. The Levels screen scrolls (mouse wheel, drag, arrow keys or the
+scrollbar). Each card shows the level's number, waves, enemy levels, your
+stars and your win/play record, and the screen opens at the first level you
+haven't cleared yet.
 
-**Level 2 – Goblin Ambush** is all goblins: Goblins and Spear Goblins,
-a Dart Goblin volley, Goblin Barrels thrown at your towers, a Goblin Hut raid,
-a level-11 Goblin Giant, Goblinstein with a Goblin Barrel, and the boss wave
-**"The Warlords"**: two Goblin Giants at 1.5x HP and damage with level-12
-Spear Goblin backup.
+| # | Level | Theme / boss wave |
+|---|---|---|
+| 1 | The Bone Crypt | every skeleton variant; boss: two Giant Skeletons (2x) |
+| 2 | Goblin Ambush | goblins, darts, barrels, huts; boss: two Goblin Giants (1.4x) |
+| 3 | The Iron Legion | P.E.K.K.As under a sky of Minions and Bats; boss: two P.E.K.K.As (1.5x) |
+| 4 | Frostbite Pass | Ice Spirits, Ice Golems, Ice Wizards, Snowball + Freeze; boss: two Ice Golems (3.5x) |
+| 5 | Barbarian Raid | Barbarians, rams, a Barbarian Hut, Barbarian Barrels; boss: the Warband (Elite Barbarians 1.5x) |
+| 6 | Sky Raiders | only flyers: Balloons, Flying Machines, dragons; boss: the Lava Hound |
+| 7 | The Royal Court | knights, princes, princesses, Royal Giant; boss: the two Princes (1.85x) |
+| 8 | Rogues' Den | Bandits, Miners under your towers, Poison; boss: the Boss Bandit (1.7x) |
+| 9 | Spark & Storm | Zappies, E-Wizards, E-Dragons, Lightning; boss: twin Sparky + E-Giant (1.25x) |
+| 10 | Hog Stampede | Hog Riders and rams straight at your towers; boss: the Stampede (1.55x) |
+| 11 | The Pyromancers | Fire Spirits, Wizards, Furnace, Inferno Tower, Fireballs; boss: the Fire Lords (2x) |
+| 12 | Graveyard Shift | Witches, Night Witches, Graveyards, Tombstones; boss: the Lich King (1.5x) |
+| 13 | The Marksmen | archers, musketeers, Hunter, X-Bow, Archer Queen; boss: Three Musketeers (1.3x) |
+| 14 | Miner's Strike | Miners popping up on your towers, Mighty Miners, Cannon Carts; boss: the Mother Lode (1.7x) |
+| 15 | Dragon's Lair | Baby, Inferno and Electro Dragons; boss: the Elder Dragons |
+| 16 | Siege Engines | X-Bows and Mortars dug in at the river, Bomb Tower; boss: the Fortress (1.5x) |
+| 17 | Giants' Causeway | every kind of giant; boss: the Golem King |
+| 18 | Splash Zone | Valkyries, Bowlers, Bombers, Executioners; boss: two Mega Knights (1.3x) |
+| 19 | Champions' Arena | a champion every wave; boss: the Hall of Champions (1.45x) |
+| 20 | The Final Siege | 8 waves of everything; boss: the Overlords (P.E.K.K.A + Mega Knight + Lava Hound) |
 
-**Level 3 – Iron Legion** is the hardest: Bats and Minions, Mini P.E.K.K.As,
-a Minion Horde swarm, Night Witch + Mega Minion + Dark Prince, a level-13
-P.E.K.K.A with air cover, twin Mini P.E.K.K.As with a Minion Horde, and the
-boss wave **"The Iron Titans"**: two P.E.K.K.As with double HP and damage
-plus level-13 Minions and Bats.
+Waves can also **cast spells**: Graveyards, Goblin Barrels, Miners and
+Earthquakes land on your towers, and Snowball, Freeze, Barbarian Barrel,
+Poison, Lightning, Fireball and Rocket are aimed at the thickest clump of
+your troops (they wait until you have some on the field). Enemy spells hit
+as hard as the wave's level. Siege buildings (X-Bow, Mortar, Bomb Tower,
+Inferno Tower, Tesla) can be dug in right at the river - you'll have to cross
+into the miasma to knock them out. You get bonus elixir when a boss wave
+starts.
 
-In simulated playtests with a sensible level deck, a "Skilled" AI defender
-cleared Level 1 about half the time, Level 2 about 1 in 6 and Level 3 about
-1 in 12; an "Expert" one cleared Level 1 every time, Level 2 10 in 12 and
-Level 3 8 in 12.
+**Difficulty.** Every level was playtested by letting the AI defend with
+decks built from the presets (win conditions swapped out), 24 runs per level
+at "Expert" and 12 at "Skilled":
+
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Expert clears | 100% | 92% | 88% | 92% | 75% | 58% | 79% | 71% | 67% | 54% |
+| Skilled clears | 75% | 58% | 33% | 92% | 50% | 33% | 42% | 25% | 17% | 8% |
+
+| Level | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Expert clears | 54% | 58% | 63% | 54% | 54% | 71% | 46% | 42% | 38% | 17% |
+| Skilled clears | 8% | 8% | 33% | 25% | 0% | 42% | 8% | 0% | 8% | 0% |
+
+The AI is weakest against air (Sky Raiders, Dragon's Lair) and strongest
+against siege buildings, so expect those to feel a little different in your
+own hands. Your levels and stars are kept per level key, so old saves carry
+over.
 
 New levels are plain data: see the docstring at the top of `src/levels.py`.
 
@@ -138,7 +172,7 @@ Every level keeps the skills of the ones below it.
 | 1 Novice | Slow reactions, often plays a random card, sloppy placement |
 | 2 Casual | Real counter-picking (air/ground, splash vs swarms, DPS vs tanks), value spells, supports its pushes |
 | 3 Skilled | Lets towers handle tiny threats, smart placement (buildings pull tanks to the middle, ranged units behind towers), leads moving targets with spells, finishes low towers, counter-pushes, beatdown pushes, keeps a defence reserve, times champion abilities |
-| 4 Expert | Counts your elixir and punishes you when you're low, resets Infernos, cycles to its win condition, and **simulates** its defensive options a few seconds ahead before choosing one |
+| 4 Expert | Counts your elixir and punishes you when you're low, resets Infernos, cycles to its win condition, and **simulates** its defensive options 4 seconds ahead (assuming both sides keep playing) before choosing one |
 | 5 Master | Exact elixir count, remembers your cards, and **simulates every decision** (defence, attack, spells) 10 seconds ahead while assuming you keep playing well |
 
 Benchmarked by having the AIs play each other at 1.0x elixir (both deck
@@ -149,6 +183,12 @@ equals Skilled at 1.15x.
 
 Master "thinks" for about half a second per decision, spread over frames so
 the game stays smooth.
+
+v0.5.0 note: with unit collisions in, Expert's old lookahead (which assumed
+nobody else acts during its 4-second simulation) stopped paying off and it
+fell to a coin flip against Casual. Its rollouts now assume both sides keep
+playing, like Master's: in a 24-game check Expert beat Casual 16-8, Skilled
+19-4 (1 draw) and Novice 22-2, and Master beat Expert 20-4.
 
 ---
 
@@ -193,6 +233,32 @@ and **Sound** (N key) on the main menu; volumes are in `config.py`. The
 WAVs live in `assets/sounds/`. Drop in your own WAV with the same name
 (e.g. `knight_attack.wav`) and it is used and never overwritten.
 
+The Tesla fires an electric crackle (a sharp crack, fizzing sparks and a
+low hum) instead of a pitched tone, and it and the Archers are trimmed
+quieter (`ATTACK_GAIN` in `sounds.py`). To re-render one sound after changing
+it, bump its number in `SOUND_REVS`; only that file is regenerated.
+
+## Battlefield feel
+
+* **Collisions** – units have a body size and a weight (`MASS` / `BIG_R` in
+  `src/engine.py`; a card's `mass` field overrides it). Ground units push
+  ground units and air units push air units, friend or foe: a Giant shoulders
+  through Skeletons, a Skeleton Army spreads into a crowd instead of one
+  stacked skeleton (and 15 of them can nudge a Knight), and nothing moves a
+  building or tower - troops walk around them. Squads queue up to cross the
+  narrow bridges.
+* **River banks** – ground troops (except Hog Rider's vault and jumpers) can't
+  be pushed or knocked into the river; they slide along the bank to a bridge.
+* **Animations** – troops bob and waddle as they walk, breathe when idle,
+  lean back before a melee swing and lunge into it (with a quick swoosh),
+  kick back when they shoot, flash white when hit and drop in when deployed;
+  flyers hover, beat their wings and cast a shadow; buildings recoil when
+  they fire. It's all a light pose on top of each card's normal art, so every
+  unit keeps its exact look.
+* **Elixir Collector** – its glass tank visibly fills as the next elixir
+  brews; when it's full the tank flashes, a "+1 elixir" pops up with a soft
+  chime and it starts filling again.
+
 ## Spells & effects
 
 Fireball, Arrows, Rocket, Goblin Barrel and Snowball are **thrown from the
@@ -201,9 +267,11 @@ are in `SPELL_FLIGHT_SPEED` in `config.py`). Every spell has its own
 telegraph, impact and lingering look (scorch marks, frost, arrows stuck in
 the ground, earthquake cracks, poison haze...). See `src/fx.py`.
 
-Melee troops wait one full attack cooldown after engaging a new target
-before their first hit lands. Ranged troops fire straight away, spirits
-explode on contact, and a finished charge hits on impact.
+Melee troops wind up for **half** their hit speed after engaging a new
+target before their first hit lands (`MELEE_FIRST_HIT_FRAC` in `config.py`;
+a card's `first_hit` field overrides it - Balloon, Golem and Golemites use
+1.0s). Ranged troops fire straight away, spirits explode on contact, and a
+finished charge hits on impact.
 
 ## Swapping in your own art
 
@@ -277,4 +345,6 @@ game modes yet — base cards only, as requested.)
 - Some ultra-unique mechanics are approximated to keep the engine readable
   (e.g. charge, shields, dashes and champion abilities are simplified). Tune or extend
   them in `engine.py` if you want more fidelity.
-- Troops don't physically collide/push each other yet (they can overlap).
+- Collisions are soft (overlaps are pushed apart over a few frames rather
+  than being hard walls), and units path straight to their target or the
+  nearest bridge rather than true path-finding around obstacles.

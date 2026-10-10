@@ -75,8 +75,10 @@ class FX:
         self._alpha_cache = {}
         self._fx_data = {}          # per engine-effect cached shapes
         self.now = 0.0
+        self.popups = []            # floating texts: {"x","y","text","col","age","life"}
 
     def clear(self):
+        self.popups.clear()
         self.parts.clear()
         self.decals.clear()
         self._fx_data.clear()
@@ -151,6 +153,12 @@ class FX:
             elif k == "portal":
                 self.burst(x, y, 22, 70, 0.9, 7, (110, 60, 150), "smoke", grow=10)
                 self.burst(x, y, 16, 120, 0.6, 2.5, (200, 150, 255), "spark", up=20)
+            elif k == "elixir_made":
+                amt = ev.get("amount", 1)
+                txt = "+%d" % amt if float(amt).is_integer() else "+%.1f" % amt
+                self.popups.append({"x": x, "y": y - TS * 1.4, "text": txt + " elixir",
+                                    "col": (250, 140, 255), "age": 0.0, "life": 1.2})
+                self.burst(x, y - TS * 0.4, 10, 60, 0.6, 2.5, (240, 130, 255), "spark", up=40)
             elif k == "ability":
                 self.burst(x, y, 26, 110, 0.8, 3, (255, 225, 120), "spark", up=30)
 
@@ -230,6 +238,9 @@ class FX:
             p.rot += p.vr * dt
             keep.append(p)
         self.parts = keep
+        for pp in self.popups:
+            pp["age"] += dt
+        self.popups = [pp for pp in self.popups if pp["age"] < pp["life"]]
         self.decals = [d for d in self.decals if self._age(d, dt)]
         if match is not None:
             self._emit_from_effects(dt, match)

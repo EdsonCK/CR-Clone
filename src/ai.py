@@ -98,7 +98,7 @@ class AIController:
         self.search_horizon = 10.0 if self.lv(5) else 4.0
         self.search_wide = self.lv(5)      # more cards / spots per search
         self.search_spells = self.lv(5)    # damage spells are candidates too
-        self.search_policy = self.lv(5)    # rollouts: both sides keep playing
+        self.search_policy = self.lv(4)    # rollouts: both sides keep playing
         self.search_all = self.lv(5)       # search offence + spells, not just defence
         self.search_samples = 2 if self.lv(5) else 1   # rollouts per candidate
         self.hold = 0.0                    # "waiting is best" - don't re-plan yet
@@ -186,6 +186,14 @@ class AIController:
         if card.category != "spell" and not card.deploy_anywhere:
             cl = min(ly, RIVER_TOP - 0.7)
             tries += [(x, cl), (x, cl - 1.0), (x, cl - 2.5)]
+        if card.category != "spell":
+            # spot blocked (e.g. on top of a tower): spiral out to the
+            # nearest legal tile instead of giving up on the play
+            for r in (1.0, 1.8, 2.6, 3.4):
+                for k in range(8):
+                    a = k * math.pi / 4
+                    tries.append((min(max(x + math.cos(a) * r, 0.7), cfg.GRID_COLS - 0.7),
+                                  min(max(ly + math.sin(a) * r, 0.7), RIVER_TOP - 0.7)))
         for (tx, tly) in tries:
             if m.play_card(self.me, idx, tx, self.W(tly)):
                 self.log.append((round(self.clock, 1), key, self._why,
@@ -697,6 +705,27 @@ class AIController:
         return self._place(i, king.x + self.rng.choice((-2.5, 2.5)),
                            self.L(king.y) + 1.5, c)
 
+    def _defend_cycle(self, threats):
+        """Defend-only (Levels autopilot): at full elixir with no useful
+        defensive play, cycle the cheapest card - a troop behind the King
+        Tower, or a spell onto the nearest threat - to dig for an answer."""
+        self._why = "cycle"
+        aff = self._affordable()
+        if not aff:
+            return False
+        nonspell = [t for t in aff if t[2].category != "spell"
+                    and not self._is_wincon(t[2])]
+        if nonspell:
+            i, k, c = min(nonspell, key=lambda t: t[2].elixir)
+            king = self.match.towers[(self.me, "king")]
+            return self._place(i, king.x + self.rng.choice((-2.5, 2.5)),
+                               self.L(king.y) + 1.5, c)
+        if threats:
+            i, k, c = min(aff, key=lambda t: t[2].elixir)
+            e = threats[0]
+            return self._place(i, e.x, self.L(e.y), c, exact=True)
+        return False
+
     def _avoid_leak(self):
         """Never sit at full elixir: dump the cheapest sensible card."""
         self._why = "leak"
@@ -1051,6 +1080,9 @@ class AIController:
         if self._try_value_spell():
             return
         if self.defend_only:
+            # nothing in hand answers the threat: cycle like a player would
+            if self._el() >= 9.5:
+                self._defend_cycle(threats)
             return
         if not threats and self._try_buildings():
             return

@@ -69,6 +69,7 @@
 "elixir_golem_attack",
 "elixir_golem_deploy",
 "elixir_golemite_attack",
+"elixir_pop",
 "executioner_attack",
 "executioner_deploy",
 "fire_spirit_attack",
@@ -228,5 +229,10 @@
 "zap_impact",
 "zappies_attack",
 "zappies_deploy"
-]
+],
+"revs": {
+"tesla_attack": 3,
+"archers_attack": 3,
+"elixir_pop": 3
+}
 }

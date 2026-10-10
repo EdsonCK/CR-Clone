@@ -43,6 +43,10 @@ spawner      : (unit_key, count, secs)-> building periodically spawns units.
 lifetime     : seconds a building lives before decaying.
 generates_elixir : (amount, seconds)  -> elixir collector.
 charge       : True -> deals bonus damage on its first hit after moving.
+first_hit    : melee only - seconds of wind-up before the first hit on a new
+               target. Default: MELEE_FIRST_HIT_FRAC (half) of hit_speed.
+mass         : how hard the unit is to push around (collisions). Default is
+               worked out from its hp; see unit_mass().
 charge_mult  : first-hit damage multiplier for chargers (default 2.0).
 shield_hp    : an extra hp layer that must be broken first.
 ramp         : True -> damage ramps up the longer it attacks (Inferno).
@@ -101,6 +105,8 @@ class CardDef:
     generates_elixir: Optional[Tuple[float, float]] = None
     charge: bool = False
     charge_mult: float = 2.0
+    first_hit: Optional[float] = None   # melee wind-up override (seconds)
+    mass: Optional[float] = None        # collision weight override
     shield_hp: int = 0
     ramp: bool = False
     pellets: int = 0            # >0: shotgun attack, this many projectiles...
@@ -306,11 +312,11 @@ _CARD_LIST = [
             attacks=B),
     CardDef("balloon", "Balloon", 5, rarity="epic",
             hp=1139, damage=627, hit_speed=2.5, range=1.2, speed=SPEED_MEDIUM,
-            attacks=B, flying=True, death_damage=(2.0, 200)),
+            attacks=B, flying=True, death_damage=(2.0, 200), first_hit=1.0),
     CardDef("golem", "Golem", 8, rarity="epic",
             hp=3599, damage=258, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 260), death_spawn=("golemite", 2),
-            sub_hp_mult=0.86, sub_dmg_mult=0.92),
+            sub_hp_mult=0.86, sub_dmg_mult=0.92, first_hit=1.0),
 
     # -------------------- AIR TROOPS --------------------
     CardDef("minions", "Minions", 3, rarity="common",
@@ -648,7 +654,7 @@ _CARD_LIST = [
     # separate sub-unit entry is needed for it (that would collide on the key).
     CardDef("golemite", "Golemite", 0, deployable=False,
             hp=1050, damage=90, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
-            attacks=B, death_damage=(1.5, 90)),
+            attacks=B, death_damage=(1.5, 90), first_hit=1.0),
     CardDef("bat", "Bat", 0, deployable=False,
             hp=32, damage=32, hit_speed=1.1, range=0.9, speed=SPEED_FAST,
             attacks=AG, flying=True),

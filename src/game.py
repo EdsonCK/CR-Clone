@@ -255,6 +255,8 @@ class Game:
         self._arena_surf = None
         self.level_run = None          # LevelRun while playing a level
         self.level_key = None
+        self.levels_scroll = 0         # Levels screen list scroll (pixels)
+        self.levels_drag = None        # (mouse_y, scroll) while dragging the list
         self.progress = self._load_progress()
 
         self.state = "menu"
@@ -496,6 +498,11 @@ class Game:
         self.state = "aideck"
 
     def _goto(self, state):
+        if state == "levels" and self.state != "levels":
+            # open the list at the first level you haven't cleared yet
+            first = next((i for i, lv in enumerate(levels.LEVELS)
+                          if not self.progress.get(lv.key, {}).get("stars")), 0)
+            self._set_levels_scroll(first * self.LEVEL_ROW - self.LEVEL_ROW // 2)
         self.state = state
 
     def _quit(self):
@@ -567,14 +574,29 @@ class Game:
         else:
             self._begin_battle()
 
+    # ---- Levels list (scrolls: wheel, drag, arrow keys, scrollbar) ----
+    LEVEL_ROW = 120          # card height + gap
+
+    def _levels_view(self):
+        return pygame.Rect(0, 74, cfg.WINDOW_W, cfg.WINDOW_H - 150 - 74)
+
+    def _levels_max_scroll(self):
+        return max(0, len(levels.LEVELS) * self.LEVEL_ROW + 8 - self._levels_view().h)
+
+    def _set_levels_scroll(self, v):
+        self.levels_scroll = int(min(max(0, v), self._levels_max_scroll()))
+
     def _level_buttons(self):
         out = []
+        view = self._levels_view()
         for i, lv in enumerate(levels.LEVELS):
             r = self._level_card_rect(i)
-            b = Button((r.right - 112, r.bottom - 48, 100, 38),
+            b = Button((r.right - 96, r.bottom - 42, 86, 34),
                        "Play" if not lv.locked else "Locked",
                        (lambda k=lv.key: self._begin_level(k)), "go")
-            b.enabled = not lv.locked
+            # only clickable while (fully) scrolled into view
+            b.enabled = not lv.locked and view.contains(b.rect)
+            b.level_index = i
             out.append(b)
         y = cfg.WINDOW_H - 60
         bw = (cfg.WINDOW_W - 44) // 2
@@ -585,12 +607,41 @@ class Game:
         return out
 
     def _level_card_rect(self, i):
-        return pygame.Rect(16, 78 + i * 168, cfg.WINDOW_W - 32, 156)
+        v = self._levels_view()
+        return pygame.Rect(14, v.y + 6 + i * self.LEVEL_ROW - self.levels_scroll,
+                           cfg.WINDOW_W - 40, self.LEVEL_ROW - 8)
+
+    def _levels_scrollbar(self):
+        """(track rect, thumb rect) of the list's scrollbar."""
+        v = self._levels_view()
+        track = pygame.Rect(cfg.WINDOW_W - 18, v.y + 6, 8, v.h - 12)
+        total = len(levels.LEVELS) * self.LEVEL_ROW + 8
+        th = max(30, int(track.h * v.h / max(total, 1)))
+        mx = self._levels_max_scroll()
+        ty = track.y + int((track.h - th) * (self.levels_scroll / mx if mx else 0))
+        return track, pygame.Rect(track.x, ty, track.w, th)
 
     def _levels_click(self, pos):
         for b in self._level_buttons():
             if b.click(pos):
                 return
+        track, thumb = self._levels_scrollbar()
+        if track.inflate(12, 0).collidepoint(pos):
+            if not thumb.collidepoint(pos):     # jump so the thumb centres here
+                frac = (pos[1] - track.y - thumb.h / 2) / max(track.h - thumb.h, 1)
+                self._set_levels_scroll(frac * self._levels_max_scroll())
+            self.levels_drag = ("bar", pos[1], self.levels_scroll)
+        elif self._levels_view().collidepoint(pos):
+            self.levels_drag = ("list", pos[1], self.levels_scroll)
+
+    def _levels_drag_to(self, y):
+        kind, y0, s0 = self.levels_drag
+        if kind == "bar":
+            track, thumb = self._levels_scrollbar()
+            k = self._levels_max_scroll() / max(track.h - thumb.h, 1)
+            self._set_levels_scroll(s0 + (y - y0) * k)
+        else:
+            self._set_levels_scroll(s0 - (y - y0))
 
     def _resolve_ai_deck(self):
         if self.ai_deck_choice == "Random":
@@ -744,6 +795,12 @@ class Game:
                 self.sfx.play("portal", 0.6, pan, min_gap=0.15)
             elif kind == "land" and ev.get("slam"):
                 self.sfx.play("slam", 0.85, pan)
+            elif kind == "elixir_made":
+                if mine:
+                    self.sfx.play("elixir_pop", 0.6, pan, min_gap=0.1)
+                for e in self.match.entities:
+                    if e.key == key and abs(e.x - ev["x"]) < 0.01 and abs(e.y - ev["y"]) < 0.01:
+                        e._gen_t = self.match.elapsed
         self.fx.handle_events(evs, self.match)
 
     def _on_match_end(self):
@@ -791,6 +848,11 @@ class Game:
                     up = e.key in (pygame.K_RIGHT, pygame.K_EQUALS, pygame.K_KP_PLUS)
                     self._set_ai_elixir(self.ai_elixir + (1 if up else -1)
                                         * cfg.AI_ELIXIR_MULT_STEP)
+                elif self.state == "levels" and e.key in (pygame.K_UP, pygame.K_DOWN,
+                                                          pygame.K_PAGEUP, pygame.K_PAGEDOWN):
+                    step = {pygame.K_UP: -60, pygame.K_DOWN: 60,
+                            pygame.K_PAGEUP: -360, pygame.K_PAGEDOWN: 360}[e.key]
+                    self._set_levels_scroll(self.levels_scroll + step)
                 elif self.state == "prematch" and pygame.K_1 <= e.key <= pygame.K_5:
                     self._set_ai_level(e.key - pygame.K_0)
                 if e.key == pygame.K_ESCAPE:
@@ -808,6 +870,8 @@ class Game:
                 # the wheel ONLY scrolls - it never selects anything
                 if self.state == "deck":
                     self._deck_set_scroll(self.deck_scroll - e.y * 48)
+                elif self.state == "levels":
+                    self._set_levels_scroll(self.levels_scroll - e.y * 60)
                 elif self.state == "prematch":
                     mpos = pygame.mouse.get_pos()
                     if self._slider_zone().collidepoint(mpos):
@@ -816,12 +880,15 @@ class Game:
             elif e.type == pygame.MOUSEBUTTONUP:
                 if e.button == 1:
                     self.deck_drag = False
+                    self.levels_drag = None
                     if self.slider_drag:
                         self.slider_drag = False
                         self._save_settings()
             elif e.type == pygame.MOUSEMOTION:
                 if self.state == "deck" and self.deck_drag:
                     self._deck_drag_to(e.pos[1])
+                elif self.state == "levels" and self.levels_drag:
+                    self._levels_drag_to(e.pos[1])
                 elif self.state == "prematch" and self.slider_drag:
                     self._slider_set_from_x(e.pos[0], save=False)
             elif e.type == pygame.MOUSEBUTTONDOWN:
@@ -1725,7 +1792,8 @@ class Game:
             self._draw_miasma()
         self._draw_no_deploy_zone()
         self.fx.draw_decals(self.screen)
-        for e in m.entities:
+        # ground first (back to front), then everything in the air on top
+        for e in sorted(m.entities, key=lambda e: (e.flying, e.y)):
             self._draw_entity(e)
         for fx in m.effects:
             self._draw_effect(fx)
@@ -1733,6 +1801,7 @@ class Game:
         for p in m.projectiles:
             self._draw_projectile(p)
         self.fx.draw_particles(self.screen)
+        self._draw_popups()
         self.fx.draw_flash(self.screen)
         self._draw_placement_preview()
         self._draw_topbar()
@@ -2004,11 +2073,27 @@ class Game:
         # team ring (gold for champions)
         ring = (245, 205, 85) if e.card.is_champion else self._team_color(e.team)
         pygame.draw.circle(self.screen, ring, (int(px), int(py)), size // 2 + 2, 3)
-        spr = sprites.get_sprite(sprites.unit_sprite_key(e.key), size)
-        if cloaked or e.immune_timer > 0:
+        skey = sprites.unit_sprite_key(e.key)
+        ox, oy, ang, sx, sy = self._anim_pose(e, size)
+        if e.flying and not e.is_building:      # shadow on the ground below
+            sh = pygame.Surface((int(size * 0.7), max(4, size // 4)), pygame.SRCALPHA)
+            pygame.draw.ellipse(sh, (0, 0, 0, 55), sh.get_rect())
+            self.screen.blit(sh, (px - sh.get_width() // 2, py + size // 2 - sh.get_height() + 4))
+        spr = self._posed_sprite(skey, size, ang, sx, sy)
+        if e.hurt > 0 or cloaked or e.immune_timer > 0:
             spr = spr.copy()
-            spr.set_alpha(110 if cloaked else 200)
-        self.screen.blit(spr, (px - size // 2, py - size // 2))
+            if e.hurt > 0:                       # brief white hit flash
+                a = int(110 * min(1.0, e.hurt / 0.14))
+                spr.fill((a, a, a), special_flags=pygame.BLEND_RGB_ADD)
+            if cloaked or e.immune_timer > 0:
+                spr.set_alpha(110 if cloaked else 200)
+        # feet stay planted when squashing: anchor on the bottom centre
+        bx = px + ox - spr.get_width() // 2
+        by = py + oy + size // 2 - (spr.get_height() + int(size * sy)) // 2
+        self.screen.blit(spr, (bx, by))
+        if e.card.generates_elixir:
+            self._draw_collector_gauge(e, px, py, size)
+        self._draw_swing(e, px, py, size)
         if e.immune_timer > 0 or (dashing and e.dash.get("immune")):   # shimmer
             pygame.draw.circle(self.screen, (180, 230, 255),
                                (int(px), int(py)), size // 2 + 4, 2)
@@ -2044,6 +2129,179 @@ class Game:
             pygame.draw.circle(self.screen, (150, 220, 255), (int(px), int(py)), size // 2 + 2, 2)
         elif e.stun_timer > 0:
             pygame.draw.circle(self.screen, (255, 240, 120), (int(px), int(py)), size // 2 + 2, 2)
+
+    # ------------------------------------------------------- unit animation
+    # Everything here is a light procedural pose on top of the unit's normal
+    # art (bob, squash, lean, lunge). The sprite itself is never redrawn, so
+    # every card keeps its exact look and silhouette.
+    def _anim_pose(self, e, size):
+        """-> (dx, dy, angle_deg, scale_x, scale_y) for this frame."""
+        m = self.match
+        now = m.elapsed
+        ox = oy = 0.0
+        ang = 0.0
+        sx = sy = 1.0
+        if e.freeze_timer > 0 or e.stun_timer > 0:
+            return 0, 0, 0, 1.0, 1.0
+        ph = e.anim_seed * math.tau
+        # pop-in when a unit appears (drops in, settles)
+        age = now - e.born
+        if 0 <= age < 0.2 and not e.is_tower:
+            k = 1.0 - age / 0.2
+            oy -= k * size * 0.25
+            sy *= 1.0 + 0.12 * k
+            sx *= 1.0 - 0.08 * k
+        since = now - e.atk_t
+        if e.is_building:
+            if since < 0.18:                     # firing recoil pulse
+                k = 1.0 - since / 0.18
+                sx *= 1.0 + 0.06 * k
+                sy *= 1.0 - 0.05 * k
+                ox -= e.atk_dir[0] * k * size * 0.05
+                oy -= e.atk_dir[1] * k * size * 0.05
+            elif e.card.spawner or e.card.generates_elixir:
+                sy *= 1.0 + 0.015 * math.sin(now * 2.2 + ph)
+            return int(ox), int(oy), 0, sx, sy
+        moving = now - e.move_t < 0.12
+        if e.flying:
+            oy -= 2.5 + 2.5 * math.sin(now * 4.0 + ph)          # hover
+            sx *= 1.0 + 0.045 * math.sin(now * 15.0 + ph)       # wing beat
+            if moving:
+                ang -= e.mvx * 5.0
+        elif moving:
+            # step cycle: one bob per step, waddle side to side, lean forward
+            p = e.walk / 0.42 * math.pi + ph
+            b = abs(math.sin(p))
+            oy -= b * size * 0.07
+            ang += math.sin(p) * 5.0 - e.mvx * 4.0
+            sy *= 0.96 + 0.04 * b
+            sx *= 1.03 - 0.03 * b
+        else:
+            # idle: slow breathing
+            br = math.sin(now * 2.6 + ph)
+            sy *= 1.0 + 0.025 * br
+            sx *= 1.0 - 0.012 * br
+        dx, dy = e.atk_dir
+        melee = e.is_melee() and not e.card.kamikaze
+        if melee:
+            # wind-up: lean back just before the blow lands...
+            t = e.target
+            if (t is not None and t.alive and 0 < e.attack_cd < 0.2
+                    and not moving):
+                w = 1.0 - e.attack_cd / 0.2
+                ox -= dx * w * size * 0.06
+                oy -= dy * w * size * 0.06
+                ang += (6.0 if dx >= 0 else -6.0) * w
+            # ...then lunge into it and recover
+            if since < 0.3:
+                k = since / 0.06 if since < 0.06 else max(0.0, 1.0 - (since - 0.06) / 0.24)
+                ox += dx * k * size * 0.2
+                oy += dy * k * size * 0.2
+                ang -= (12.0 if dx >= 0 else -12.0) * k
+                sx *= 1.0 + 0.05 * k
+        elif since < 0.2:
+            # ranged: kick back from the shot
+            k = 1.0 - since / 0.2
+            ox -= dx * k * size * 0.08
+            oy -= dy * k * size * 0.08
+            sy *= 1.0 - 0.04 * k
+        return int(ox), int(oy), ang, sx, sy
+
+    def _posed_sprite(self, skey, size, ang, sx, sy):
+        """Scaled/rotated copy of a unit sprite (quantized + cached)."""
+        w = max(4, int(round(size * sx / 2.0)) * 2)
+        h = max(4, int(round(size * sy / 2.0)) * 2)
+        a = int(round(ang))
+        if w == size and h == size and a == 0:
+            return sprites.get_sprite(skey, size)
+        cache = self.__dict__.setdefault("_pose_cache", {})
+        key = (skey, size, w, h, a)
+        surf = cache.get(key)
+        if surf is None:
+            if len(cache) > 6000:
+                cache.clear()
+            base = sprites.get_sprite(skey, size)
+            surf = pygame.transform.smoothscale(base, (w, h)) if (w, h) != (size, size) else base
+            if a:
+                surf = pygame.transform.rotate(surf, a)
+            cache[key] = surf
+        return surf
+
+    def _draw_swing(self, e, px, py, size):
+        """A quick white swoosh arc in front of a melee unit as it hits."""
+        if not e.is_melee() or e.card.kamikaze or e.is_building:
+            return
+        since = self.match.elapsed - e.atk_t
+        if not 0 <= since < 0.16:
+            return
+        k = 1.0 - since / 0.16
+        dx, dy = e.atk_dir
+        r = int(size * 0.55)
+        cx = px + dx * size * 0.32
+        cy = py + dy * size * 0.32
+        surf = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+        base = math.atan2(-dy, dx)            # pygame arcs: y axis points up
+        sweep = 1.6 * (0.35 + 0.65 * (1.0 - k))
+        rect = pygame.Rect(2, 2, r * 2, r * 2)
+        big = e.max_hp >= 1500
+        col = (255, 240, 200) if not big else (255, 210, 150)
+        pygame.draw.arc(surf, col + (int(200 * k),), rect, base - sweep / 2,
+                        base + sweep / 2, max(2, size // 9))
+        self.screen.blit(surf, (cx - r - 2, cy - r - 2))
+
+    def _draw_collector_gauge(self, e, px, py, size):
+        """Elixir Collector: the glass tank fills as the next elixir brews."""
+        amt, period = e.card.generates_elixir
+        frac = 1.0 - max(0.0, e.elixir_timer) / period
+        if e.deploy_timer > 0:
+            frac = 0.0
+        s = size / 128.0
+        # tank interior in the art's 128px space: centre (64, 66), r 22 x 24
+        cx, cy = px, py + (66 - 64) * s
+        rx, ry = max(2, int(21 * s)), max(2, int(23 * s))
+        surf = pygame.Surface((rx * 2 + 2, ry * 2 + 2), pygame.SRCALPHA)
+        pygame.draw.ellipse(surf, (205, 175, 225, 255), (1, 1, rx * 2, ry * 2))
+        level = int((ry * 2) * (1.0 - frac))
+        liquid = pygame.Surface((rx * 2 + 2, ry * 2 + 2), pygame.SRCALPHA)
+        pygame.draw.ellipse(liquid, (215, 60, 225, 255), (1, 1, rx * 2, ry * 2))
+        liquid.fill((0, 0, 0, 0), (0, 0, rx * 2 + 2, level + 1))
+        surf.blit(liquid, (0, 0))
+        if 0.02 < frac < 0.999:                  # bright surface line
+            yy = level + 1
+            half = rx * math.sqrt(max(0.0, 1 - ((yy - ry - 1) / ry) ** 2))
+            pygame.draw.line(surf, (255, 170, 255, 255), (rx + 1 - half, yy),
+                             (rx + 1 + half, yy), 1)
+        # a couple of rising bubbles
+        t = self.match.elapsed
+        for i in range(2):
+            ph = (t * 0.9 + i * 0.5 + e.anim_seed) % 1.0
+            by = int(ry * 2 - ph * (ry * 2 - level))
+            if by > level + 2:
+                bx = int(rx + 1 + math.sin(t * 3 + i * 2.1) * rx * 0.4)
+                pygame.draw.circle(surf, (255, 200, 255, 200), (bx, by), max(1, int(2 * s * 2)))
+        pygame.draw.ellipse(surf, (255, 255, 255, 110),
+                            (int(rx * 0.45), int(ry * 0.35), max(2, rx // 3), max(3, ry // 2)))
+        self.screen.blit(surf, (int(cx - rx - 1), int(cy - ry - 1)))
+        # just made elixir: flash the tank
+        if self.match.elapsed - getattr(e, "_gen_t", -9) < 0.3:
+            k = 1.0 - (self.match.elapsed - e._gen_t) / 0.3
+            fl = pygame.Surface((rx * 2 + 8, ry * 2 + 8), pygame.SRCALPHA)
+            pygame.draw.ellipse(fl, (255, 160, 255, int(140 * k)), fl.get_rect())
+            self.screen.blit(fl, (int(cx - rx - 4), int(cy - ry - 4)))
+
+    def _draw_popups(self):
+        """Floating '+1' texts (Elixir Collector)."""
+        for pp in self.fx.popups:
+            f = pp["age"] / pp["life"]
+            a = int(255 * min(1.0, (1.0 - f) * 3.0))
+            img = render_text(self.font_m, pp["text"], pp["col"]).copy()
+            img.set_alpha(a)
+            sc = 0.7 + 0.3 * min(1.0, pp["age"] / 0.12)
+            if sc < 0.999:
+                img = pygame.transform.smoothscale(
+                    img, (max(1, int(img.get_width() * sc)), max(1, int(img.get_height() * sc))))
+            self.screen.blit(img, (pp["x"] - img.get_width() // 2,
+                                   pp["y"] - 30 * f - img.get_height() // 2))
 
     def _draw_tower(self, e, px, py):
         size = int(3.2 * cfg.TILE_SIZE) if e.is_king else int(2.8 * cfg.TILE_SIZE)
@@ -2589,58 +2847,81 @@ class Game:
     # --------------------------------------------------------- levels screen
     def _draw_levels(self):
         cx = cfg.WINDOW_W // 2
-        self._screen_title("Levels", 30, "Survive every wave. The enemy has no towers.")
+        total_stars = sum(self.progress.get(lv.key, {}).get("stars", 0)
+                          for lv in levels.LEVELS)
+        self._screen_title("Levels", 30, "Survive every wave.   Stars: %d / %d"
+                           % (total_stars, 3 * len(levels.LEVELS)))
         btns = self._level_buttons()
+        view = self._levels_view()
+        self.screen.set_clip(view)
         for i, lv in enumerate(levels.LEVELS):
             r = self._level_card_rect(i)
-            locked = lv.locked
-            border = (110, 100, 120) if locked else (214, 176, 84)
-            self._panel(r, border=border, radius=14,
-                        top=(46, 44, 60) if locked else (60, 52, 72),
-                        bottom=(28, 28, 38) if locked else (34, 30, 46))
-            # picture
-            pic = pygame.Rect(r.x + 12, r.y + 14, 96, 96)
+            if r.bottom < view.top or r.top > view.bottom:
+                continue
+            rec = self.progress.get(lv.key, {})
+            stars = rec.get("stars", 0)
+            done = stars > 0
+            border = (214, 176, 84) if not done else (120, 200, 120)
+            self._panel(r, border=border, radius=14, top=(60, 52, 72),
+                        bottom=(34, 30, 46))
+            # picture + level number
+            pic = pygame.Rect(r.x + 10, r.y + 10, 72, 72)
             pygame.draw.rect(self.screen, (20, 18, 28), pic, border_radius=12)
-            spr = sprites.get_sprite(lv.icon, 88)
-            if locked:
-                spr = spr.copy()
-                spr.fill((60, 60, 70, 255), special_flags=pygame.BLEND_RGBA_MULT)
-            self.screen.blit(spr, (pic.x + 4, pic.y + 4))
+            self.screen.blit(sprites.get_sprite(lv.icon, 66), (pic.x + 3, pic.y + 3))
             pygame.draw.rect(self.screen, border, pic, 2, border_radius=12)
-            tx = pic.right + 14
-            self._text(lv.subtitle, self.font_sb, (250, 206, 92), topleft=(tx, r.y + 12))
-            self._text(lv.name, self.font_m, topleft=(tx, r.y + 30))
-            # description, wrapped
-            words, line, yy = lv.desc.split(), "", r.y + 56
-            maxw = r.right - tx - 12
-            last = r.bottom - 66                  # keep clear of the Play button
+            badge = pygame.Rect(0, 0, 26, 19)
+            badge.center = (pic.x + 10, pic.bottom - 8)
+            pygame.draw.rect(self.screen, (40, 32, 56), badge, border_radius=8)
+            pygame.draw.rect(self.screen, border, badge, 2, border_radius=8)
+            self._text(str(i + 1), self.font_sb, center=badge.center, outline=True)
+            for k in range(3):
+                self._star(pic.x + 12 + k * 24, r.bottom - 14, 9, k < stars)
+            tx = pic.right + 12
+            lvls = [w.level for w in lv.waves if not w.boss]
+            info = "%d waves  -  enemy Lv %d-%d" % (len(lv.waves), min(lvls), max(lvls))
+            self._text(lv.name, self.font_m, topleft=(tx, r.y + 8))
+            self._text(info, self.font_s, (250, 206, 92), topleft=(tx, r.y + 32))
+            # description, wrapped to 2 lines (clear of the Play button)
+            words, line, yy, n = lv.desc.split(), "", r.y + 52, 0
+            maxw = r.right - tx - 10
             for w_ in words:
                 test = (line + " " + w_).strip()
-                if self.font_s.size(test)[0] > maxw:
-                    if yy > last:
+                lim = maxw if n == 0 else maxw - 96
+                if self.font_s.size(test)[0] > lim:
+                    if n == 1:
                         line = line.rstrip(".,- ") + "..."
                         break
                     self._text(line, self.font_s, (206, 210, 224), topleft=(tx, yy))
                     yy += 16
+                    n += 1
                     line = w_
                 else:
                     line = test
-            if line and yy <= last + 16:
+            if line:
                 self._text(line, self.font_s, (206, 210, 224), topleft=(tx, yy))
-            if locked:
-                lock = pygame.Rect(0, 0, 18, 14)
-                lock.center = (pic.centerx, pic.centery + 6)
-                pygame.draw.rect(self.screen, (220, 210, 170), lock, border_radius=3)
-                pygame.draw.arc(self.screen, (220, 210, 170),
-                                (lock.x + 3, lock.y - 10, 12, 16), 0, math.pi, 3)
-            else:
-                rec = self.progress.get(lv.key, {})
-                stars = rec.get("stars", 0)
-                for k in range(3):
-                    self._star(r.x + 30 + k * 30, r.bottom - 20, 11, k < stars)
-                self._text("%d waves" % len(lv.waves), self.font_sb, (220, 224, 236),
-                           topleft=(r.x + 128, r.bottom - 30))
-        for b in btns:
+            if rec.get("plays"):
+                self._text("won %d / played %d" % (rec.get("wins", 0), rec["plays"]),
+                           self.font_s, (170, 176, 196), topleft=(tx, r.bottom - 22))
+        for b in btns[:len(levels.LEVELS)]:
+            r = b.rect
+            if r.bottom >= view.top and r.top <= view.bottom:
+                was = b.enabled
+                b.enabled = not levels.LEVELS[b.level_index].locked
+                b.draw(self.screen, self.font_m)
+                b.enabled = was
+        self.screen.set_clip(None)
+        # soft fade at the list edges so cards don't end in a hard cut
+        for top in (True, False):
+            fade = pygame.Surface((view.w, 14), pygame.SRCALPHA)
+            for k in range(14):
+                a = int(150 * (1 - k / 14))
+                pygame.draw.line(fade, (14, 12, 22, a), (0, k if top else 13 - k),
+                                 (view.w, k if top else 13 - k))
+            self.screen.blit(fade, (view.x, view.y if top else view.bottom - 14))
+        track, thumb = self._levels_scrollbar()
+        pygame.draw.rect(self.screen, (30, 30, 44), track, border_radius=4)
+        pygame.draw.rect(self.screen, (214, 176, 84), thumb, border_radius=4)
+        for b in btns[len(levels.LEVELS):]:
             b.draw(self.screen, self.font_m)
         # the Levels deck (separate from your battle deck: no win conditions)
         deck = self.level_deck

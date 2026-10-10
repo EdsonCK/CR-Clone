@@ -37,6 +37,51 @@ TOWER_R = 1.6
 PLAYER, ENEMY = 0, 1
 
 
+# ---- collisions ----------------------------------------------------------
+# Units push each other apart (ground with ground, air with air), heavier ones
+# barely budge while light ones get shoved aside. Buildings and towers never
+# move. COLLIDE_RATE is how quickly an overlap is resolved (per second).
+COLLIDE_RATE = 30.0
+BRIDGE_HALF = 0.9            # a bridge is 1.8 tiles wide
+# How hard a unit is to push (roughly Clash Royale's "mass" values). Anything
+# not listed gets hp / 150, clamped to 1..12. A card's `mass` overrides both.
+MASS = {
+    "skeleton": 1, "skeletons": 1, "skeleton_army": 1, "bat": 1, "bats": 1,
+    "goblin": 2, "goblins": 2, "spear_goblin": 2, "spear_goblins": 2,
+    "minion": 2, "minions": 2, "minion_horde": 2, "guards": 2,
+    "fire_spirit": 1, "ice_spirit": 1, "heal_spirit": 1, "electro_spirit": 1,
+    "wall_breakers": 2, "elixir_blob": 2,
+    "pekka": 18, "mega_knight": 18, "giant": 18, "royal_giant": 18,
+    "electro_giant": 18, "goblin_giant": 16, "giant_skeleton": 16,
+    "golem": 20, "lava_hound": 18, "ice_golem": 8, "golemite": 10,
+    "elixir_golem": 10, "elixir_golemite": 6, "goblin_monster": 12,
+    "balloon": 8, "battle_ram": 8, "hog_rider": 6, "bowler": 10,
+}
+# collision radius (tiles) for units that are clearly bigger / smaller
+BIG_R = {
+    "golem": 0.75, "giant": 0.7, "royal_giant": 0.7, "electro_giant": 0.7,
+    "goblin_giant": 0.7, "giant_skeleton": 0.7, "pekka": 0.65,
+    "mega_knight": 0.65, "lava_hound": 0.8, "balloon": 0.6, "bowler": 0.55,
+    "goblin_monster": 0.6, "ice_golem": 0.55, "elixir_golem": 0.6,
+    "golemite": 0.55, "battle_ram": 0.55, "baby_dragon": 0.55,
+    "inferno_dragon": 0.55, "electro_dragon": 0.55,
+}
+
+
+def unit_mass(card):
+    if card.mass is not None:
+        return float(card.mass)
+    if card.key in MASS:
+        return float(MASS[card.key])
+    return float(min(12.0, max(1.0, card.hp / 150.0)))
+
+
+def unit_crad(card):
+    if card.key in BIG_R:
+        return BIG_R[card.key]
+    return 0.3 if card.hp < 200 else 0.42
+
+
 def dist(ax, ay, bx, by):
     return math.hypot(ax - bx, ay - by)
 
@@ -93,6 +138,13 @@ class Entity:
         self.shield = int(card.shield_hp * self.power[0])
         self.flying = card.flying
         self.radius = TOWER_R if is_tower else (BUILDING_R if self.is_building else TROOP_R)
+        # body size + weight for unit-vs-unit collisions
+        if is_tower:
+            self.crad, self.mass = (1.75 if is_king else 1.4), 0.0
+        elif self.is_building:
+            self.crad, self.mass = 0.9, 0.0
+        else:
+            self.crad, self.mass = unit_crad(card), unit_mass(card)
 
         self.base_speed = card.speed * cfg.GLOBAL_SPEED_MULT
         self.alive = True
@@ -131,6 +183,15 @@ class Entity:
         self.partner = None        # Goblinstein Doctor <-> Monster link
         self.combo_n = 0           # Monk combo counter
         self.ramp_time = 0.0           # for inferno ramping / ramp_stages
+        # animation state (read by the renderer only - never affects play)
+        self.walk = 0.0            # tiles walked (drives the step cycle)
+        self.move_t = -9.0         # match time we last moved
+        self.mvx = 0.0             # last horizontal move direction (-1..1)
+        self.atk_t = -9.0          # match time of the last attack
+        self.atk_dir = (0.0, -1.0 if team == 0 else 1.0)
+        self.hurt = 0.0            # >0 right after taking damage (hit flash)
+        self.born = 0.0            # match time we appeared
+        self.anim_seed = (x * 7.31 + y * 3.17) % 1.0
         # dash state (Bandit, Mega Knight jump, Golden Knight, Guardian...)
         self.dash = None           # dict while dashing, else None
         self._engaged = None       # id of the target we've started swinging at
@@ -202,6 +263,15 @@ class Entity:
         return (self.power[0] * self.card.sub_hp_mult,
                 self.power[1] * self.card.sub_dmg_mult)
 
+    def first_hit_delay(self):
+        """Wind-up before a melee unit's first hit on a new target."""
+        if self.card.first_hit is not None:
+            base = self.card.first_hit
+        else:
+            base = max(cfg.MELEE_FIRST_HIT_MIN,
+                       self.card.hit_speed * cfg.MELEE_FIRST_HIT_FRAC)
+        return base * self.effective_hitspeed() / max(self.hit_speed, 1e-6)
+
     def is_melee(self):
         return (not self.is_tower and not self.is_building
                 and self.range < MELEE_RANGE)
@@ -249,6 +319,8 @@ class Entity:
             amount -= self.shield
             self.shield = 0
         self.hp -= amount
+        if amount > 0:
+            self.hurt = 0.14
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -259,6 +331,8 @@ class Entity:
             return
 
         # timers
+        if self.hurt > 0:
+            self.hurt -= dt
         if self.slow_timer > 0:
             self.slow_timer -= dt
             if self.slow_timer <= 0:
@@ -306,6 +380,8 @@ class Entity:
             if self.elixir_timer <= 0:
                 self.elixir_timer += self.card.generates_elixir[1]
                 match.add_elixir(self.team, self.card.generates_elixir[0])
+                match.emit("elixir_made", self.key, self.x, self.y, self.team,
+                           amount=self.card.generates_elixir[0])
 
         # spawner buildings
         if self.card.spawner:
@@ -368,13 +444,13 @@ class Entity:
                 return
 
         if d <= reach:
-            # melee units need one full swing-up after engaging a NEW target
+            # melee units need a short wind-up after engaging a NEW target
             # before the first hit lands (ranged units fire straight away;
             # spirits explode on contact; a finished charge hits on impact)
             if self._engaged != id(self.target):
                 self._engaged = id(self.target)
                 if self.is_melee() and not self.card.kamikaze and not self.charged:
-                    self.attack_cd = max(self.attack_cd, self.effective_hitspeed())
+                    self.attack_cd = max(self.attack_cd, self.first_hit_delay())
             self._attack(match)
         elif not self.is_building and not self.is_tower:
             self._move_toward(self.target, dt, match)
@@ -483,10 +559,25 @@ class Entity:
     def _move_toward(self, target, dt, match):
         # bridge pathing for ground units crossing the river
         tx, ty = target.x, target.y
-        if (not self.flying and not self.card.river_jump
-                and river_side(self.y) * river_side(ty) < 0):
-            bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
-            tx, ty = bx, RIVER_CENTER
+        if not self.flying and not self.card.river_jump:
+            me_top, t_top = self.y < RIVER_CENTER, ty < RIVER_CENTER
+            if me_top != t_top:
+                bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
+                if (RIVER_TOP - 0.05 <= self.y <= RIVER_BOTTOM + 0.05
+                        and abs(self.x - bx) <= BRIDGE_HALF):
+                    # on the bridge: walk off its far end first
+                    tx = bx
+                    ty = RIVER_TOP - 0.3 if t_top else RIVER_BOTTOM + 0.3
+                else:
+                    tx, ty = bx, RIVER_CENTER
+            elif (RIVER_TOP < self.y < RIVER_BOTTOM
+                    and not RIVER_TOP < ty < RIVER_BOTTOM):
+                # still on the bridge, target on the near bank: step off
+                # straight before cutting across
+                bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
+                ty2 = RIVER_TOP - 0.3 if t_top else RIVER_BOTTOM + 0.3
+                if abs(tx - bx) > BRIDGE_HALF:
+                    tx, ty = bx, ty2
         dx, dy = tx - self.x, ty - self.y
         dd = math.hypot(dx, dy)
         if dd < 1e-6:
@@ -494,6 +585,9 @@ class Entity:
         step = self.effective_speed() * dt
         self.x += dx / dd * step
         self.y += dy / dd * step
+        self.walk += step
+        self.move_t = match.elapsed
+        self.mvx = dx / dd
         self.dist_since_attack += step
         if self.card.charge and self.dist_since_attack >= 3.0:
             self.charged = True
@@ -504,6 +598,12 @@ class Entity:
         if self.attack_cd > 0:
             return
         self.attack_cd = self.effective_hitspeed()
+        self.atk_t = match.elapsed
+        t = self.target
+        ddx, ddy = t.x - self.x, t.y - self.y
+        dd = math.hypot(ddx, ddy)
+        if dd > 1e-6:
+            self.atk_dir = (ddx / dd, ddy / dd)
         match.emit("attack", self.key, self.x, self.y, self.team,
                    big=self.max_hp >= 1500)
 
@@ -1189,6 +1289,7 @@ class Match:
         for e in made:
             e._match_ref = self
             e.level = level
+            e.born = self.elapsed
         self.entities.extend(made)
         # landing shockwave (Mega Knight slam, Electro Wizard zap, Ice Wizard)
         if card.spawn_damage:
@@ -1226,6 +1327,8 @@ class Match:
 
     def _resolve_spell(self, team, card, x, y):
         fwd = -1 if team == PLAYER else 1
+        # Levels: spells cast by the waves hit as hard as the wave's level
+        pw = self.team_power.get(team, (1.0, 1.0))[1]
         # troop-dropping spell (Goblin Barrel)
         if card.spawn_troops and not card.rolling:
             self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
@@ -1240,15 +1343,15 @@ class Match:
         # tornado: drag enemy troops to the center while ticking damage
         if card.pull > 0:
             self.effects.append(Effect("tornado", team, x, y, card.spell_radius,
-                                       card.duration, dps=card.spell_damage,
+                                       card.duration, dps=card.spell_damage * pw,
                                        speed=card.pull))
             return
         if card.rolling:
             log = Effect("log", team, x, y, card.spell_radius, 1.4,
                          direction=fwd, speed=6.0,
-                         damage=card.spell_damage, knockback=card.knockback,
+                         damage=card.spell_damage * pw, knockback=card.knockback,
                          card_key=card.key)
-            log.tower_damage = card.tower_dmg()
+            log.tower_damage = card.tower_dmg() * pw
             self.effects.append(log)
             if card.spawn_troops:   # Barbarian Barrel drops a barbarian
                 self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
@@ -1263,14 +1366,14 @@ class Match:
             bm = (card.tower_damage / card.spell_damage
                   if card.tower_damage is not None and card.spell_damage else 1.0)
             self.effects.append(Effect("poison", team, x, y, card.spell_radius,
-                                       card.duration, dps=card.spell_damage,
+                                       card.duration, dps=card.spell_damage * pw,
                                        slow=card.slow, building_mult=bm,
                                        card_key=card.key))
             return
         # instant-hit spells (arrows/fireball/zap/rocket/lightning/freeze/snowball)
-        self.area_damage(team, x, y, card.spell_radius, card.spell_damage,
+        self.area_damage(team, x, y, card.spell_radius, card.spell_damage * pw,
                          hit_air=True, stun=card.stun, freeze=card.freeze,
-                         slow=card.slow, tower_damage=card.tower_dmg(),
+                         slow=card.slow, tower_damage=card.tower_dmg() * pw,
                          knockback=card.knockback)
 
     # ---- combat helpers ----------------------------------------------------
@@ -1658,6 +1761,7 @@ class Match:
                                      hit_air=True, stun=rstun)
                     e.reflect_cd = 0.6
                     e._reflect_pending = False
+        self._resolve_collisions(dt)
         for p in list(self.projectiles):
             p.update(dt, self)
         if self.miasma:
@@ -1699,6 +1803,90 @@ class Match:
         self.time_left -= dt
         if self.time_left <= 0:
             self._advance_phase()
+
+    def _resolve_collisions(self, dt):
+        """Soft unit-vs-unit pushing + river banks for ground units.
+
+        Overlapping bodies are pushed apart a fraction of the overlap each
+        frame, split by mass: a Giant walks through Skeletons shoving them
+        aside, a whole Skeleton Army can nudge a Knight, and nothing ever
+        moves a building. Ground units can't be pushed into the river (only
+        onto the bridges); air units only bump other air units.
+        """
+        k = min(1.0, COLLIDE_RATE * dt)
+        bodies, grid = [], {}
+        for e in self.entities:
+            if not e.alive or e.dash is not None:
+                continue
+            # a Hog Rider mid-vault is in the air
+            if e.card.river_jump and RIVER_TOP - 0.3 < e.y < RIVER_BOTTOM + 0.3:
+                continue
+            i = len(bodies)
+            bodies.append(e)
+            cell = (int(e.x // 2.0), int(e.y // 2.0))
+            grid.setdefault(cell, []).append(i)
+        for i, a in enumerate(bodies):
+            cx, cy = int(a.x // 2.0), int(a.y // 2.0)
+            for gx in (cx - 1, cx, cx + 1):
+                for gy in (cy - 1, cy, cy + 1):
+                    for j in grid.get((gx, gy), ()):
+                        if j <= i:
+                            continue
+                        b = bodies[j]
+                        if a.flying != b.flying:
+                            continue
+                        if a.mass <= 0 and b.mass <= 0:
+                            continue        # two buildings
+                        dx, dy = b.x - a.x, b.y - a.y
+                        rr = a.crad + b.crad
+                        if abs(dx) >= rr or abs(dy) >= rr:
+                            continue
+                        d2 = dx * dx + dy * dy
+                        if d2 >= rr * rr:
+                            continue
+                        d = math.sqrt(d2)
+                        if d < 1e-4:
+                            # exactly stacked: split sideways, deterministically
+                            dx, dy, d = (0.01 if i % 2 else -0.01), 0.002, 0.0102
+                        push = (rr - d) * k
+                        nx, ny = dx / d, dy / d
+                        if a.mass <= 0:
+                            fa, fb = 0.0, 1.0
+                        elif b.mass <= 0:
+                            fa, fb = 1.0, 0.0
+                        else:
+                            fa = b.mass / (a.mass + b.mass)
+                            fb = 1.0 - fa
+                        a.x -= nx * push * fa
+                        a.y -= ny * push * fa
+                        b.x += nx * push * fb
+                        b.y += ny * push * fb
+        cols, rows = cfg.GRID_COLS, cfg.GRID_ROWS
+        for e in bodies:
+            if e.mass <= 0:
+                continue
+            e.x = min(cols - 0.35, max(0.35, e.x))
+            e.y = min(rows - 0.35, max(0.35, e.y))
+            if not e.flying and not e.card.river_jump:
+                self._keep_out_of_river(e)
+
+    @staticmethod
+    def _keep_out_of_river(e):
+        """Ground units bounce off the river banks unless they're on a bridge."""
+        if not (RIVER_TOP < e.y < RIVER_BOTTOM):
+            return
+        bx = min(BRIDGE_X, key=lambda b: abs(e.x - b))
+        off = abs(e.x - bx)
+        if off <= BRIDGE_HALF:
+            return
+        to_bank = min(e.y - RIVER_TOP, RIVER_BOTTOM - e.y)
+        to_bridge = off - BRIDGE_HALF
+        if to_bridge < to_bank:
+            e.x = bx + (BRIDGE_HALF if e.x > bx else -BRIDGE_HALF)
+        elif e.y - RIVER_TOP < RIVER_BOTTOM - e.y:
+            e.y = RIVER_TOP
+        else:
+            e.y = RIVER_BOTTOM
 
     def _on_tower_destroyed(self, tw):
         # which team lost it -> the other team gains a crown

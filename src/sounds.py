@@ -304,6 +304,28 @@ def s_zap(f=1200, dur=0.3, seed=5):
     return lowpass(out, 6000)
 
 
+def s_bolt(dur=0.3, seed=5, bright=1.0):
+    """An electric bolt: a sharp crack, then a crackling, fizzing discharge
+    over a low mains-style hum. No pitched tones, so it never 'rings'."""
+    r = random.Random(seed)
+    out = highpass(noise(0.035, attack=0.0005, decay=0.02, seed=seed), 1800)
+    out = gain(out, 1.3)
+    # crackle: a burst of tiny random sparks that thins out over time
+    t = 0.004
+    while t < dur:
+        life = 1.0 - t / dur
+        burst = highpass(noise(r.uniform(0.001, 0.004), attack=0.0002,
+                               decay=0.002, seed=r.randint(0, 10 ** 6)), 1200)
+        mix_into(out, burst, t, r.uniform(0.3, 1.0) * (0.25 + 0.75 * life))
+        t += r.uniform(0.003, 0.016) * (1.0 + 1.5 * (1.0 - life))
+    out = bandpass(out, 3200 * bright, 0.9)
+    mix_into(out, highpass(noise(dur, decay=dur * 0.5, seed=seed + 1), 5000), 0, 0.25)
+    hum = lowpass(tone(100, dur * 0.8, 85, wave_="saw", attack=0.002,
+                       decay=dur * 0.45), 700)
+    mix_into(out, hum, 0, 0.35)
+    return out
+
+
 def s_shimmer(f=1500, dur=0.6, seed=6, n=5):
     r = random.Random(seed)
     out = []
@@ -402,7 +424,7 @@ ATTACK_FAMILY = {
     "wizard": "fire", "baby_dragon": "fire", "lava_pup": "fire",
     "lava_hound": "fire", "inferno_tower": "sizzle", "inferno_dragon": "sizzle",
     "ice_wizard": "ice", "electro_wizard": "zap", "zappies": "zap",
-    "tesla": "zap", "electro_dragon": "zap", "electro_spirit": "zap",
+    "tesla": "bolt", "electro_dragon": "zap", "electro_spirit": "zap",
     "goblinstein": "zap", "sparky": "bigzap", "electro_giant": "zap",
     "witch": "magic", "night_witch": "slash",
     # lobbed / thrown
@@ -453,7 +475,12 @@ def make_attack(c):
     size = 1.6 if c.key in HEAVY else (0.7 if c.key in SMALL else 1.0)
     fam = _attack_family(c)
     sd = r.randint(0, 10 ** 6)
-    if fam == "bow":
+    if fam == "bow" and c.key == "archers":
+        # light "thwip": short, high, airy - two archers fire it a lot
+        sig = pluck(380 * p, 0.16, bright=0.2, seed=sd)
+        mix_into(sig, s_whoosh(0.12, 1800, 4500, seed=sd, vol=0.3), 0.01, 1.0)
+        sig = lowpass(sig, 5000)
+    elif fam == "bow":
         sig = s_twang(260 * p, 0.28, sd)
     elif fam == "firebow":
         sig = s_twang(240 * p, 0.3, sd)
@@ -486,6 +513,8 @@ def make_attack(c):
     elif fam == "ice":
         sig = s_shimmer(1300 * p, 0.45, sd, 4)
         mix_into(sig, s_whoosh(0.2, 1500, 5000, sd, 0.4), 0, 1.0)
+    elif fam == "bolt":
+        sig = s_bolt(0.32, sd, 0.9 + 0.2 * p)
     elif fam == "zap":
         sig = s_zap(1000 * p, 0.25, sd)
     elif fam == "bigzap":
@@ -538,7 +567,11 @@ def make_attack(c):
     else:  # slash
         sig = s_clang(950 * p, 0.35, sd, 0.9)
         mix_into(sig, s_whoosh(0.18, 500, 2500, sd, 0.5), 0, 1.0)
-    return fade_tail(normalize(sig, 0.8))
+    return fade_tail(normalize(sig, 0.8 * ATTACK_GAIN.get(c.key, 1.0)))
+
+
+# per-card loudness trims for attack sounds (1.0 = normal)
+ATTACK_GAIN = {"archers": 0.55, "tesla": 0.9}
 
 
 def make_deploy(c):
@@ -726,6 +759,9 @@ def make_extras():
     mix_into(por, tone(90, 0.7, 180, wave_="triangle", attack=0.15, decay=0.6, vol=0.4), 0)
     mix_into(por, s_bones(23, 4, 1300), 0.25, 0.7)
     S["portal"] = normalize(por, 0.7)
+    pop = tone(520, 0.12, 900, decay=0.1, vol=0.6)
+    mix_into(pop, s_chime(1318, (0, 7), 0.05, 0.35), 0.04, 0.5)
+    S["elixir_pop"] = normalize(pop, 0.4)
     vic = []
     for i, semi in enumerate((0, 4, 7, 12)):
         mix_into(vic, s_brass(262 * 2 ** (semi / 12), 0.5 if i < 3 else 1.4, (0, 4, 7)), i * 0.18, 0.6)
@@ -889,7 +925,13 @@ def _manifest_path():
 EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle",
                "ability", "death_small", "death_big", "death_building",
                "tower_down", "crown", "king_wake", "match_start", "double_elixir",
-               "overtime", "tick", "dash", "slam", "victory", "defeat", "portal"]
+               "overtime", "tick", "dash", "slam", "victory", "defeat", "portal",
+               "elixir_pop"]
+
+# Sounds re-rendered since they were first shipped: bump a name's number to
+# regenerate just that file on the next launch (without a full SOUND_VERSION
+# rebuild). Your own replacement WAVs are still never overwritten.
+SOUND_REVS = {"tesla_attack": 3, "archers_attack": 3, "elixir_pop": 3}
 
 
 def ensure_sounds(progress=None):
@@ -907,11 +949,14 @@ def ensure_sounds(progress=None):
     fresh_install = not man
     old_v = man.get("version")
     generated = set(man.get("generated", []))
+    old_revs = man.get("revs", {})
     now = set()
 
     def needs(nm):
         path = os.path.join(SOUND_DIR, nm + ".wav")
         if not os.path.exists(path):
+            return True
+        if nm in generated and nm in SOUND_REVS and old_revs.get(nm) != SOUND_REVS[nm]:
             return True
         return nm in generated and old_v != SOUND_VERSION
 
@@ -952,7 +997,8 @@ def ensure_sounds(progress=None):
             write(names[0], res)
     try:
         with open(mp, "w") as f:
-            json.dump({"version": SOUND_VERSION, "generated": sorted(now)}, f, indent=0)
+            json.dump({"version": SOUND_VERSION, "generated": sorted(now),
+                       "revs": SOUND_REVS}, f, indent=0)
     except Exception:
         pass
 

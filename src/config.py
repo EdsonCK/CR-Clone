@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "0.4.1"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "0.5.0"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
@@ -172,6 +172,11 @@ GLOBAL_DAMAGE_MULT   = 1.0   # scale ALL troop damage (1.1 = +10% everywhere)
 GLOBAL_HP_MULT       = 1.0   # scale ALL troop hp
 GLOBAL_SPEED_MULT    = 1.0   # scale ALL troop move speed
 DEPLOY_TIME          = 1.0   # seconds a troop stands still after being placed
+# Melee wind-up: after engaging a NEW target a melee unit waits this fraction
+# of its hit speed before the first hit lands (a card's `first_hit` overrides
+# it with an exact number of seconds). Never shorter than MELEE_FIRST_HIT_MIN.
+MELEE_FIRST_HIT_FRAC = 0.5
+MELEE_FIRST_HIT_MIN  = 0.3
 PROJECTILE_SPEED     = 9.0   # tiles/sec for ranged shots (visual + timing)
 
 # Inferno-style ramping attacks (Inferno Tower / Inferno Dragon).
