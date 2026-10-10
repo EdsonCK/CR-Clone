@@ -887,6 +887,15 @@ _CARD_LIST = [
     CardDef("ram_rider_bola", "Bola", 0, deployable=False,
             hp=1, damage=57, hit_speed=1.1, range=5.5, attacks=AG,
             troops_only=True, slow=(0.3, 2.0)),
+    # ---- Tower Troops (towers.py): here only for their art and sounds ----
+    CardDef("tower_princess", "Tower Princess", 0, category="tower", deployable=False,
+            rarity="common", hp=1400, damage=50, hit_speed=0.8, range=7.5, attacks=AG),
+    CardDef("cannoneer", "Cannoneer", 0, category="tower", deployable=False,
+            rarity="epic", hp=1200, damage=147, hit_speed=2.2, range=7.5, attacks=AG),
+    CardDef("dagger_duchess", "Dagger Duchess", 0, category="tower", deployable=False,
+            rarity="legendary", hp=1270, damage=49, hit_speed=0.5, range=7.5, attacks=AG),
+    CardDef("royal_chef", "Royal Chef", 0, category="tower", deployable=False,
+            rarity="legendary", hp=1240, damage=50, hit_speed=1.0, range=7.5, attacks=AG),
     # ---- Evolution / Hero sub-units ----
     CardDef("skeleton_general", "General Gerry", 0, deployable=False,
             hp=38, damage=43, hit_speed=1.0, range=1.6, speed=SPEED_FAST,

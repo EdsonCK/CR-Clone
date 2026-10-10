@@ -28,6 +28,7 @@ import pygame
 import config as cfg
 import cards
 import sprites
+import towers
 import sounds
 import fx as fxmod
 import levels
@@ -37,6 +38,7 @@ from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
 from ai import AIController
 from screens import ScreensMixin
 from modes import ModesMixin
+from trophyroad import TrophyMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -110,6 +112,9 @@ PROJ_STYLES = {
     "ronin":          ("bullet", (255, 255, 255)),
     "furnace":        ("fire", (255, 130, 40)),
     "bowler_barrage": ("boulder", (150, 120, 176)),
+    "cannoneer":      ("cannonball", (55, 52, 62)),
+    "dagger_duchess": ("dart", (225, 230, 240)),
+    "royal_chef":     ("dart", (240, 220, 170)),
 }
 
 
@@ -125,7 +130,7 @@ CHAIN_COLORS = {
 }
 
 
-class Game(ModesMixin, ScreensMixin):
+class Game(ModesMixin, ScreensMixin, TrophyMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -404,13 +409,18 @@ class Game(ModesMixin, ScreensMixin):
         cx = cfg.WINDOW_W // 2
         w, h = 300, 46
         big = [
-            ("Battle", self._open_prematch, "go"),
+            ("Trophy Road", self._open_trophy, "go"),
             ("Levels", lambda: self._goto("levels"), "gold"),
-            ("Special Modes", lambda: self._open_modes(), "gold"),
         ]
         self.menu_buttons = [
             Button((cx - w // 2, 244 + i * 54, w, h), lbl, cb, style)
             for i, (lbl, cb, style) in enumerate(big)
+        ]
+        hw2 = (w - 8) // 2
+        self.menu_buttons += [
+            Button((cx - w // 2, 352, hw2, h), "Battle", self._open_prematch, "go"),
+            Button((cx - w // 2 + hw2 + 8, 352, hw2, h), "Specials",
+                   lambda: self._open_modes(), "gold"),
         ]
         small = [
             ("Cards", lambda: self._open_cards("menu")),
@@ -495,6 +505,7 @@ class Game(ModesMixin, ScreensMixin):
                            tower_levels={PLAYER: self.profile.tower_level(self.player_deck),
                                          ENEMY: ai_lv})
         self.match.record_events = True
+        self._apply_tower_troops(self.match)
         self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
         self._audio = {}
         self.fx.clear()
@@ -577,6 +588,7 @@ class Game(ModesMixin, ScreensMixin):
             lv, self.level_deck, self.profile.deck_levels(self.level_deck),
             self.profile.tower_level(self.level_deck), ev, he)
         self.match.record_events = True
+        self._apply_tower_troops(self.match)
         self.ai = None
         self.selected = None
         self._audio = {}
@@ -783,7 +795,8 @@ class Game(ModesMixin, ScreensMixin):
             pan = self._pan(ev["x"])
             mine = ev.get("team") == PLAYER
             if kind == "attack":
-                tower = key in ("princess_tower", "king_tower")
+                tower = key in ("princess_tower", "king_tower", "cannoneer",
+                                "dagger_duchess", "royal_chef")
                 self.sfx.play(key + "_attack", 0.32 if tower else 0.5, pan, min_gap=0.07)
             elif kind == "deploy":
                 c = cards.CARDS.get(key)
@@ -887,6 +900,17 @@ class Game(ModesMixin, ScreensMixin):
         else:
             self.result_text = "DRAW"
         self.last_rewards = []
+        if self.mode == "trophy":
+            if w == PLAYER:
+                self.profile.totals["battle_wins"] = self.profile.totals.get("battle_wins", 0) + 1
+            self._trophy_rewards(w)
+            self._daily(w == PLAYER)
+            self.profile.save()
+            self._handle_events(self.match.take_events())
+            self.sfx.music(None)
+            self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
+            self.state = "result"
+            return
         if w == PLAYER:
             self.profile.totals["battle_wins" if self.mode is None else "special_wins"] = \
                 self.profile.totals.get("battle_wins" if self.mode is None else "special_wins", 0) + 1
@@ -1423,6 +1447,10 @@ class Game(ModesMixin, ScreensMixin):
                 self._select_deck_slot(i)
                 self.deck_msg = "Deck %d" % (i + 1)
                 return
+        if (button == 1 and self.deck_mode == "player"
+                and self._tower_chip_rect().collidepoint(pos)):
+            self._cycle_tower_troop()
+            return
         # your 8 cards: arrows move a card, otherwise either button removes
         for i, r in enumerate(self._deck_slot_rects()):
             if r.collidepoint(pos):
@@ -1472,7 +1500,11 @@ class Game(ModesMixin, ScreensMixin):
         p = self._result_panel()
         y = p.bottom - 96
         out = []
-        if self.level_run is not None and self.mode is None:
+        if self.mode == "trophy":
+            out += [Button((cx - 150, y, 145, 40), "Battle Again", self._start_trophy_battle,
+                           "go"),
+                    Button((cx + 5, y, 145, 40), "Trophy Road", self._open_trophy)]
+        elif self.level_run is not None and self.mode is None:
             out += [Button((cx - 150, y, 145, 40), "Retry", self._retry, "go"),
                     Button((cx + 5, y, 145, 40), "Levels", lambda: self._goto("levels"))]
         elif self.mode is not None:
@@ -1595,6 +1627,8 @@ class Game(ModesMixin, ScreensMixin):
         self.music_btn.label = "Music: %s (M)" % ("On" if self.music_on else "Off")
         self.sfx_btn.label = "Sound: %s (N)" % ("On" if self.sfx_on else "Off")
         for b in self.menu_buttons:
+            if b.label.startswith("Trophy Road"):
+                b.label = "Trophy Road   %d" % self.profile.trophies
             b.enabled = not (b.label == "Last Match" and self.match is None)
             b.draw(self.screen, self.font_sb if b in (self.music_btn, self.sfx_btn)
                    else self.font_m)
@@ -1894,10 +1928,14 @@ class Game(ModesMixin, ScreensMixin):
         cyc = sum(sorted(cards.CARDS[k].elixir for k in deck)[:4]) if len(deck) >= 4 else 0
         full = len(deck) == cfg.DECK_SIZE
         lvl = (sum(self.profile.level(k) for k in deck) / len(deck)) if deck else 11
-        self._text("%d/8   |   avg elixir %.1f   |   4-card cycle %d   |   avg Lv %.1f"
-                   % (len(deck), avg, cyc, lvl),
-                   self.font_s, (150, 230, 150) if full else (170, 178, 195),
-                   center=(cx, 55))
+        stats = "%d/8  |  avg %.1f  |  cycle %d  |  Lv %.1f" % (len(deck), avg, cyc, lvl)
+        if self.deck_mode == "player":
+            self._text(stats, self.font_s, (150, 230, 150) if full else (170, 178, 195),
+                       topleft=(14, 48))
+            self._draw_tower_chip()
+        else:
+            self._text(stats, self.font_s, (150, 230, 150) if full else (170, 178, 195),
+                       center=(cx, 55))
 
         # ---- your 8 cards: 2 rows x 4 big slots ----
         for i, r in enumerate(self._deck_slot_rects()):
@@ -2812,6 +2850,28 @@ class Game(ModesMixin, ScreensMixin):
             if not e.active:
                 self._text("Zzz", self.font_s, (240, 240, 245),
                            center=(px, r.y + size // 4 + 2))
+        elif e.tower_troop:
+            # the Tower Troop standing on the battlements
+            ts = int(size * 0.62)
+            bob = int(math.sin(self._now() * 2 + e.x) * 1.5)
+            if self.match.elapsed - e.atk_t < 0.15:
+                bob -= 2                      # recoil when firing
+            spr = sprites.get_sprite(e.tower_troop, ts)
+            if e.team == ENEMY:
+                spr = pygame.transform.flip(spr, True, False)
+            self.screen.blit(spr, (px - ts // 2, r.y - ts // 2 + bob))
+            if e.daggers is not None:        # Dagger Duchess: daggers left
+                for k in range(towers.get(e.tower_troop).daggers):
+                    col = (230, 236, 245) if k < e.daggers else (70, 72, 84)
+                    xx = r.x + 4 + k * (size - 8) / 7.0
+                    pygame.draw.line(self.screen, col, (xx, r.bottom - 9), (xx, r.bottom - 3), 2)
+            prog = self.match.chef_progress(e.team) if e.tower_troop == "royal_chef" else None
+            if prog is not None:             # Royal Chef: cooking gauge
+                bw = size - 10
+                pygame.draw.rect(self.screen, (40, 30, 24), (r.x + 5, r.bottom - 9, bw, 5),
+                                 border_radius=2)
+                pygame.draw.rect(self.screen, (250, 196, 90),
+                                 (r.x + 5, r.bottom - 9, int(bw * prog), 5), border_radius=2)
         self._draw_hp_bar(e, px, r.y - 14, size + 6)
 
     def _draw_level_badge(self, e, px, py, size):
@@ -2861,6 +2921,17 @@ class Game(ModesMixin, ScreensMixin):
             return
         if fx.kind == "timed_bomb":
             self._draw_timed_bomb(fx, px, py)
+            return
+        if fx.kind == "pancake":
+            # Royal Chef's pancake arcing onto a troop
+            t = min(1.0, fx.elapsed / fx.duration)
+            h = int(math.sin(math.pi * t) * 40)
+            spin = fx.elapsed * 14
+            w = int(9 + 3 * math.cos(spin))
+            rect = pygame.Rect(int(px) - w, int(py) - h - 4, 2 * w, 8)
+            pygame.draw.ellipse(self.screen, (120, 70, 30), rect.move(0, 2))
+            pygame.draw.ellipse(self.screen, (238, 180, 90), rect)
+            pygame.draw.ellipse(self.screen, (255, 230, 150), rect.inflate(-6, -4))
             return
         if fx.kind in ("chain", "link"):
             # electric arcs between chained points (Electro units, Tesla beam,
@@ -3179,7 +3250,12 @@ class Game(ModesMixin, ScreensMixin):
             return
         if self.mode is not None and self.mode != "endless":
             import modes as _modes
-            self._text(_modes.MODE_NAMES[self.mode], self.font_s, (240, 210, 140),
+            if self.mode == "trophy":
+                import trophy as _tr
+                name = _tr.arena(self.profile.trophies).name
+            else:
+                name = _modes.MODE_NAMES.get(self.mode, "")
+            self._text(name, self.font_s, (240, 210, 140),
                        center=(cfg.WINDOW_W // 2, cfg.TOP_BAR + 10))
         # timer chip (amber during overtime / boosted elixir)
         t = max(0, m.time_left)

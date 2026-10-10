@@ -448,6 +448,8 @@ ATTACK_FAMILY = {
     "ronin": "katana", "rune_giant": "runehammer", "fisherman": "slap",
     "royal_hogs": "smash", "cursed_hog": "smash", "ram_rider": "smash",
     "spirit_empress": "katana", "spirit_empress_air": "zap",
+    "tower_princess": "bow", "cannoneer": "cannon", "dagger_duchess": "dart",
+    "royal_chef": "dart",
 }
 
 HEAVY = {"pekka", "mega_knight", "giant_skeleton", "golem", "golemite", "giant",

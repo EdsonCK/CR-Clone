@@ -21,6 +21,8 @@ Everything you earn is saved in profile.json next to the game:
                 LADDER_WINS_PER_LEVEL wins against that intelligence level
                 (max 16) - or set Battle Setup to "match my level".
   * Endless Survival best wave, saved deck slots, lifetime totals.
+  * TROPHIES  - your Trophy Road standing (trophy.py): current, best ever,
+                and how far along the road your rewards have been paid.
 
 Tuning: all the reward / cost numbers are the constants right below.
 Settings > Sandbox unlocks every Level, Evolution and Hero for free play
@@ -98,6 +100,9 @@ class Profile:
         self.active_slot = 0
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}
         self.special = {}            # mode key -> {"wins", "plays"}
+        self.trophies = 0            # Trophy Road
+        self.best_trophies = 0
+        self.road_paid = 0           # rewards granted up to this many trophies
         self.load()
 
     # ---- persistence ----
@@ -121,6 +126,9 @@ class Profile:
         self.active_slot = int(d.get("active_slot", 0))
         self.totals.update(d.get("totals", {}))
         self.special = d.get("special", {})
+        self.trophies = max(0, int(d.get("trophies", 0)))
+        self.best_trophies = max(self.trophies, int(d.get("best_trophies", 0)))
+        self.road_paid = int(d.get("road_paid", 0))
 
     def save(self):
         try:
@@ -132,6 +140,8 @@ class Profile:
                     "endless_best": self.endless_best, "endless_runs": self.endless_runs,
                     "decks": self.decks, "active_slot": self.active_slot,
                     "totals": self.totals, "special": self.special,
+                    "trophies": self.trophies, "best_trophies": self.best_trophies,
+                    "road_paid": self.road_paid,
                 }, f, indent=1)
         except Exception:
             pass
@@ -143,6 +153,7 @@ class Profile:
         self.gold = self.shards = self.shard_points = 0
         self.evos, self.heroes = [], []
         self.endless_best = self.endless_runs = 0
+        self.trophies = self.best_trophies = self.road_paid = 0
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}
         self.decks, self.active_slot = decks, slot
         self.save()

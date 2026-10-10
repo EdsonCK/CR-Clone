@@ -20,6 +20,7 @@ import random
 import config as cfg
 import cards
 import evo_engine
+import towers
 from cards import CardDef
 
 # --- river / bridge geometry (in tile coordinates) ---------------------------
@@ -243,6 +244,11 @@ class Entity:
         self.undying_t = 0.0       # can't drop below 1 hp (Hero Berserker)
         self.channel_t = 0.0       # busy channelling an ability: no moving/attacking
         self.sacrificed = False    # removed by an ability: no death spawns
+        # Princess Towers: which Tower Troop mans them (see towers.py)
+        self.tower_troop = "tower_princess" if (is_tower and not is_king) else None
+        self.daggers = None        # Dagger Duchess magazine (None = no magazine)
+        self._reload_t = 0.0
+        self.fed = False           # already ate a Royal Chef pancake
         self.spawn_timer = card.spawner[2] if card.spawner else 0.0
         if card.spawner and card.spawn_first is not None:
             self.spawn_timer = card.spawn_first
@@ -520,6 +526,8 @@ class Entity:
 
         if self.attack_cd > 0:
             self.attack_cd -= dt
+        if self.daggers is not None:
+            self._reload_dagger(dt, match)
 
         # back riders (Goblin Giant): units strapped to this one's back that
         # shoot independently while it lives - they can hit air even though
@@ -911,10 +919,28 @@ class Entity:
                 and not self.card.kamikaze):
             evo_engine.after_attack(self, match, getattr(self, "_last_dmg", self.dmg))
 
+    def _reload_dagger(self, dt, match):
+        """Dagger Duchess: refill one dagger per `reload` s while not throwing."""
+        tt = towers.get(self.tower_troop)
+        if self.daggers >= tt.daggers or match.elapsed - self.atk_t < tt.reload:
+            self._reload_t = 0.0
+            return
+        self._reload_t += dt
+        if self._reload_t >= tt.reload:
+            self._reload_t -= tt.reload
+            self.daggers += 1
+
     def _attack_core(self, match):
         if self.attack_cd > 0:
             return
         self.attack_cd = self.effective_hitspeed()
+        if self.daggers is not None:
+            tt = towers.get(self.tower_troop)
+            if self.daggers > 0:          # a flurry from the full magazine...
+                self.daggers -= 1
+                self.attack_cd = tt.hit_speed
+            else:                         # ...then one dagger at a time
+                self.attack_cd = tt.empty_hit_speed
         self.atk_t = match.elapsed
         t = self.target
         ddx, ddy = t.x - self.x, t.y - self.y
@@ -1164,6 +1190,7 @@ PROJ_SPEEDS = {
     "goblin_demolisher": 7, "skeleton_dragons": 9, "minion_giant": 8,
     "mother_witch": 10, "rascal_girl": 12, "ram_rider_bola": 10,
     "spirit_empress_air": 11,
+    "cannoneer": 9, "dagger_duchess": 16, "royal_chef": 12,
 }
 
 
@@ -1475,6 +1502,11 @@ class Effect:
                     if e.alive:
                         e.take_damage(self.tower_damage if e.is_tower else self.damage)
             self.points = [(e.x, e.y) for e in self.ends if e.alive]
+        elif self.kind == "pancake":
+            a, b = self.ends               # flies from the tower to the troop
+            t = min(1.0, self.elapsed / self.duration)
+            self.x = a.x + (b.x - a.x) * t
+            self.y = a.y + (b.y - a.y) * t
         elif self.kind == "wind":           # Evolved Baby Dragon's lingering tailwind
             evo_engine.wind_effect(self, dt, match)
         elif self.kind == "snowroll":       # Evolved Giant Snowball rolling on
@@ -1583,6 +1615,8 @@ class Match:
         # (plays since the last evolved copy). Charges start FULL, so the
         # first copy you play comes out evolved.
         self.last_played = {PLAYER: None, ENEMY: None}   # for Mirror
+        self.tower_troops = {PLAYER: towers.DEFAULT, ENEMY: towers.DEFAULT}
+        self.chef = {}             # team -> Royal Chef cooking state
         self.evo_cards = {PLAYER: set(), ENEMY: set()}
         self.hero_cards = {PLAYER: set(), ENEMY: set()}
         for t in (PLAYER, ENEMY):
@@ -1658,6 +1692,70 @@ class Match:
             tw.level = self.tower_levels[tw.team]
             tw._match_ref = self
             self.entities.append(tw)
+
+    # ---- tower troops ------------------------------------------------------
+    def set_tower_troop(self, team, key):
+        """Man `team`'s Princess Towers with a Tower Troop (towers.py)."""
+        tt = towers.get(key)
+        self.tower_troops[team] = tt.key
+        for side in ("left", "right"):
+            tw = self.towers[(team, side)]
+            if not tw.alive:
+                continue
+            frac = tw.hp / max(tw.max_hp, 1)
+            tw.max_hp = int(cfg.PRINCESS_TOWER_HP * tt.hp_mult * tw.power[0])
+            tw.hp = tw.max_hp * frac
+            tw.dmg = cfg.PRINCESS_TOWER_DMG * tt.dmg_mult * tw.power[1]
+            tw.hit_speed = tt.hit_speed
+            tw.range = tw.sight = tt.range
+            tw.tower_troop = tt.key
+            # attack style / sound follow the troop (the Princess keeps the
+            # classic tower arrow)
+            tw.key = "princess_tower" if tt.key == towers.DEFAULT else tt.key
+            tw.daggers = tt.daggers if tt.daggers else None
+        if tt.cook:
+            self.chef[team] = {"t": -tt.cook[0], "ready": False}
+        else:
+            self.chef.pop(team, None)
+
+    def _update_chef(self, dt):
+        """Royal Chef: cook a pancake (slower while his towers fight), then
+        throw it to the highest-hp troop that hasn't eaten yet (+1 level)."""
+        for team, st in self.chef.items():
+            alive = [self.towers[(team, s)] for s in ("left", "right")
+                     if self.towers[(team, s)].alive]
+            if not alive:
+                continue                  # both towers down: no more cooking
+            _, base, slow = towers.get("royal_chef").cook
+            busy = sum(1 for t in alive if self.elapsed - t.atk_t < 1.0) + (2 - len(alive))
+            rate = base / (base + (slow - base) * min(busy, 2) / 2.0)
+            if not st["ready"]:
+                st["t"] += dt * rate
+                if st["t"] >= base:
+                    st["ready"] = True
+                continue
+            cands = [e for e in self.entities
+                     if e.alive and e.team == team and not e.is_tower
+                     and not e.is_building and not e.fed and not e.clone
+                     and not e.immortal and e.deploy_timer <= 0
+                     and e.hp >= e.max_hp * 0.33]
+            if not cands:
+                continue                  # keeps the pancake warm
+            tgt = max(cands, key=lambda e: e.max_hp)
+            src = min(alive, key=lambda t: dist(t.x, t.y, tgt.x, tgt.y))
+            evo_engine._level_up(tgt, 1)
+            tgt.fed = True
+            self.effects.append(Effect("pancake", team, src.x, src.y, 0.6, 0.6,
+                                       card_key="royal_chef", ends=(src, tgt)))
+            self.emit("ability", "royal_chef", tgt.x, tgt.y, team)
+            st["t"], st["ready"] = 0.0, False
+
+    def chef_progress(self, team):
+        """0..1 cooking progress for the HUD (None = no Royal Chef)."""
+        st = self.chef.get(team)
+        if st is None:
+            return None
+        return 1.0 if st["ready"] else max(0.0, st["t"]) / towers.get("royal_chef").cook[1]
 
     # ---- card levels -------------------------------------------------------
     def card_level(self, team, key):
@@ -2543,6 +2641,8 @@ class Match:
             p.update(dt, self)
         self._src_ent = None
         self._run_later()
+        if self.chef:
+            self._update_chef(dt)
         self._src = ("miasma", "miasma")
         if self.miasma:
             self._miasma_t += dt

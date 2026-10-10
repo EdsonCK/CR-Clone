@@ -33,7 +33,8 @@ HERO_COL = (255, 196, 80)
 
 class ScreensMixin:
     # screens drawn/handled by this mixin: _draw_<name>, _<name>_click
-    EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats", "achievements")
+    EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats", "achievements",
+                     "trophy")
 
     def _extra_escape(self):
         back = {"cards": getattr(self, "cards_return", "menu"),
@@ -49,6 +50,8 @@ class ScreensMixin:
             self._ach_set_scroll(getattr(self, "ach_scroll", 0) - dy * 60)
         elif self.state == "modes":
             pass
+        elif self.state == "trophy":
+            self._trophy_set_scroll(self.trophy_scroll - dy * 60)
 
     def _extra_mouseup(self, pos):
         self.cards_drag = False
@@ -164,6 +167,7 @@ class ScreensMixin:
         x += 20 + w1 + 28
         self._shard(x + 8, y, 10)
         self._text(sh, self.font_m, SHARD_COL, topleft=(x + 20, y - 12))
+
 
     # ================================================================ CARDS
     CARD_COLS = 5

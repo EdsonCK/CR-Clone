@@ -90,6 +90,12 @@ ACHIEVEMENTS = [
      lambda g: (min(1, len(g.profile.heroes)), 1)),
     ("evoplay", "Evolved", "Play 25 evolved cards.", (250, 2),
      lambda g: (_tot(g, "evo_plays"), 25)),
+    ("tr1000", "Climber", "Reach 1000 trophies on the Trophy Road.", (200, 1),
+     lambda g: (g.profile.best_trophies, 1000)),
+    ("tr2300", "Frozen Peak", "Reach Frozen Peak (2300 trophies).", (400, 2),
+     lambda g: (g.profile.best_trophies, 2300)),
+    ("tr5500", "Legend", "Reach the Legendary Arena (5500 trophies).", (1500, 5),
+     lambda g: (g.profile.best_trophies, 5500)),
     ("crowns100", "Crown Hoarder", "Take 100 crowns in Battles.", (400, 2),
      lambda g: (sum(r.get("cf", 0) for r in g.stats.values() if isinstance(r, dict)), 100)),
 ]

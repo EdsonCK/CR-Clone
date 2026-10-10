@@ -1645,7 +1645,7 @@ def _dart_goblin(p):
     arm(p, f, 1, GOB, GOB, to=(70, 70))
 
 
-@art("princess")
+@art("princess", "tower_princess")
 def _princess(p):
     f = Fig("slim")
     dress = (250, 128, 180)
@@ -3414,6 +3414,83 @@ def _snowman(p):
         p.ball(64, y, 3, OUT, w=0, hl=False)
     for s_ in (-1, 1):
         p.line((64 + s_ * 24, 84), (64 + s_ * 40, 70), 3, DWOOD)
+
+
+
+# ---- Tower Troops -------------------------------------------------------------
+@art("cannoneer")
+def _cannoneer(p):
+    f = Fig("bulky")
+    p.shadow(rx=34)
+    legs(p, f, (90, 80, 70), boot=(80, 56, 36))
+    p.shape([(42, 70), (86, 70), (96, 112), (32, 112)], (66, 104, 196))     # cloak
+    torso(p, f, (120, 96, 70))
+    belt(p, f, LEATHER, GOLD)
+    head(p, f, SKIN)
+    face(p, f, "dot", "grin", brows="angry")
+    for s_ in (-1, 1):                                                       # goggles
+        p.oval(f.hx + s_ * 9, f.hy - f.hr * 0.45, 7, 6, (240, 200, 100), w=2)
+    p.line((f.hx - f.hr, f.hy - f.hr * 0.45), (f.hx + f.hr, f.hy - f.hr * 0.45), 3,
+           LEATHER, ol=None)
+    hair_cap(p, f, (110, 76, 46), depth=0.26, extra=1.2)
+    # big cannon held across the body
+    a, b = (34, 100), (110, 70)
+    p.line(a, b, 20, (64, 64, 80))
+    p.oval(b[0], b[1], 8, 12, (84, 84, 100), w=2.4)
+    p._ellipse(b[0] + 1, b[1], 4.5, 7.5, (22, 22, 30))
+    ring_on(p, a, b, 0.55, 24, GOLD, thick=4.5)
+    for q in ((48, 94), (80, 82)):
+        p.ball(q[0], q[1], 8, SKIN, hl=False)
+
+
+@art("dagger_duchess")
+def _dagger_duchess(p):
+    f = Fig("slim")
+    dress = (190, 60, 90)
+    p.shadow()
+    p.ball(f.hx, f.hy - f.hr * 0.95, 11, BLOND)                             # bun
+    robe(p, f, dress, trim=WHITE, flare=1.35)
+    torso(p, f, dress)
+    p.oval(f.tx, f.ty - 6, 14, 7, GOLD, w=2.2)                               # breastplate
+    for i in (0, 1):
+        hx, hy = arm(p, f, i, dress, SKIN, to=((34, 78), (94, 78))[i])
+        for k in (-1, 1):                                                   # fanned daggers
+            dagger(p, hx, hy, a=(115 if i == 0 else 65) + k * 18, L=22)
+    head(p, f, SKIN)
+    face(p, f, "dot", "smile", eyecol=(60, 170, 200))
+    hair_cap(p, f, BLOND, depth=0.36, bangs=2)
+    p.line((f.hx - f.hr, f.hy - f.hr * 0.55), (f.hx + f.hr, f.hy - f.hr * 0.55), 5,
+           (66, 104, 196))                                                  # headband
+
+
+@art("royal_chef")
+def _royal_chef(p):
+    f = Fig("bulky")
+    p.shadow(rx=34)
+    legs(p, f, (66, 104, 196), boot=(60, 50, 50))
+    torso(p, f, (245, 245, 245))
+    p.shape([(f.tx - 18, f.ty - 8), (f.tx + 18, f.ty - 8), (f.tx + 22, f.ty + 22),
+             (f.tx - 22, f.ty + 22)], (150, 100, 60))                         # apron
+    for y in (-2, 8):
+        p.ball(f.tx, f.ty + y, 2.4, GOLD, w=1.2, hl=False)
+    hx, hy = arm(p, f, 0, (245, 245, 245), SKIN, to=(34, 84))
+    p.oval(hx - 6, hy - 4, 14, 5, IRON, w=2)                                 # frying pan
+    p.line((hx + 6, hy - 2), (hx + 16, hy + 4), 4, DWOOD)
+    p.oval(hx - 6, hy - 9, 9, 3.5, (238, 180, 90), w=1.6)                    # pancake
+    head(p, f, SKIN)
+    face(p, f, "dot", "grin")
+    mustache(p, f, (70, 110, 220), size=1.2, droop=0.8)
+    p.shape([(f.hx - f.hr * 0.8, f.hy - f.hr * 0.3), (f.hx - f.hr * 0.9, f.hy - f.hr * 1.25),
+             (f.hx - f.hr * 0.3, f.hy - f.hr * 1.65), (f.hx + f.hr * 0.3, f.hy - f.hr * 1.65),
+             (f.hx + f.hr * 0.9, f.hy - f.hr * 1.25), (f.hx + f.hr * 0.8, f.hy - f.hr * 0.3)],
+            WHITE)                                                          # toque
+    p.line((f.hx - f.hr * 0.8, f.hy - f.hr * 0.35), (f.hx + f.hr * 0.8, f.hy - f.hr * 0.35),
+           5, (225, 225, 230))
+    spatula = f.hand[1]
+    p.line((spatula[0], spatula[1]), (spatula[0] + 10, spatula[1] - 30), 3.4, DSTEEL)
+    p.shape([(spatula[0] + 4, spatula[1] - 30), (spatula[0] + 18, spatula[1] - 34),
+             (spatula[0] + 16, spatula[1] - 44), (spatula[0] + 4, spatula[1] - 40)], STEEL, w=1.8)
+    arm(p, f, 1, (245, 245, 245), SKIN)
 
 
 # ===========================================================================

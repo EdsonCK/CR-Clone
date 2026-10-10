@@ -172,6 +172,9 @@ class ModesMixin:
             m.elixir_rate = 2.0
             m.time_left = 300.0
         m.record_events = True
+        self._apply_tower_troops(m)
+        if key == "mirror":
+            m.set_tower_troop(ENEMY, self._tower_troop())
         self.mode_decks = (list(deck), list(ai_deck))
         self.ai = AIController(m, team=ENEMY, level=self.ai_level)
         self._audio = {}
@@ -191,6 +194,7 @@ class ModesMixin:
         self.match, self.level_run = levels.new_endless_match(
             deck, self.profile.deck_levels(deck), self.profile.tower_level(deck), ev, he)
         self.match.record_events = True
+        self._apply_tower_troops(self.match)
         self.level_key = None
         self.ai = None
         self.selected = None
