@@ -731,6 +731,19 @@ class FX:
         x, y = t2p(fx.x, fx.y)
         R = fx.radius * TS
         f = min(1.0, fx.elapsed / 0.3) * min(1.0, (fx.duration - fx.elapsed) / 0.4)
+        if fx.card_key in ("firecracker", "freeze"):
+            # burning embers (Evolved Firecracker) / icy patch (Evolved Princess)
+            fire = fx.card_key == "firecracker"
+            base = (255, 120, 40) if fire else (150, 210, 255)
+            self._blit_circle(surf, x, y, R, base, 60 * f)
+            r = random.Random(id(fx) & 0xFFFF)
+            for i in range(int(4 + R / 4)):
+                a, d = r.uniform(0, math.tau), R * math.sqrt(r.random())
+                fl = 0.5 + 0.5 * math.sin(self.now * 9 + i)
+                col = (255, 210, 80) if fire else (235, 248, 255)
+                self._blit_circle(surf, x + math.cos(a) * d, y + math.sin(a) * d,
+                                  2 + 2 * fl, col, 200 * f)
+            return
         if fx.card_key == "goblin_curse":
             # sickly goblin-green fog with drifting skull-ish wisps
             self._blit_circle(surf, x, y, R, (60, 90, 40), 80 * f)

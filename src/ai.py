@@ -986,21 +986,48 @@ class AIController:
                 and dist(e.x, e.y, h.x, h.y) <= 4.0]
         hpf = h.hp / max(h.max_hp, 1)
         k = h.key
+        tgt = h.target
+        on_tower = tgt is not None and tgt.alive and tgt.is_tower
+        close = [e for e in near if dist(e.x, e.y, h.x, h.y) <= 2.6]
+        ground_close = [e for e in close if not e.flying]
         use = False
         if k == "knight":
             use = len(near) >= 2 or (near and hpf < 0.6)
         elif k == "giant":
-            use = any(e.max_hp >= 500 for e in near if not e.flying
-                      and dist(e.x, e.y, h.x, h.y) <= 3.0)
+            use = any(e.max_hp >= 500 for e in close if not e.is_building)
         elif k == "mini_pekka":
-            use = hpf < 0.5 or (h.target is not None and h.target.is_tower)
-        elif k in ("musketeer", "goblins"):
-            use = len(near) >= 1 or (h.target is not None and h.target.is_tower)
+            use = hpf < 0.5 or on_tower or getattr(h, "pancakes", 0) >= 2.0
+        elif k in ("musketeer", "goblin_banner"):
+            use = len(near) >= 1 or on_tower or k == "goblin_banner"
         elif k == "ice_golem":
-            use = len([e for e in near if dist(e.x, e.y, h.x, h.y) <= 3.0]) >= 2
+            use = len(near) >= 2
         elif k == "valkyrie":
-            use = len([e for e in near if not e.flying
-                       and dist(e.x, e.y, h.x, h.y) <= 2.4]) >= 2
+            use = len(ground_close) >= 2 or (ground_close and hpf < 0.5)
+        elif k == "wizard":
+            use = len(near) >= 2 or (near and hpf < 0.5)
+        elif k == "mega_minion":
+            weak = [e for e in m.entities if e.alive and e.team == self.opp
+                    and not e.is_tower and e.hp <= 399 * 0.544 * h.power[1]]
+            use = bool(weak) or hpf < 0.4
+        elif k == "barbarian":
+            use = hpf < 0.5 or len(ground_close) >= 2
+        elif k == "magic_archer":
+            use = (near and hpf < 0.6) or on_tower
+        elif k == "balloon":
+            use = bool(ground_close) or hpf < 0.4
+        elif k == "bowler":
+            use = len(near) >= 2 or on_tower
+        elif k == "dark_prince":
+            use = on_tower or len(near) >= 2 or hpf < 0.5
+        elif k == "tombstone":
+            use = True
+        elif k == "berserker":
+            use = (tgt is not None and tgt.alive and not tgt.is_tower
+                   and dist(tgt.x, tgt.y, h.x, h.y) <= 2.0) or hpf < 0.35
+        elif k == "ice_wizard":
+            use = bool(near)
+        elif k == "electro_wizard":
+            use = len(near) >= 2 or (near and hpf < 0.5)
         if use or (self.lv(1) and not self.lv(3) and near):
             m.activate_hero(self.me)
 

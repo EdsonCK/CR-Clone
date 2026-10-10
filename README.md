@@ -19,19 +19,21 @@ python src/main.py
 
 The first launch generates all the unit sprites into `assets/sprites/`.
 
-## What's in it (v1.0)
+## What's in it (v1.1)
 
 * **Battle** the AI: 5 intelligence levels, a 0.5x-2x elixir handicap
-  slider, 11 archetype decks (or random / custom), and an AI card level that
+  slider, 14 archetype decks (or random / custom), and an AI card level that
   climbs as you beat it.
 * **Levels**: 20 themed wave challenges, unlocked by stars.
 * **Special Modes**: Triple Elixir, Sudden Death, Mirror Match, Draft, Rage
   Battle, Random Decks, Double Trouble and **Endless Survival**.
-* **Progression**: gold and shards, card levels 11-16, 32 **Evolutions**,
-  7 **Heroes**, 5 saved decks, 22 achievements, a daily first-win bonus.
-* 95 cards (8 Champions) with original art, procedural music and a unique
-  sound for every card, collisions, path-finding around buildings, card
-  animations and a post-match stats screen.
+* **Progression**: gold and shards, card levels 11-16, all 43 **Evolutions**
+  and all 18 **Heroes** of the real game (as of the Minion Giant update), 5
+  saved decks, 22 achievements, a daily first-win bonus.
+* 123 cards (8 Champions) - the whole roster up to the Minion Giant - with
+  original art, procedural music and a unique sound for every card,
+  collisions, path-finding around buildings, card animations and a
+  post-match stats screen.
 
 ## How to play
 
@@ -104,54 +106,77 @@ troop gets a purple aura and its extra ability. Playing it normally refills
 the charge (1 or 2 plays, shown as pips on the card). The first copy you play
 in a match is always evolved.
 
-| Card | Evolution |
-|---|---|
-| Knight | takes 60% less damage while he isn't swinging |
-| Archers | arrows at targets 4+ tiles away deal 1.5x |
-| Skeletons | every hit summons another Skeleton (up to 8) |
-| Barbarians | each hit enrages them for 3s |
-| Bats | life-steal, overheal up to +50% |
-| Bomber | bomb bounces on twice more |
-| Valkyrie | spin pulls enemies in |
-| Royal Giant | every shot knocks back nearby troops |
-| Mortar | every shell drops a Goblin |
-| Tesla | stunning shockwave on deploy and when destroyed |
-| Wall Breakers | a runner keeps going after the blast |
-| Zap | zaps twice |
-| Ice Spirit | freezes the area again 2s later |
-| Witch | heals when her skeletons die nearby |
-| Battle Ram | arrives charged, 30% faster |
-| Electro Dragon | chain hits 6 targets |
-| Wizard | shield; when it breaks, a fiery knockback blast |
-| Goblin Barrel | a second barrel of 3 Goblins lands nearby |
-| Goblin Giant | 2 more Spear Goblins jump off at half health |
-| P.E.K.K.A | heals 30% per troop she defeats |
-| Mega Knight | hits launch troops 2 tiles back |
-| Musketeer | first 3 shots: +3 range, 1.5x damage |
-| Hunter | nets (stuns) every new target |
-| Executioner | knocks back enemies that get close |
-| Furnace | 2 Fire Spirits at a time |
-| Inferno Dragon | keeps its heat when switching targets |
-| Lumberjack | bigger, longer death Rage |
-| Dart Goblin | poison darts (stacking) |
-| Cannon | barrage at everything nearby on deploy |
-| Skeleton Army | +50% HP, led by a shielded Skeleton General |
-| Baby Dragon | tailwind: slows enemies, hastes allies |
-| Snowball | rolls 3 tiles, dragging enemies |
+| Card | Cycles | Evolution |
+|---|---|---|
+| Archers | 2 | +1 range. Power Shot: targets 4-6 tiles away take +25% damage from a piercing arrow. |
+| Baby Dragon | 2 | Tailwind (8x9 tiles): enemies 30% slower, allies 30% faster. Lingers 2s after it dies. |
+| Barbarians | 1 | +10% HP. Every hit gives them +30% attack and move speed for 5s. |
+| Bats | 2 | +50% HP. Every bite heals them twice; they can overheal up to double HP. |
+| Battle Ram | 2 | Charging bowls over troops in its path; bounces off buildings to charge again. Leaves 2 Evolved Barbarians. |
+| Bomber | 2 | His bomb bounces twice more, 2.5 tiles apart, exploding each time. |
+| Cannon | 2 | On deploy, fires a 9-cannonball barrage (5+4 rows) that knocks enemies back. |
+| Dart Goblin | 2 | Darts leave poison puddles that get stronger after 4 and 7 darts. |
+| Electro Dragon | 1 | After its 3-target chain, the bolt keeps bouncing between troops (33% less damage, no stun). |
+| Electro Giant | 2 | Every 6s an energy pulse drains a level from every enemy within 6 tiles (stacks). |
+| Elite Barbarians | 1 | Throw Rage-tipped spears at ground units 3.5-5 tiles away, leaving a trail of Rage (5s cooldown). |
+| Executioner | 1 | Enemies within 2.5 tiles when he throws take 75% extra axe damage and are knocked back. |
+| Firecracker | 2 | Her firework and its sparks leave burning, slowing embers behind them. |
+| Furnace | 2 | While attacking she spawns Fire Spirits every 2.4s, to her sides. |
+| Giant Snowball | 2 | Rolls 4.5 tiles, carrying the enemies it hit; slows 1s longer. |
+| Goblin Barrel | 2 | A second barrel lands on the mirrored tile in the other lane with 3 Decoy Goblins. |
+| Goblin Cage | 2 | Drags the nearest ground troop within 3 tiles into the cage and pummels it every second. |
+| Goblin Drill | 2 | At 66% and 33% health it resurfaces nearby, leaving a Goblin each time. |
+| Goblin Giant | 1 | Below half health, a Goblin jumps off his back every 2.2s. |
+| Hunter | 2 | Every 5s nets the closest enemy within 4 tiles, trapping it for 3s (nets pull fliers down). |
+| Ice Spirit | 2 | Bigger blast; 3s later the same spot is hit and frozen again. |
+| Inferno Dragon | 2 | Keeps its beam heat for 9s after a kill; after 20s of burning a 4th stage doubles the damage. |
+| Knight | 2 | Takes 60% less damage while he isn't attacking. |
+| Lumberjack | 2 | Longer Rage on death, and his untouchable ghost keeps chopping. |
+| Mega Knight | 1 | Every 2nd hit is an uppercut that launches the target 4 tiles toward its own Crown Tower. |
+| Minion Horde | 1 | Each Minion's first non-lethal hit makes it invincible and untargetable for 3s (slower, but attacks faster). |
+| Mortar | 2 | Fires 1s faster and every shell drops a Goblin. |
+| Musketeer | 2 | 3 sniper shots that reach anywhere ahead (6-30 tiles) for 1.8x damage. |
+| P.E.K.K.A | 1 | Heals after every kill (more for bigger victims), overhealing up to +50% HP. |
+| Princess | 2 | Her first shot (then every 2nd) chills a big area 30% slower; leaves a freezing patch when she falls. |
+| Royal Ghost | 2 | Each time he appears he summons 2 invisible Souldiers. |
+| Royal Giant | 1 | Each shot's recoil damages enemies within 2.5 tiles and knocks ground troops back 1 tile. |
+| Royal Hogs | 2 | They fly in! When they attack or get hurt they crash down, damaging enemies below. |
+| Royal Recruits | 1 | Once their shield breaks they charge after 2.5 tiles, hitting for double damage. |
+| Skeleton Army | 2 | Led by General Gerry: fallen skeletons fight on as untouchable shadows until he falls. |
+| Skeleton Barrel | 2 | +25% HP, bigger blast, and TWO barrels of 7 Skeletons (one dropped at 75% HP). |
+| Skeletons | 2 | Every hit summons another Skeleton (up to 8 at once). |
+| Tesla | 2 | Every time it pops up, a 6-tile shockwave damages and stuns. |
+| Valkyrie | 2 | Each spin conjures a tornado that pulls enemies within 5.5 tiles toward her. |
+| Wall Breakers | 2 | They explode when defeated too, and a Runner keeps going to blow up again. |
+| Witch | 1 | Heals whenever one of HER skeletons dies, overhealing up to +24% HP. |
+| Wizard | 1 | Fire Shield: when it breaks, enemies within 3 tiles take heavy damage and are blown back 3 tiles. |
+| Zap | 2 | The zap lingers and strikes a second time, 0.5 tiles wider. |
 
 **Heroes** - an unlocked Hero in the HERO slot is always the Hero version
 (gold star). Once it's on the field, the gold button at the bottom-right of
-the arena fires its one-time ability for a little elixir:
+the arena fires its one-time ability for a little elixir. The Hero Goblins'
+button lights up once their banner is planted:
 
-| Hero | Ability |
-|---|---|
-| Knight | **Triumphant Taunt**: nearby enemies target him, -70% damage for 4s |
-| Giant | **Heroic Hurl**: throws the biggest nearby troop 6 tiles (300 dmg, stun) |
-| Mini P.E.K.K.A | **Breakfast Boost**: heals 40% and gains a level |
-| Musketeer | **Trusty Turret**: an air+ground turret for 15s |
-| Ice Golem | **Snowstorm**: freezes everything around for 2s, then slows |
-| Goblins | **Banner Brigade**: 3 more Goblins and a rage banner |
-| Valkyrie | **Whirlwind**: spins for 3s, hitting and pulling everything around |
+| Hero | Ability (cost) | What it does |
+|---|---|---|
+| Balloon | **Skeletrooper Drop** (2) | Drops a Skeletrooper onto the nearest ground enemy within 6 tiles; it lands hard and fights on. |
+| Barbarian Barrel | **Re-Roll** (1) | The Barbarian hops back in his barrel, rolls it again (3 tiles) and heals 50%. |
+| Berserker | **Savage Survival** (3) | 4s frenzy: attacks every 0.2s, ultra fast, can't drop below 1 HP (-75% vs Crown Towers). |
+| Bowler | **Boulder Barrage** (2) | After a 2.5s wind-up, lobs huge boulders up to 11.5 tiles for 7.3s. |
+| Dark Prince | **Dismount** (3) | Leaps off (slam on landing): his Rhino charges on at buildings while he fights on foot. |
+| Electro Wizard | **Surging Strikes** (2) | For 3s, zaps and stuns 2 enemies within 5 tiles every 0.5s (-50% vs Crown Towers). |
+| Giant | **Heroic Hurl** (2) | Grabs the highest-HP enemy troop within 2 tiles and throws it to the other lane (stunned 2s; ground troops take landing damage). |
+| Goblins | **Banner Brigade** (1) | 4 Goblins. When the last one falls their banner stays 5s - use it to call 2 more Goblins. |
+| Ice Golem | **Snowstorm** (2) | Three icy blasts around him (4 tiles), each slowing enemies 30%. |
+| Ice Wizard | **Frosty Fella** (2) | His next hit on a slowed enemy builds a Snowman behind it that freezes everything nearby. |
+| Knight | **Triumphant Taunt** (2) | Taunts every enemy troop and building within 7.5 tiles and raises a 260 shield for 5s. |
+| Magic Archer | **Decoy Dodge** (2) | Teleports back leaving a decoy; his next shot is 3 extra-long arrows. |
+| Mega Minion | **Warp Strike** (2) | Warps onto the weakest enemy anywhere and smashes it, then returns (after the kill or 3.5s). |
+| Mini P.E.K.K.A | **Breakfast Boost** (1) | Eats his pancakes: heals 30% and gains 1 level plus 1 per pancake meter filled (fights fill them faster). |
+| Musketeer | **Trusty Turret** (3) | Sets up a sturdy turret 3 tiles ahead for 10s (blasts enemies where it lands). |
+| Tombstone | **Rise of the Queen** (5) | The Tombstone crumbles and the Tomb Queen rises - a huge building-hunter that bursts into skeletons. |
+| Valkyrie | **Wild Whirlwind** (3) | Dashes up to 5.5 tiles spinning for 3.5s: hits all around 4x a second, takes 15% less damage. |
+| Wizard | **Fiery Flight** (1) | Takes off for 5s (+50% speed); his fireballs leave 2s fire tornadoes. |
 
 In Battles the AI brings as many Evolutions and Heroes as you do (from its
 own deck), and it uses Hero abilities too.
@@ -495,14 +520,50 @@ tools/
   apply_balance.py  writes balanced stats into src/cards.py
 ```
 
-## Cards included (95, including 8 Champions)
+## Cards included (123, including 8 Champions)
 
 Troops, win conditions, air units, buildings, spawners and spells spanning the
-classic roster — Knight, Archers, Giant, Hog Rider, P.E.K.K.A, Wizard, Baby
+whole roster — Knight, Archers, Giant, Hog Rider, P.E.K.K.A, Wizard, Baby
 Dragon, Balloon, Golem, Minions, Musketeer, Valkyrie, Prince, Witch, Cannon,
 Inferno Tower, Tombstone, Elixir Collector, Zap, Fireball, Rocket, Lightning,
-The Log, Freeze, Poison, and many more. (No evolutions, heroes, or alternate
-game modes yet — base cards only, as requested.)
+The Log, Freeze, Poison, and many more.
+
+**New in v1.1** - the 28 cards that were still missing, each with its real
+mechanic:
+
+| Card | What makes it tick |
+|---|---|
+| Berserker | 2-elixir blur of axes (0.6s hits) |
+| Firecracker | her firework bursts into 5 sparks that fly on through the target; she hops back after each shot |
+| Goblin Gang | 3 Goblins up front, 3 Spear Goblins behind |
+| Skeleton Dragons | two splash-spitting bone dragons |
+| Rascals | a tanky Rascal Boy and two slingshot Rascal Girls |
+| Royal Recruits | 6 shielded spearmen deployed in a long line |
+| Royal Delivery | your side only: a crate lands 3s later (area damage) and a Royal Recruit steps out |
+| Heal Spirit | jumps in, damages, then heals allies around it in 4 pulses |
+| Suspicious Bush | can't be targeted by troops; bursts into 2 Bush Goblins at the first building |
+| Goblin Cage | when destroyed, the Goblin Brawler breaks out |
+| Goblin Demolisher | throws bombs; below half health he lights his fuse and charges a building |
+| Minion Giant | flying, building-targeting, spits toxin from range, can't be knocked back |
+| Royal Hogs | 4 river-jumping hogs in a row |
+| Mirror | replays your last card one level higher for its cost +1 |
+| Goblin Curse | damage over time; enemies that die in it come back as YOUR Goblins |
+| Clone | copies your troops in the area as 1-HP clones |
+| Vines | roots the 3 highest-HP enemies (fliers are dragged down) and damages them |
+| Goblin Drill | tunnels anywhere, surfaces with a knockback blast and spawns Goblins |
+| Rune Giant | enchants the 2 nearest allies: every 3rd hit deals bonus damage |
+| Void | 3 strikes that hit harder the fewer enemies are inside |
+| Fisherman | anchor-hooks ground troops to him (or reels himself to buildings), slowing them |
+| Royal Ghost | invisible until he swings, hovers over the river |
+| Mother Witch | cursed troops that die turn into Cursed Hogs for her side |
+| Phoenix | on death: a blast and an egg that hatches into a new Phoenix |
+| Goblin Machine | melee punches plus an independent long-range rocket launcher |
+| Ram Rider | charging ram; the rider's bolas snare troops (-70% speed) |
+| Ronin | parries a melee hit every 3.5s and reflects double damage |
+| Spirit Empress | 3 elixir on foot, or 6 elixir riding her spirit dragon if you can afford it |
+
+The **Furnace** is now a walking troop (as in the real game since 2025) that
+drops a Fire Spirit every 7 seconds.
 
 ## Notes / simplifications
 
@@ -513,7 +574,12 @@ game modes yet — base cards only, as requested.)
   than being hard walls), and path-finding only steers around the one
   building/tower in the way (no full maze search - the arena doesn't need
   it).
-- Evolutions and Heroes are original takes on the idea; some match their
-  Clash Royale counterparts closely, others are simplified or invented.
+- Evolutions and Heroes follow the real game's mechanics and timings (from
+  the Clash Royale wiki), scaled into this game's numbers. A few details are
+  simplified: the Evolved Tesla pulses whenever it "pops up" (finds a target
+  after being idle) instead of literally hiding underground, Hero abilities
+  fire instantly instead of after their short cast animation, and the Hero
+  Ice Wizard / Electro Wizard numbers come from their announcement (the wiki
+  pages were still empty).
 - Animations are procedural poses of each card's single sprite rather than
   hand-drawn frame-by-frame sprite sheets.

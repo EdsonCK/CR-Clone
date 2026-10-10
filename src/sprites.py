@@ -115,6 +115,12 @@ CARD_COLORS = {
     "goblin_machine": (110, 118, 136), "ram_rider": (110, 160, 90),
     "ronin": (40, 130, 110), "spirit_empress": (120, 200, 255),
     "spirit_empress_air": (120, 200, 255),
+    "skeleton_general": (160, 100, 220), "souldier": (214, 170, 240),
+    "decoy_goblin": (110, 200, 80), "wb_runner": (160, 80, 220),
+    "lumberjack_ghost": (200, 220, 255), "goblin_banner": (110, 200, 80),
+    "rhino": (70, 66, 80), "tomb_queen": (140, 255, 160),
+    "skeletrooper": (110, 120, 76), "snowman": (230, 244, 255),
+    "ma_decoy": (110, 240, 210),
 }
 
 # ---------------------------------------------------------------------------
@@ -157,6 +163,9 @@ SCALES = {
     "mother_witch": 1.3, "phoenix": 1.5, "phoenix_reborn": 1.5, "phoenix_egg": 1.0,
     "goblin_machine": 1.75, "ram_rider": 1.6, "ronin": 1.4, "spirit_empress": 1.35,
     "spirit_empress_air": 1.75, "skeleton_dragons": 1.4,
+    "furnace": 1.45, "skeleton_general": 1.2, "souldier": 1.2, "decoy_goblin": 1.1,
+    "wb_runner": 1.05, "lumberjack_ghost": 1.3, "goblin_banner": 0.6, "rhino": 1.55,
+    "tomb_queen": 1.85, "skeletrooper": 1.15, "snowman": 0.55, "ma_decoy": 1.3,
 }
 
 

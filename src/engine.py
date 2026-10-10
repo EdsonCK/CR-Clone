@@ -227,6 +227,18 @@ class Entity:
         self.parry_cd = 0.0        # Ronin
         self.hook_cd = 0.0         # Fisherman
         self.clone = False         # made by the Clone spell (1 hp)
+        # evolution / hero state (see evo_engine.py)
+        self.untargetable = card.untargetable  # troops & buildings can't target
+        self.immortal = False      # takes no damage (Skeleton shadows, ghosts)
+        self.ghostly = False       # drawn see-through (shadows, ghosts, decoys)
+        self.fx_tick = False       # needs evo_engine.tick() every frame
+        self.parent = None         # the unit / building that spawned us
+        self.charge_enabled = card.charge
+        self.charge_dist = 3.0     # tiles walked before a charge is ready
+        self.haste_mult = 1.15     # move-speed multiplier while hasted
+        self.undying_t = 0.0       # can't drop below 1 hp (Hero Berserker)
+        self.channel_t = 0.0       # busy channelling an ability: no moving/attacking
+        self.sacrificed = False    # removed by an ability: no death spawns
         self.spawn_timer = card.spawner[2] if card.spawner else 0.0
         if card.spawner and card.spawn_first is not None:
             self.spawn_timer = card.spawn_first
@@ -268,7 +280,7 @@ class Entity:
     def can_attack(self, other):
         if other.team == self.team or not other.alive:
             return False
-        if other.invis_timer > 0 or other.card.untargetable:
+        if other.invis_timer > 0 or other.untargetable:
             return False               # cloaked / hidden units can't be targeted
         if self.attacks == "buildings":
             return other.is_building or other.is_tower
@@ -281,7 +293,7 @@ class Entity:
         if self.rage_timer > 0:
             s *= 1.35
         if self.haste_timer > 0:
-            s *= 1.15
+            s *= self.haste_mult
         return s
 
     def effective_hitspeed(self):
@@ -338,7 +350,7 @@ class Entity:
         return n
 
     def take_damage(self, amount):
-        if self.immune_timer > 0:
+        if self.immune_timer > 0 or self.immortal:
             return
         m = self._match_ref
         if self.evo or self.hero:
@@ -381,6 +393,8 @@ class Entity:
         if (self.card.transform and self.hp > 0
                 and self.hp < self.max_hp * self.card.transform[0]):
             self._transform_pending = True
+        if self.hp <= 0 and self.undying_t > 0:
+            self.hp = 1                   # Hero Berserker's Savage Survival
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -395,8 +409,8 @@ class Entity:
             self.hurt -= dt
         if getattr(self, "_taunt", 0) > 0:
             self._taunt -= dt
-        if (self.evo or self.hero or getattr(self, "poison_t", 0) > 0
-                or self.haste_timer > 0):
+        if (self.evo or self.hero or self.fx_tick or self.haste_timer > 0
+                or self.undying_t > 0):
             evo_engine.tick(self, dt, match)
             if not self.alive:
                 return
@@ -453,6 +467,9 @@ class Entity:
         if self.deploy_timer > 0:
             self.deploy_timer -= dt
             return
+        if self.channel_t > 0:
+            self.channel_t -= dt
+            return
 
         # building lifetime decay
         if self.lifetime and not self.is_tower:
@@ -487,13 +504,15 @@ class Entity:
         if self.card.spawner:
             self.spawn_timer -= dt
             if self.spawn_timer <= 0:
-                self.spawn_timer += self.card.spawner[2]
+                self.spawn_timer += evo_engine.spawner_interval(
+                    self, self.card.spawner[2], match)
                 ukey, ucount, _ = self.card.spawner
-                ucount = evo_engine.spawner_count(self, ucount)
-                fwd = -1 if self.team == PLAYER else 1
-                match.spawn_units(self.team, ukey, ucount, self.x,
-                                  self.y + fwd * 1.2, deploy=0.0,
-                                  power=self.child_power(), level=self.level)
+                ox, oy = evo_engine.spawner_offset(self, match)
+                made = match.spawn_units(self.team, ukey, ucount, self.x + ox,
+                                         self.y + oy, deploy=0.0,
+                                         power=self.child_power(), level=self.level)
+                for u in made:
+                    u.parent = self
 
         if self.attack_cd > 0:
             self.attack_cd -= dt
@@ -630,7 +649,7 @@ class Entity:
         for e in match.entities:
             if e.team == self.team or not e.alive or e.invis_timer > 0:
                 continue
-            if e.card.untargetable:
+            if e.untargetable:
                 continue
             if e.flying and rc.attacks != "air_ground":
                 continue
@@ -762,7 +781,7 @@ class Entity:
         """can_attack() for a weapon with its own target type."""
         if other.team == self.team or not other.alive:
             return False
-        if other.invis_timer > 0 or other.card.untargetable:
+        if other.invis_timer > 0 or other.untargetable:
             return False
         if attacks == "buildings":
             return other.is_building or other.is_tower
@@ -826,9 +845,9 @@ class Entity:
         self.move_t = match.elapsed
         self.mvx = dx / dd
         self.dist_since_attack += step
-        if self.card.charge and self.dist_since_attack >= 3.0:
+        if self.charge_enabled and self.dist_since_attack >= self.charge_dist:
             self.charged = True
-        if self.ramps():
+        if self.ramps() and not evo_engine.keeps_ramp(self):
             self.ramp_time = 0.0   # moving = not attacking -> ramp decays fully
 
     def _steer_around(self, tx, ty, target, match):
@@ -879,7 +898,8 @@ class Entity:
     def _attack(self, match):
         before = self.atk_t
         self._attack_core(match)
-        if self.evo and self.atk_t != before and not self.card.kamikaze:
+        if ((self.evo or self.hero) and self.atk_t != before
+                and not self.card.kamikaze):
             evo_engine.after_attack(self, match, getattr(self, "_last_dmg", self.dmg))
 
     def _attack_core(self, match):
@@ -896,6 +916,8 @@ class Entity:
                    big=self.max_hp >= 1500)
 
         # kamikaze units (spirits, wall breakers): ONE attack = explode & die
+        if self.card.kamikaze:
+            self._exploded = True
         if self.card.kamikaze and self.card.blast_on_death:
             self.alive = False            # on_death() sets off the blast
             return
@@ -913,6 +935,7 @@ class Entity:
                 kdmg *= self.power[1]
             else:
                 rad, kdmg = max(self.card.splash, 1.2), self.dmg
+            rad = getattr(self, "blast_r", rad)       # Evolved Ice Spirit
             # blast is centered at the point of CONTACT with the target, so
             # big targets (towers) are always inside the explosion
             t = self.target
@@ -940,7 +963,7 @@ class Entity:
             return
 
         dmg = self.dmg
-        if self.evo:
+        if self.evo or self.hero:
             dmg = evo_engine.before_attack(self, match, dmg)
         # Rune Giant enchantment: every Nth hit carries bonus damage
         if self.rune_t > 0:
@@ -985,6 +1008,7 @@ class Entity:
             self.ramp_time += self.effective_hitspeed()
             mult = min(1.0 + self.ramp_time * cfg.INFERNO_RAMP_RATE,
                        cfg.INFERNO_MAX_MULT)
+            mult *= evo_engine.ramp_bonus(self)
             match.apply_hit(self, self.target, self.dmg * mult, 0)
             return
 
@@ -1088,7 +1112,7 @@ class Entity:
             match.add_elixir(1 - self.team, c.death_gives_elixir)
         # kamikaze units already exploded on their attack; if they were killed
         # before attacking they simply die with no blast
-        if c.death_damage and (not c.kamikaze or c.blast_on_death):
+        if c.death_damage and (not c.kamikaze or c.blast_on_death) and not self.sacrificed:
             radius, ddmg = c.death_damage
             ddmg *= self.power[1]
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
@@ -1104,14 +1128,16 @@ class Entity:
             match.spawn_units(self.curse_team, self.curse_key, 1, self.x, self.y,
                               deploy=0.3, power=self.curse_pow)
             match.emit("portal", self.curse_key, self.x, self.y, self.curse_team)
-        if c.death_spawn:
+        self._death_spawned = []
+        if c.death_spawn and not self.sacrificed:
             ukey, ucount = c.death_spawn
             if ukey == "rage_pickup":
                 rr, rd = evo_engine.lumberjack_rage(self)
                 match.effects.append(Effect("rage", self.team, self.x, self.y, rr, rd))
             elif ukey in cards.CARDS and ucount > 0:
-                match.spawn_units(self.team, ukey, ucount, self.x, self.y, deploy=0.0,
-                                  power=self.child_power(), level=self.level)
+                self._death_spawned = match.spawn_units(
+                    self.team, ukey, ucount, self.x, self.y, deploy=0.0,
+                    power=self.child_power(), level=self.level)
 
 
 # ===========================================================================
@@ -1225,7 +1251,7 @@ class Projectile:
     def _can_hit(self, e):
         if e.team == self.team or not e.alive or e.invis_timer > 0:
             return False
-        if e.card.untargetable:
+        if e.untargetable:
             return False
         if self.attacks == "buildings":
             return e.is_building or e.is_tower
@@ -1246,8 +1272,9 @@ class Projectile:
             match.projectiles.append(back)
             match.effects.append(Effect("aoe", e.team, e.x, e.y, 0.8, 0.25,
                                         card_key=e.key))
-        e.take_damage(self.dmg)
-        if self.owner is not None and self.owner.evo:
+        e.take_damage(self.tower_dmg if (e.is_tower and self.tower_dmg is not None)
+                      else self.dmg)
+        if self.owner is not None and (self.owner.evo or self.owner.hero):
             evo_engine.on_projectile_hit(self, e, match)
         o = self.owner
         if (o is not None and o.card.curse_on_hit and not e.is_building
@@ -1260,10 +1287,10 @@ class Projectile:
             e.slow_timer = self.slow[1]
 
     def _impact(self, match):
+        if self.owner is not None and (self.owner.evo or self.owner.hero):
+            evo_engine.on_projectile_impact(self, match)
         if self.pierce:
             return   # damage already dealt along the flight path
-        if self.owner is not None and self.owner.evo:
-            evo_engine.on_projectile_impact(self, match)
         # Firecracker: the firework bursts into sparks that fly on in a cone
         if self.shrapnel:
             n, spread, length = self.shrapnel
@@ -1288,6 +1315,8 @@ class Projectile:
             maxt = evo_engine.chain_targets(self.owner, maxt)
             match.chain_damage(self.team, self.x, self.y, self.target,
                                self.dmg, self.stun, maxt, jump, self.style)
+            if self.owner is not None and self.owner.evo:
+                evo_engine.after_chain(self, match)
             return
         if self.splash > 0:
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
@@ -1357,7 +1386,8 @@ class Effect:
                            radius=self.radius)
                 match._resolve_spell(self.team, card, self.x, self.y,
                                      evo=getattr(self, "evo", False),
-                                     boost=getattr(self, "boost", 0))
+                                     boost=getattr(self, "boost", 0),
+                                     hero=getattr(self, "hero", False))
                 match.effects.append(Effect("blast", self.team, self.x, self.y,
                                             max(self.radius, 1.0), 0.45,
                                             card_key=self.card_key))
@@ -1436,6 +1466,10 @@ class Effect:
                     if e.alive:
                         e.take_damage(self.tower_damage if e.is_tower else self.damage)
             self.points = [(e.x, e.y) for e in self.ends if e.alive]
+        elif self.kind == "wind":           # Evolved Baby Dragon's lingering tailwind
+            evo_engine.wind_effect(self, dt, match)
+        elif self.kind == "snowroll":       # Evolved Giant Snowball rolling on
+            evo_engine.snowroll_effect(self, dt, match)
         elif self.kind == "poison":
             for e in match.entities:
                 if e.alive and e.team != self.team and dist(self.x, self.y, e.x, e.y) <= self.radius:
@@ -1786,6 +1820,8 @@ class Match:
                                  tower_damage=d.get("tower_dmg"))
                 self.emit("impact", d.get("key"), d["x"], d["y"], team,
                           radius=d["radius"])
+            elif kind in evo_engine.LATER_KINDS:
+                evo_engine.run_later(self, kind, d)
             elif kind == "heal":
                 self.effects.append(Effect("aoe", team, d["x"], d["y"], d["radius"],
                                            0.3, card_key=d.get("key")))
@@ -1810,7 +1846,7 @@ class Match:
         lkey = key if played is None or played == "mirror" else played
         self.emit("deploy", key, x, y, team, evo=evo, hero=hero)
         if card.category == "spell":
-            self._cast_spell(team, card, x, y, evo=evo, boost=boost)
+            self._cast_spell(team, card, x, y, evo=evo, boost=boost, hero=hero)
             return
         power = level = None
         if team not in self.team_power:
@@ -1904,7 +1940,7 @@ class Match:
             return max(base * 0.5, dist(ox, oy, x, y) / spd)
         return base
 
-    def _cast_spell(self, team, card, x, y, evo=False, boost=0):
+    def _cast_spell(self, team, card, x, y, evo=False, boost=0, hero=False):
         # spells don't hit instantly: an incoming marker shows for a delay (or
         # the spell visibly FLIES from the king tower), then _resolve_spell()
         # applies the effect (see Effect.update).
@@ -1912,12 +1948,13 @@ class Match:
         fx = Effect("incoming", team, x, y, card.spell_radius or 1.2, delay,
                     card_key=card.key)
         fx.evo = evo
+        fx.hero = hero
         fx.boost = boost
         if card.key in cfg.SPELL_FLIGHT_SPEED:
             fx.origin = self.spell_origin(team)
         self.effects.append(fx)
 
-    def _resolve_spell(self, team, card, x, y, evo=False, boost=0):
+    def _resolve_spell(self, team, card, x, y, evo=False, boost=0, hero=False):
         fwd = -1 if team == PLAYER else 1
         # spells hit harder at higher card levels (Levels waves: wave level)
         lp = self.level_power(team, card.key)
@@ -1963,10 +2000,12 @@ class Match:
             log.tower_damage = card.tower_dmg() * pw
             self.effects.append(log)
             if card.spawn_troops:   # Barbarian Barrel drops a barbarian
-                self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
-                                 x, y, deploy=0.0,
-                                 power=(card.sub_hp_mult * lp[0], card.sub_dmg_mult * lp[1]),
-                                 level=lvl)
+                made = self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
+                                        x, y, deploy=0.0,
+                                        power=(card.sub_hp_mult * lp[0], card.sub_dmg_mult * lp[1]),
+                                        level=lvl)
+                if hero:
+                    evo_engine.on_spawn_group(self, made, card, hero=True)
             return
         if card.rage:
             self.effects.append(Effect("rage", team, x, y, card.spell_radius, card.duration))
@@ -1998,7 +2037,7 @@ class Match:
             self.effects.append(fx)
         elif k == "vines":
             foes = [e for e in self.entities
-                    if e.alive and e.team != team and not e.card.untargetable
+                    if e.alive and e.team != team and not e.untargetable
                     and dist(x, y, e.x, e.y) <= card.spell_radius + e.radius * 0.5]
             foes.sort(key=lambda e: -e.hp)
             picked = foes[:card.pick]
@@ -2144,6 +2183,7 @@ class Match:
         if len(pts) >= 2:
             self.effects.append(Effect("chain", team, pts[0][0], pts[0][1],
                                        0, 0.3, card_key=source_key, points=pts))
+        self._last_chain = pts
         return hits
 
     # ---- champions ---------------------------------------------------------
@@ -2155,10 +2195,13 @@ class Match:
                 e.souls = min(e.souls + 1, 10)
 
     def hero_on_field(self, team):
+        best = None
         for e in self.entities:
             if e.team == team and e.alive and e.hero:
-                return e
-        return None
+                if e.ability_uses > 0:
+                    return e
+                best = best or e
+        return best
 
     def hero_status(self, team):
         """(hero, ready, cost) for the HUD; hero is None if none deployed."""

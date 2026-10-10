@@ -108,6 +108,8 @@ PROJ_STYLES = {
     "ram_rider_bola": ("bola", (210, 190, 150)),
     "spirit_empress_air": ("zap", (150, 220, 255)),
     "ronin":          ("bullet", (255, 255, 255)),
+    "furnace":        ("fire", (255, 130, 40)),
+    "bowler_barrage": ("boulder", (150, 120, 176)),
 }
 
 
@@ -119,6 +121,7 @@ CHAIN_COLORS = {
     "goblinstein": (150, 255, 170),
     "fisherman": (205, 190, 160),      # anchor rope
     "rune_giant": (255, 190, 70),      # enchantment
+    "electro_wizard": (150, 230, 255),
 }
 
 
@@ -2363,6 +2366,10 @@ class Game(ModesMixin, ScreensMixin):
                 spr.fill((a, a, a), special_flags=pygame.BLEND_RGB_ADD)
             if cloaked or e.immune_timer > 0:
                 spr.set_alpha((110 if e.team == PLAYER else 70) if cloaked else 200)
+        if e.ghostly:                             # shadows, ghosts, decoys
+            spr = spr.copy()
+            spr.fill((40, 40, 70), special_flags=pygame.BLEND_RGB_ADD)
+            spr.set_alpha(130)
         if e.clone:                               # Clone spell copies: icy blue
             spr = spr.copy()
             spr.fill((0, 60, 110), special_flags=pygame.BLEND_RGB_ADD)
@@ -2458,13 +2465,14 @@ class Game(ModesMixin, ScreensMixin):
                "royal_giant", "electro_giant", "goblin_giant", "ice_golem", "elixir_golem",
                "elixir_golemite", "goblin_monster", "boss_bandit", "monk", "bowler",
                "skeleton_king", "rune_giant", "goblin_machine", "rascal_boy",
-               "goblin_brawler"):
+               "goblin_brawler", "furnace", "tomb_queen", "rhino"):
         ANIM_STYLE[_k] = "stomp"
     for _k in ("skeletons", "skeleton", "skeleton_army", "goblins", "goblin",
                "spear_goblins", "spear_goblin", "guards", "wall_breakers", "dart_goblin",
                "bomber", "elixir_blob", "zappies", "rascals", "goblin_gang",
                "bush_goblin", "demolisher_charge", "rascal_girl", "firecracker",
-               "goblin_demolisher", "berserker"):
+               "goblin_demolisher", "berserker", "decoy_goblin", "skeleton_general",
+               "wb_runner", "skeletrooper"):
         ANIM_STYLE[_k] = "scurry"
     for _k in ("fire_spirit", "ice_spirit", "electro_spirit", "heal_spirit"):
         ANIM_STYLE[_k] = "hop"
@@ -2478,7 +2486,7 @@ class Game(ModesMixin, ScreensMixin):
         ANIM_STYLE[_k] = "spinner"
     for _k in ("bandit", "golden_knight", "lumberjack", "mini_pekka", "royal_guardian",
                "mighty_miner", "ronin", "fisherman", "spirit_empress", "royal_ghost",
-               "royal_recruits"):
+               "royal_recruits", "souldier", "lumberjack_ghost"):
         ANIM_STYLE[_k] = "dasher"
     for _k in ("balloon",):
         ANIM_STYLE[_k] = "balloon"
@@ -3301,7 +3309,8 @@ class Game(ModesMixin, ScreensMixin):
         r = self._hero_btn_rect()
         cx, cy = r.center
         rad = r.w // 2
-        used = h.ability_uses <= 0
+        waiting = h.key == "goblins"            # Hero Goblins: banner not up yet
+        used = h.ability_uses <= 0 and not waiting
         pygame.draw.circle(self.screen, (15, 18, 26), (cx, cy + 2), rad)
         base = (255, 196, 80) if ready else (95, 88, 70)
         if ready:

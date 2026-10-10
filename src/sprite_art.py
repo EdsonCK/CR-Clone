@@ -735,7 +735,7 @@ def _skeleton(p):
     bone_arm(p, f, 1)
 
 
-@art("goblin", "goblins")
+@art("goblin", "goblins", "decoy_goblin")
 def _goblin(p):
     f = Fig("small")
     p.shadow(rx=24)
@@ -1217,7 +1217,7 @@ def _giant_skeleton(p):
     bone_arm_big(1)
 
 
-@art("lumberjack")
+@art("lumberjack", "lumberjack_ghost")
 def _lumberjack(p):
     f = Fig("normal")
     shirt = (204, 54, 50)
@@ -1797,7 +1797,7 @@ def _bowler(p):
     p.ball(84, 92, f.handr, skin, hl=False)
 
 
-@art("magic_archer")
+@art("magic_archer", "ma_decoy")
 def _magic_archer(p):
     f = Fig("slim")
     cloak = (60, 156, 150)
@@ -2366,24 +2366,6 @@ def _barbarian_hut(p):
     for s in (-1, 1):
         p.shape([(64 + s * 8, 32), (64 + s * 26, 14), (64 + s * 20, 34)], (250, 244, 222), w=2)
     p.ball(64, 32, 8, STEEL, w=2)
-
-
-@art("furnace")
-def _furnace(p):
-    plinth(p)
-    p.shape([(34, 106), (38, 52), (90, 52), (94, 106)], (190, 90, 60))
-    for y in (64, 76, 88, 100):
-        p.line((36, y), (92, y), 1.6, (140, 60, 40), ol=None)
-        for x in range(42 + (y % 24) // 2, 92, 14):
-            p.line((x, y - 12), (x, y), 1.4, (140, 60, 40), ol=None)
-    p.shape([(50, 106), (50, 84)] + arcpts(64, 84, 14, 14, 180, 0, 8) + [(78, 106)], (50, 30, 30))
-    p.glow(64, 94, 22, FIRE, 170)
-    p.shape([(54, 106), (58, 92), (62, 98), (64, 84), (68, 96), (72, 90), (74, 106)], FIRE, w=1.8)
-    p.line((76, 52), (76, 30), 12, (140, 70, 50))
-    p.oval(76, 28, 8, 3, (110, 54, 40), w=2)
-    with p.layer(130):
-        for i, (x, y, r) in enumerate(((80, 18, 6), (86, 8, 4.5))):
-            p._circle(x, y, r, (180, 180, 190))
 
 
 @art("elixir_collector")
@@ -3268,6 +3250,170 @@ def _bush_goblin(p):
         p.ball(x, y + 4, r, (90, 170, 70))
     dagger(p, f.hand[1][0], f.hand[1][1], a=62, L=26)
     arm(p, f, 1, GOB, GOB)
+
+
+
+# ---- Evolution / Hero units -------------------------------------------------
+@art("furnace")
+def _furnace(p):
+    """The 2025 Furnace: a walking iron stove with a witch hat and a staff."""
+    f = Fig("bulky")
+    iron = (110, 90, 96)
+    p.shadow(rx=36)
+    legs(p, f, dk(iron, 0.15), boot=(70, 60, 64))
+    hx, hy = f.hand[1]
+    p.line((hx + 4, hy + 12), (hx + 4, 30), 4.4, DWOOD)                       # staff
+    p.oval(hx + 4, 28, 12, 9, IRON)                                          # cauldron
+    p.glow(hx + 4, 22, 14, FIRE, 160)
+    p.oval(hx + 4, 23, 9, 3.5, FIRE_Y, w=1.6)
+    torso(p, f, iron)
+    p.shape([(f.tx - 14, f.ty - 4), (f.tx + 14, f.ty - 4), (f.tx + 12, f.ty + 16),
+             (f.tx - 12, f.ty + 16)], (50, 30, 30))                          # grate
+    p.glow(f.tx, f.ty + 6, 16, FIRE, 170)
+    for x in (-7, 0, 7):
+        p.line((f.tx + x, f.ty - 2), (f.tx + x, f.ty + 14), 2.4, IRON, ol=None)
+    arm(p, f, 0, iron, (200, 80, 60))
+    head(p, f, iron)
+    for s_ in (-1, 1):
+        p._ellipse(f.hx + s_ * 8, f.hy + 2, 4.5, 3, FIRE_Y)
+    p.oval(f.hx, f.hy - f.hr * 0.55, f.hr * 1.4, f.hr * 0.25, (60, 50, 60), w=2.2)
+    p.shape([(f.hx - f.hr * 0.7, f.hy - f.hr * 0.6), (f.hx + 6, f.hy - f.hr * 2.1),
+             (f.hx + f.hr * 0.7, f.hy - f.hr * 0.6)], (60, 50, 60))         # witch hat
+    arm(p, f, 1, iron, (200, 80, 60))
+
+
+@art("skeleton_general")
+def _skeleton_general(p):
+    f = Fig("small")
+    p.shadow(rx=26)
+    p.shape([(46, 66), (82, 66), (90, 112), (38, 112)], (120, 60, 160))     # cape
+    spear(p, f.hand[1][0], f.hand[1][1], a=84, L=62)
+    p.shape([(f.hand[1][0] + 2, 22), (f.hand[1][0] + 22, 26), (f.hand[1][0] + 2, 38)],
+            (120, 60, 160), w=2)                                             # banner
+    skel_body(p, f)
+    skull(p, f, eyecol=(200, 120, 255))
+    helmet(p, f, GOLD, depth=0.45, nose=True, band=(160, 120, 40))
+    p.shape([(f.hx - 4, f.hy - f.hr - 2), (f.hx - 2, f.hy - f.hr - 16), (f.hx + 14, f.hy - f.hr - 12),
+             (f.hx + 6, f.hy - f.hr + 2)], RED, w=2.2)
+    bone_arm(p, f, 1)
+    bone_arm(p, f, 0, to=(44, 98))
+    shield(p, 42, 96, 16, WOOD, rim=GOLD, boss=(160, 100, 220))
+
+
+@art("souldier")
+def _souldier(p):
+    f = Fig("normal")
+    body = (214, 170, 240)
+    p.shadow(rx=24, a=40)
+    p.glow(64, 70, 40, (200, 150, 255), 80)
+    p.shape([(42, 70), (86, 70), (92, 104), (80, 96), (70, 108), (58, 98), (48, 108),
+             (36, 104)], body)
+    torso(p, f, STEEL)
+    head(p, f, body)
+    face(p, f, "glow", None, eyecol=(150, 80, 220))
+    helmet(p, f, STEEL, depth=0.5, nose=True, band=DSTEEL)
+    p.stroke([(f.hx, f.hy - f.hr - 2), (f.hx + 8, f.hy - f.hr - 16),
+              (f.hx + 20, f.hy - f.hr - 14)], 7, (220, 60, 60))
+    sword(p, f.hand[1][0], f.hand[1][1], a=64, L=44, blade=(200, 190, 230))
+    arm(p, f, 1, body, body)
+    arm(p, f, 0, body, body)
+
+
+@art("wb_runner")
+def _wb_runner(p):
+    f = Fig("small")
+    p.shadow(rx=24)
+    skel_body(p, f)
+    skull(p, f)
+    hair_cap(p, f, (160, 80, 220), depth=0.3, extra=1.0)
+    for i, x in enumerate((76, 84)):                                         # dynamite
+        p.line((x, 70), (x + 4, 92), 6, RED)
+        p.line((x + 2, 70), (x - 1, 62), 1.6, (210, 180, 130), ol=None)
+    p.glow(82, 60, 8, FIRE, 160)
+    p.spark(82, 60, 5, FIRE_Y)
+    bone_arm(p, f, 0)
+    bone_arm(p, f, 1, to=(80, 84))
+
+
+@art("skeletrooper")
+def _skeletrooper(p):
+    f = Fig("small")
+    p.shadow(rx=24)
+    p.shape([(46, 66), (82, 66), (84, 100), (44, 100)], (110, 120, 76))     # pack
+    skel_body(p, f)
+    skull(p, f)
+    p.shape(cap_pts(f, 0.36, 2.0), (110, 120, 76))                          # army helmet
+    for s_ in (-1, 1):
+        p.oval(f.hx + s_ * 9, f.hy - f.hr * 0.5, 6, 5, (150, 210, 240), w=1.8)
+    dagger(p, f.hand[1][0], f.hand[1][1], a=60, L=26)
+    bone_arm(p, f, 0)
+    bone_arm(p, f, 1)
+
+
+@art("goblin_banner")
+def _goblin_banner(p):
+    p.shadow(64, 116, 22, 6)
+    p.oval(64, 110, 16, 5, (120, 90, 60))
+    p.line((60, 112), (60, 18), 5, DWOOD)
+    p.shape([(62, 20), (104, 26), (96, 44), (104, 62), (62, 58)], (110, 200, 80))
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 80, 40, 10
+    goblin_ears(p, f, skin=(60, 140, 50), length=0.8)
+    p.ball(80, 40, 10, (60, 140, 50), w=1.6)
+    p.ball(60, 16, 4, GOLD, hl=False)
+
+
+@art("rhino")
+def _rhino(p):
+    cx = 64
+    hide = (70, 66, 80)
+    p.shadow(66, 118, 42, 7)
+    for x in (cx - 22, cx - 6, cx + 12, cx + 26):
+        p.line((x, 98), (x, 112), 9, dk(hide, 0.1))
+        p.oval(x, 113, 6, 3, (40, 36, 46), w=1.8, shade=False)
+    p.oval(cx + 6, 88, 38, 22, hide)
+    p.shape([(cx - 4, 70), (cx + 24, 70), (cx + 28, 92), (cx - 8, 92)], (240, 236, 226))   # saddle
+    p.line((cx - 8, 91), (cx + 28, 91), 3, GOLD, ol=None)
+    p.oval(cx - 30, 90, 18, 15, hide)
+    p.shape([(cx - 40, 86), (cx - 58, 66), (cx - 44, 90)], (255, 220, 120), w=2)   # horn
+    p.shape([(cx - 30, 80), (cx - 36, 70), (cx - 26, 80)], (230, 220, 200), w=1.8)
+    p._circle(cx - 28, 86, 2.4, (255, 220, 90))
+    for s_ in (-1, 1):
+        p.shape([(cx - 22 + s_ * 4, 76), (cx - 18 + s_ * 4, 68), (cx - 14 + s_ * 4, 78)], hide, w=1.8)
+
+
+@art("tomb_queen")
+def _tomb_queen(p):
+    f = Fig("big")
+    robe_c = (60, 50, 80)
+    p.shadow(rx=40)
+    p.glow(64, 60, 50, (140, 255, 160), 70)
+    robe(p, f, robe_c, trim=(140, 255, 160), flare=1.25)
+    torso(p, f, robe_c)
+    for i in (0, 1):
+        bone_arm(p, f, i)
+    skull(p, f, eyecol=(140, 255, 160))
+    crown(p, f, (200, 200, 210), w=0.7, h=0.7, gem=(140, 255, 160))
+    hx, hy = f.hand[1]
+    p.line((hx, hy + 14), (hx, 20), 5, (90, 80, 100))
+    p.ball(hx, 18, 8, BONE, w=2)
+
+
+@art("snowman")
+def _snowman(p):
+    p.shadow(64, 116, 30, 7)
+    p.glow(64, 74, 46, ICE, 90)
+    p.ball(64, 92, 26, (244, 250, 255))
+    p.ball(64, 56, 19, (244, 250, 255))
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 64, 54, 17
+    face(p, f, "dot", "smile")
+    p.shape([(62, 58), (78, 61), (62, 62)], (255, 150, 60), w=1.6)          # carrot
+    p.line((46, 72), (82, 72), 5, RED)                                       # scarf
+    for y in (84, 96):
+        p.ball(64, y, 3, OUT, w=0, hl=False)
+    for s_ in (-1, 1):
+        p.line((64 + s_ * 24, 84), (64 + s_ * 40, 70), 3, DWOOD)
 
 
 # ===========================================================================
