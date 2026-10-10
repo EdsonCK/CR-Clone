@@ -426,10 +426,12 @@ numbers**, **screen shake**, **Sandbox** and **Reset progress** (asks twice).
   be pushed or knocked into the river; they slide along the bank to a bridge.
 * **Path-finding** – ground troops walk around buildings and towers in
   their way (picking a side and sticking to it) instead of sliding along them.
-* **Lanes** – a troop with nothing in sight marches down the lane it was
-  placed in (the side of the centre line you dropped it on) - even when you
-  place it right behind your King Tower - and only switches once that lane's
-  Princess Tower is down. Enemies in sight still pull it across, as in the
+* **Lanes** – a troop with nothing in sight marches down the lane it
+  appeared in (the side of the centre line it spawned on) - even right behind
+  your King Tower - and only switches once that lane's Princess Tower is
+  down. Every unit of a squad decides for itself, so Archers or Wall Breakers
+  dropped on the centre line split, and a Skeleton Army mostly follows the
+  side you placed it on. Enemies in sight still pull troops across, as in the
   real game.
 * **Animations** – every card has a motion style: heavy stompers (Giant,
   Golem, P.E.K.K.A...) dip on each footfall kicking up dust and smash

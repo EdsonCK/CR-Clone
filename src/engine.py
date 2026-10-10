@@ -228,7 +228,8 @@ class Entity:
         self.hook_cd = 0.0         # Fisherman
         self.clone = False         # made by the Clone spell (1 hp)
         # the lane it marches down when nothing is in sight: the side of the
-        # arena's centre line it was placed on (0 = left, 1 = right)
+        # arena's centre line THIS unit appeared on (0 = left, 1 = right), so
+        # a squad dropped on the centre line splits like in the real game
         self.lane = 0 if x < cfg.GRID_COLS / 2 else 1
         # evolution / hero state (see evo_engine.py)
         self.untargetable = card.untargetable  # troops & buildings can't target
@@ -1875,9 +1876,6 @@ class Match:
                                      level=level)
         if not units:
             return
-        lane = 0 if x < cfg.GRID_COLS / 2 else 1
-        for u in units:
-            u.lane = lane                 # the whole squad keeps to its lane
         if evo or hero:
             evo_engine.on_spawn_group(self, units, cards.CARDS[lkey], evo=evo,
                                       hero=hero)
@@ -1888,8 +1886,6 @@ class Match:
                                     power=(card.sub_hp_mult * units[0].power[0],
                                            card.sub_dmg_mult * units[0].power[1]),
                                     level=units[0].level)
-            for u in comp:
-                u.lane = lane
             if comp:      # remember each other (Lightning Link)
                 units[0].partner = comp[0]
                 comp[0].partner = units[0]
@@ -1919,8 +1915,12 @@ class Match:
                 made.append(Entity(card, team, ox, y, deploy=deploy, power=power))
         else:
             r = card.spawn_radius
+            # mirror-symmetric rings: pairs side by side, odd squads with
+            # their point toward the enemy - so a squad on the centre line
+            # splits evenly between the lanes whichever side you favour
+            a0 = 0.0 if count % 2 == 0 else (-math.pi / 2 if team == PLAYER else math.pi / 2)
             for i in range(count):
-                ang = 2 * math.pi * i / count
+                ang = a0 + 2 * math.pi * i / count
                 ox = max(0.4, min(cfg.GRID_COLS - 0.4, x + math.cos(ang) * r))
                 oy = max(0.4, min(cfg.GRID_ROWS - 0.4, y + math.sin(ang) * r))
                 made.append(Entity(card, team, ox, oy, deploy=deploy, power=power))
