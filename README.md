@@ -343,7 +343,7 @@ into the miasma to knock them out. You get bonus elixir when a boss wave
 starts.
 
 **Difficulty.** Every level was playtested by letting the "Expert" AI defend
-(24 runs per level) with decks built from the presets (win conditions
+(24 runs per level for 1-20) with decks built from the presets (win conditions
 swapped out) **at the level's recommended card level**:
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
@@ -353,6 +353,13 @@ swapped out) **at the level's recommended card level**:
 | Level | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Expert clears | 54% | 63% | 79% | 67% | 54% | 54% | 54% | 54% | 47% | 38% |
+
+| Level | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Expert clears | 81% | 75% | 60% | 56% | 60% | 65% | 35% | 56% | 35% | 35% |
+
+(Levels 21-30: 48 runs each. They were tuned with a per-level power factor,
+`LEVEL_POWER` in `src/levels.py`, on top of the usual enemy levels.)
 
 Being a level or two above the recommendation makes a level much easier,
 being below makes it much harder.
