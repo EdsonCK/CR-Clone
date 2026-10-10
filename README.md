@@ -19,6 +19,20 @@ python src/main.py
 
 The first launch generates all the unit sprites into `assets/sprites/`.
 
+## What's in it (v1.0)
+
+* **Battle** the AI: 5 intelligence levels, a 0.5x-2x elixir handicap
+  slider, 11 archetype decks (or random / custom), and an AI card level that
+  climbs as you beat it.
+* **Levels**: 20 themed wave challenges, unlocked by stars.
+* **Special Modes**: Triple Elixir, Sudden Death, Mirror Match, Draft, Rage
+  Battle, Random Decks, Double Trouble and **Endless Survival**.
+* **Progression**: gold and shards, card levels 11-16, 32 **Evolutions**,
+  7 **Heroes**, 5 saved decks, 22 achievements, a daily first-win bonus.
+* 95 cards (8 Champions) with original art, procedural music and a unique
+  sound for every card, collisions, path-finding around buildings, card
+  animations and a post-match stats screen.
+
 ## How to play
 
 1. **Battle** from the main menu opens the **Battle Setup** screen. Two
@@ -37,13 +51,133 @@ The first launch generates all the unit sprites into `assets/sprites/`.
      Control, Lava Loon, X-Bow, Sparky GG, MK Bats WB, Royal Giant),
      **Random**, or build your own **Custom** AI deck.
    * **Edit My Deck** opens your deck editor and comes back here too.
+   * **AI card level**: *Ladder* (the AI's cards start at level 11 and go up
+     one level for every 3 wins you get against that intelligence level, up
+     to 16) or *Match my level* (the AI uses your towers' level).
 2. Click a card in your hand (bottom bar), then click **your side** of the
-   arena to deploy it. Right-click (or click the card again) cancels.
+   arena to deploy it - or drag the card there. Right-click (or click the
+   card again) cancels.
 3. Elixir refills over time (max 10). It **doubles** in the last minute and
    **triples** in overtime.
 4. Destroy more enemy towers than the AI before time runs out. Destroying the
    **King Tower** is an instant win. A tie goes to **overtime** (sudden death).
-5. After a match, **Play Again** rematches with the same settings.
+5. After a match you see your rewards; **Match Stats** shows damage and
+   knockouts per card for both sides, elixir spent and wasted, tower damage
+   and (in Levels) which wave cost you which tower. **Last Match** on the main
+   menu reopens it.
+
+## Progression
+
+Everything is saved in `profile.json` (delete it, or use Settings > Reset
+progress, to start over).
+
+* **Gold** - from every win (Battles pay more against smarter AIs, higher
+  elixir boosts and for crowns), Level wins and new stars, Special Battles,
+  Endless waves, achievements and the **first win of the day** (+60 gold,
+  +1 shard). Spend it in **Cards** to upgrade a card: 11->12 costs 100,
+  then 250, 600, 1200 and 2500 (to 16). Each level is +10% HP and damage
+  (spells and the troops spells drop too).
+* **Crown towers** are as strong as your deck: their level is the average
+  level of the 8 cards you take into the match.
+* **Shards** - first clears and 3-star clears of Levels, a trickle from
+  Battle wins (more against smarter AIs), the first win in each Special
+  Battle, every 5 Endless waves, and achievements. Spend them on
+  **Evolutions** (5 shards) and **Heroes** (8 shards).
+* **Cards screen** - filter by type / Evos / Heroes, see each card's stats
+  now and at the next level, upgrade, and unlock its Evolution / Hero.
+* **Achievements** - 22 milestones across every mode (win 10/50 battles,
+  beat Expert/Master at even elixir, clear Level 10/20, 30/60 stars, Endless
+  wave 10/20, max a card...). Claim the reward on the Achievements screen;
+  the menu button shows how many are waiting.
+* **Sandbox** (Settings) unlocks every Level, Evolution and Hero for free
+  play without touching your saved progress.
+
+## Evolutions & Heroes
+
+Your deck's first two slots are **EVO slots** and the third is the **HERO
+slot** (the deck editor labels them; use the < > arrows on a card to move
+it).
+
+**Evolutions** - an unlocked Evolution in an EVO slot comes out *evolved*
+whenever its charge is full: its card glows purple in your hand, and the
+troop gets a purple aura and its extra ability. Playing it normally refills
+the charge (1 or 2 plays, shown as pips on the card). The first copy you play
+in a match is always evolved.
+
+| Card | Evolution |
+|---|---|
+| Knight | takes 60% less damage while he isn't swinging |
+| Archers | arrows at targets 4+ tiles away deal 1.5x |
+| Skeletons | every hit summons another Skeleton (up to 8) |
+| Barbarians | each hit enrages them for 3s |
+| Bats | life-steal, overheal up to +50% |
+| Bomber | bomb bounces on twice more |
+| Valkyrie | spin pulls enemies in |
+| Royal Giant | every shot knocks back nearby troops |
+| Mortar | every shell drops a Goblin |
+| Tesla | stunning shockwave on deploy and when destroyed |
+| Wall Breakers | a runner keeps going after the blast |
+| Zap | zaps twice |
+| Ice Spirit | freezes the area again 2s later |
+| Witch | heals when her skeletons die nearby |
+| Battle Ram | arrives charged, 30% faster |
+| Electro Dragon | chain hits 6 targets |
+| Wizard | shield; when it breaks, a fiery knockback blast |
+| Goblin Barrel | a second barrel of 3 Goblins lands nearby |
+| Goblin Giant | 2 more Spear Goblins jump off at half health |
+| P.E.K.K.A | heals 30% per troop she defeats |
+| Mega Knight | hits launch troops 2 tiles back |
+| Musketeer | first 3 shots: +3 range, 1.5x damage |
+| Hunter | nets (stuns) every new target |
+| Executioner | knocks back enemies that get close |
+| Furnace | 2 Fire Spirits at a time |
+| Inferno Dragon | keeps its heat when switching targets |
+| Lumberjack | bigger, longer death Rage |
+| Dart Goblin | poison darts (stacking) |
+| Cannon | barrage at everything nearby on deploy |
+| Skeleton Army | +50% HP, led by a shielded Skeleton General |
+| Baby Dragon | tailwind: slows enemies, hastes allies |
+| Snowball | rolls 3 tiles, dragging enemies |
+
+**Heroes** - an unlocked Hero in the HERO slot is always the Hero version
+(gold star). Once it's on the field, the gold button at the bottom-right of
+the arena fires its one-time ability for a little elixir:
+
+| Hero | Ability |
+|---|---|
+| Knight | **Triumphant Taunt**: nearby enemies target him, -70% damage for 4s |
+| Giant | **Heroic Hurl**: throws the biggest nearby troop 6 tiles (300 dmg, stun) |
+| Mini P.E.K.K.A | **Breakfast Boost**: heals 40% and gains a level |
+| Musketeer | **Trusty Turret**: an air+ground turret for 15s |
+| Ice Golem | **Snowstorm**: freezes everything around for 2s, then slows |
+| Goblins | **Banner Brigade**: 3 more Goblins and a rage banner |
+| Valkyrie | **Whirlwind**: spins for 3s, hitting and pulling everything around |
+
+In Battles the AI brings as many Evolutions and Heroes as you do (from its
+own deck), and it uses Hero abilities too.
+
+## Special Modes
+
+Special Battles are 3-minute battles with a twist. The AI's cards are always
+**level 12** (so upgrading your cards makes them easier); pick its
+intelligence at the top of the screen. Each pays gold, and your first win in
+each pays a shard.
+
+| Mode | Twist |
+|---|---|
+| Triple Elixir | x3 elixir from the start |
+| Sudden Death | the whole match is overtime: first tower down wins |
+| Mirror Match | the AI plays your deck (and Evolutions) |
+| Draft | pick one card from each pair, the AI gets the other, 8 times |
+| Rage Battle | every troop is permanently raged |
+| Random Decks | random decks for both sides |
+| Double Trouble | x2 elixir, double-strength towers, 5 minutes |
+
+**Endless Survival** uses the Levels rules (your Level Deck, no enemy towers,
+the miasma) with waves that never end: each wave has a growing elixir budget
+spent on stronger and stronger troops (and the odd spell), enemy levels rise
+from 11 to 16, and every 5th wave is a boss. You earn gold per wave and a
+shard every 5 waves; your best wave is saved.
 
 ### Levels
 
@@ -51,7 +185,12 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 towers**: scripted waves of enemies march at yours, and your only goal is to
 survive them all with your King Tower standing. You can only deploy on your
 half. Stars: 3 = no tower lost, 2 = one Princess Tower lost, 1 = both lost.
-Your best stars are saved in `progress.json`.
+Your best stars are saved in `progress.json`. Level 1 is open from the
+start and **every 2 stars you earn opens the next level**.
+
+Enemy levels ramp up from **11 on Level 1 to 16 by Level 20** (with a mix of
+levels inside each level); each card shows the enemy levels and the card
+level it was balanced for ("rec. Lv"). Upgrade your cards to keep up.
 
 Level rules:
 
@@ -102,7 +241,7 @@ haven't cleared yet.
 | 16 | Siege Engines | X-Bows and Mortars dug in at the river, Bomb Tower; boss: the Fortress (1.5x) |
 | 17 | Giants' Causeway | every kind of giant; boss: the Golem King |
 | 18 | Splash Zone | Valkyries, Bowlers, Bombers, Executioners; boss: two Mega Knights (1.3x) |
-| 19 | Champions' Arena | a champion every wave; boss: the Hall of Champions (1.45x) |
+| 19 | Champions' Arena | a champion every wave; boss: the Hall of Champions (1.38x) |
 | 20 | The Final Siege | 8 waves of everything; boss: the Overlords (P.E.K.K.A + Mega Knight + Lava Hound) |
 
 Waves can also **cast spells**: Graveyards, Goblin Barrels, Miners and
@@ -114,19 +253,20 @@ Inferno Tower, Tesla) can be dug in right at the river - you'll have to cross
 into the miasma to knock them out. You get bonus elixir when a boss wave
 starts.
 
-**Difficulty.** Every level was playtested by letting the AI defend with
-decks built from the presets (win conditions swapped out), 24 runs per level
-at "Expert" and 12 at "Skilled":
+**Difficulty.** Every level was playtested by letting the "Expert" AI defend
+(24 runs per level) with decks built from the presets (win conditions
+swapped out) **at the level's recommended card level**:
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 100% | 92% | 88% | 92% | 75% | 58% | 79% | 71% | 67% | 54% |
-| Skilled clears | 75% | 58% | 33% | 92% | 50% | 33% | 42% | 25% | 17% | 8% |
+| Expert clears | 100% | 83% | 92% | 96% | 92% | 54% | 92% | 71% | 83% | 75% |
 
 | Level | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 54% | 58% | 63% | 54% | 54% | 71% | 46% | 42% | 38% | 17% |
-| Skilled clears | 8% | 8% | 33% | 25% | 0% | 42% | 8% | 0% | 8% | 0% |
+| Expert clears | 54% | 63% | 79% | 67% | 54% | 54% | 54% | 54% | 47% | 38% |
+
+Being a level or two above the recommendation makes a level much easier,
+being below makes it much harder.
 
 The AI is weakest against air (Sky Raiders, Dragon's Lair) and strongest
 against siege buildings, so expect those to feel a little different in your
@@ -137,7 +277,11 @@ New levels are plain data: see the docstring at the top of `src/levels.py`.
 
 ### Deck editor
 
-Your 8 cards sit at the top in two rows of four. Below is the full collection.
+**5 saved deck slots** (the 1-5 tabs at the top; the selected one is your
+battle deck). Your 8 cards sit at the top in two rows of four - slots 1-2
+are EVO slots, slot 3 the HERO slot; hover a card and use < > to move it.
+The info line shows average elixir, the 4-card cycle cost and the average
+card level. Below is the full collection.
 
 * **Left-click** a card to add it (or remove it if it's already in your deck).
 * **Right-click** removes a card (in the collection or in your 8 slots).
@@ -238,6 +382,12 @@ low hum) instead of a pitched tone, and it and the Archers are trimmed
 quieter (`ATTACK_GAIN` in `sounds.py`). To re-render one sound after changing
 it, bump its number in `SOUND_REVS`; only that file is regenerated.
 
+## Settings
+
+Music and sound volume, **game speed** (1x / 1.5x / 2x), **colour-blind team
+colours** (blue vs orange), **drag cards to deploy**, **floating damage
+numbers**, **screen shake**, **Sandbox** and **Reset progress** (asks twice).
+
 ## Battlefield feel
 
 * **Collisions** – units have a body size and a weight (`MASS` / `BIG_R` in
@@ -249,12 +399,19 @@ it, bump its number in `SOUND_REVS`; only that file is regenerated.
   narrow bridges.
 * **River banks** – ground troops (except Hog Rider's vault and jumpers) can't
   be pushed or knocked into the river; they slide along the bank to a bridge.
-* **Animations** – troops bob and waddle as they walk, breathe when idle,
-  lean back before a melee swing and lunge into it (with a quick swoosh),
-  kick back when they shoot, flash white when hit and drop in when deployed;
-  flyers hover, beat their wings and cast a shadow; buildings recoil when
-  they fire. It's all a light pose on top of each card's normal art, so every
-  unit keeps its exact look.
+* **Path-finding** – ground troops walk around buildings and towers in
+  their way (picking a side and sticking to it) instead of sliding along them.
+* **Animations** – every card has a motion style: heavy stompers (Giant,
+  Golem, P.E.K.K.A...) dip on each footfall kicking up dust and smash
+  overhead; swarms scurry; spirits hop; riders gallop; casters glide, float
+  when idle and stretch as they cast; dashers lean into their runs; Valkyrie
+  spins with every swing; Balloons sway; dragons and hounds beat heavy
+  wings; the Miner burrows up; stunned units wobble; huts rattle before they
+  spawn; archers draw before they shoot. Every troop flashes when hit, drops
+  in when deployed and leaves a little ghost when it falls. It's all a pose
+  on top of each card's normal art, so every unit keeps its exact look.
+* **Screen shake** on big spells, slams, heavy deaths and tower kills, and
+  optional **damage numbers**.
 * **Elixir Collector** – its glass tank visibly fills as the next elixir
   brews; when it's full the tank flashes, a "+1 elixir" pops up with a soft
   chime and it starts filling again.
@@ -323,6 +480,13 @@ src/
   sounds.py   procedural music & sound effects
   fx.py       particles & spell visuals
   game.py     window, menus, deck builder, rendering, input, main loop
+  ui.py       shared text / gradient / button helpers
+  screens.py  Cards, Settings, Match Stats, Achievements screens
+  modes.py    Special Battles, Draft and Endless Survival
+  levels.py   the 20 Levels, the wave runner and the Endless generator
+  profile_data.py  gold, shards, card levels, unlocks (profile.json)
+  evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do
+  achievements.py  milestones + daily first-win bonus
 assets/
   sprites/    generated (and user-replaceable) PNGs
   sounds/     generated (and user-replaceable) WAVs
@@ -346,5 +510,10 @@ game modes yet — base cards only, as requested.)
   (e.g. charge, shields, dashes and champion abilities are simplified). Tune or extend
   them in `engine.py` if you want more fidelity.
 - Collisions are soft (overlaps are pushed apart over a few frames rather
-  than being hard walls), and units path straight to their target or the
-  nearest bridge rather than true path-finding around obstacles.
+  than being hard walls), and path-finding only steers around the one
+  building/tower in the way (no full maze search - the arena doesn't need
+  it).
+- Evolutions and Heroes are original takes on the idea; some match their
+  Clash Royale counterparts closely, others are simplified or invented.
+- Animations are procedural poses of each card's single sprite rather than
+  hand-drawn frame-by-frame sprite sheets.

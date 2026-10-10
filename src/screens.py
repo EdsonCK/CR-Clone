@@ -696,7 +696,7 @@ class ScreensMixin:
             self._text(title, self.font_sb, topleft=(r.x + 10, r.y + 6))
             self._text(self._fit(desc, self.font_s, r.w - 110), self.font_s,
                        (200, 204, 220), topleft=(r.x + 10, r.y + 24))
-            bw = r.w - 110
+            bw = r.w - 160
             pygame.draw.rect(self.screen, (30, 34, 46), (r.x + 10, r.y + 42, bw, 8),
                              border_radius=4)
             pygame.draw.rect(self.screen, (120, 200, 120) if done else (110, 150, 230),

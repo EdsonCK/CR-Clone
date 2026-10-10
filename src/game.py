@@ -1804,33 +1804,33 @@ class Game(ModesMixin, ScreensMixin):
         cx = cfg.WINDOW_W // 2
         self._screen_title("How To Play", 40)
         lines = [
-            "Goal: destroy more enemy towers than the AI.",
-            "Destroy the King Tower for an instant win.",
+            "Battle: destroy more towers than the AI (King = win).",
+            "Click a card then the arena - or drag it there.",
+            "Elixir: max 10, x2 in the last minute, x3 in overtime.",
             "",
-            "Click a card in your hand, then click your",
-            "side of the arena to deploy it.",
-            "Right-click cancels the selected card.",
+            "Levels: 20 levels of waves. No enemy towers and no",
+            "win conditions. Every 2 stars opens the next level.",
+            "Special Modes: 7 twisted battles + Endless Survival.",
             "",
-            "Champions (max 1 per deck): once deployed, the",
-            "yellow button bottom-left fires their ability.",
+            "Gold (wins, stars) upgrades cards in Cards: Lv 11-16,",
+            "+10% HP & damage per level. Towers = deck average.",
+            "Shards (first clears, milestones) unlock Evos & Heroes.",
             "",
-            "Deck editor: click to add/remove, right-click",
-            "to remove, mouse wheel or the bar to scroll.",
+            "Deck slots 1-2 are EVO slots: an unlocked Evolution",
+            "glows purple in your hand when its charge is full.",
+            "Slot 3 is the HERO slot: tap the gold button (bottom",
+            "right) for the Hero's one-time ability.",
+            "Champions (max 1): yellow button bottom-left.",
             "",
-            "Elixir refills over time (max 10). It doubles",
-            "in the last minute and triples in overtime.",
-            "",
-            "Battle Setup: pick the AI's intelligence (1-5)",
-            "and its elixir boost (0.5x-2x, 1x = even).",
-            "",
-            "Levels: survive waves (no enemy towers, no",
-            "win conditions). Lose no tower for 3 stars.",
+            "Battle Setup: AI intelligence 1-5, elixir 0.5x-2x,",
+            "AI card level: ladder (+1 per 3 wins) or yours.",
+            "Achievements pay gold & shards; first win of the",
+            "day gives a bonus. Settings: speed, volumes, sandbox.",
             "",
             "M = music on/off      N = sound on/off",
-            "",
             "Click anywhere / Esc to return to the menu.",
         ]
-        y = 90
+        y = 86
         for ln in lines:
             self._text(ln, self.font_s, cfg.COLOR_TEXT, center=(cx, y))
             y += 22
