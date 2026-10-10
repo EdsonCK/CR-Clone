@@ -36,7 +36,8 @@ Append a Level(...) to LEVELS. Each Wave lists Spawn entries:
          the river bank (siege buildings: X-Bow, Mortar), "tower" = on YOUR
          Princess Tower of that lane (Graveyard, Goblin Barrel, Miner...),
          "army" = spells aimed at the thickest clump of your troops (waits
-         until you have some on the field; falls back to your tower).
+         until you have some on the field; falls back to your tower),
+         "near" = 3 tiles in front of your Princess Tower (Goblin Drill).
 
   The short form S(key, at, lane, place, level=, mult=) is used below.
 ============================================================================
@@ -92,6 +93,7 @@ class Level:
     prep: float = 7.0               # seconds between waves
     locked: bool = False
     shift: int = 0                  # added to every enemy level (set below)
+    power: float = 1.0              # x hp & damage for every enemy (tuning)
 
 
 def S(key, at=0.0, lane="left", place="field", level=None, mult=1.0):
@@ -849,6 +851,330 @@ LEVELS = [
                      S("witch", 16, "mid", "back", level=13),
                  ]),
         ]),
+
+    # ==================== ACT II: the newer cards (v1.2) ====================
+    Level(
+        "goblin_uprising", "Goblin Uprising", "Level 21",
+        "Every goblin in the realm has had enough. Gangs, drills, cages, "
+        "demolition crews - and the Machine itself.",
+        "goblin_machine",
+        waves=[
+            Wave("The Gang's All Here", level=11, spawns=[
+                S("goblin_gang", 0, "left"), S("goblin_gang", 6, "right"),
+            ]),
+            Wave("Demolition Crew", level=11, spawns=[
+                S("goblin_demolisher", 0, "right"), S("goblin_gang", 3, "right", "back"),
+            ]),
+            Wave("Underground", level=11, spawns=[
+                S("goblin_drill", 0, "left", "near"), S("spear_goblins", 4, "left", "back"),
+            ]),
+            Wave("Caged Fury", level=11, spawns=[
+                S("goblin_cage", 0, "mid", "front"), S("goblin_demolisher", 3, "left"),
+                S("dart_goblin", 5, "left", "back"),
+            ]),
+            Wave("Hex", level=11, spawns=[
+                S("goblin_giant", 0, "right"), S("goblin_curse", 8, "right", "army"),
+            ]),
+            Wave("Two Drills", level=11, spawns=[
+                S("goblin_drill", 0, "left", "near"), S("goblin_drill", 6, "right", "near"),
+            ]),
+            Wave("The Machine", level=11, boss=True, bonus_elixir=7, timeout=90, spawns=[
+                S("goblin_machine", 0, "left", mult=1.3),
+                S("goblin_gang", 4, "left", "back"),
+                S("goblinstein", 10, "right"),
+                S("goblin_curse", 16, "mid", "army"),
+            ]),
+        ]),
+    Level(
+        "royal_parade", "Royal Parade", "Level 22",
+        "The Crown's army marches in formation: recruits by the dozen, hogs "
+        "in a row and a ghost you'll never see coming.",
+        "royal_recruits",
+        waves=[
+            Wave("Fall In!", level=11, spawns=[S("royal_recruits", 0, "mid")]),
+            Wave("Hog Line", level=11, spawns=[
+                S("royal_hogs", 0, "mid"), S("archers", 3, "left", "back"),
+            ]),
+            Wave("Haunting", level=11, spawns=[
+                S("royal_ghost", 0, "left"), S("royal_ghost", 6, "right"),
+            ]),
+            Wave("Cavalry", level=11, spawns=[
+                S("ram_rider", 0, "right"), S("musketeer", 2, "right", "back"),
+            ]),
+            Wave("Royal Escort", level=11, spawns=[
+                S("royal_giant", 0, "left"), S("royal_delivery", 6, "left", "army"),
+                S("princess", 2, "left", "back"),
+            ]),
+            Wave("Second Rank", level=12, spawns=[
+                S("royal_recruits", 0, "mid"), S("royal_hogs", 7, "mid"),
+            ]),
+            Wave("The Royal Guard", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("royal_giant", 0, "right", mult=1.25),
+                S("royal_recruits", 4, "mid"),
+                S("royal_ghost", 9, "left", mult=1.2),
+                S("ram_rider", 14, "left"),
+            ]),
+        ]),
+    Level(
+        "spirit_grove", "Spirit Grove", "Level 23",
+        "Wisps, sprites and a dragon-riding Empress guard the sacred grove - "
+        "and its Phoenix keeps coming back.",
+        "spirit_empress",
+        waves=[
+            Wave("Will-o'-Wisps", level=11, spawns=[
+                S("fire_spirit", 0, "left"), S("ice_spirit", 1, "left"),
+                S("electro_spirit", 2, "right"), S("heal_spirit", 3, "right"),
+            ]),
+            Wave("Rebirth", level=11, spawns=[S("phoenix", 0, "right")]),
+            Wave("Grove Keeper", level=11, spawns=[
+                S("spirit_empress", 0, "left"), S("heal_spirit", 4, "left", "back"),
+            ]),
+            Wave("Overgrowth", level=11, spawns=[
+                S("goblin_giant", 0, "right"), S("vines", 9, "right", "army"),
+            ]),
+            Wave("Spirit Storm", level=11, spawns=[
+                S("electro_spirit", 0, "mid"), S("fire_spirit", 0, "left"),
+                S("fire_spirit", 0, "right"), S("electro_dragon", 3, "mid", "back"),
+            ]),
+            Wave("Two Phoenixes", level=11, spawns=[
+                S("phoenix", 0, "left"), S("phoenix", 5, "right"),
+            ]),
+            Wave("The Empress Ascends", level=11, boss=True, bonus_elixir=8, timeout=100,
+                 spawns=[
+                     S("spirit_empress_air", 0, "mid", mult=1.3),
+                     S("phoenix", 5, "left"),
+                     S("heal_spirit", 8, "mid", "back"),
+                     S("vines", 14, "mid", "army"),
+                 ]),
+        ]),
+    Level(
+        "witching_hour", "Witching Hour", "Level 24",
+        "At midnight the coven gathers. Whatever falls in their curses gets "
+        "up again - on THEIR side.",
+        "mother_witch",
+        waves=[
+            Wave("Familiars", level=11, spawns=[
+                S("mother_witch", 0, "left"), S("skeleton_army", 2, "left"),
+            ]),
+            Wave("Night Flight", level=11, spawns=[
+                S("night_witch", 0, "right"), S("bats", 3, "right", "back"),
+            ]),
+            Wave("The Coven", level=11, spawns=[
+                S("witch", 0, "left"), S("mother_witch", 1, "right"),
+            ]),
+            Wave("Curse of Goblins", level=11, spawns=[
+                S("giant", 0, "right"), S("goblin_curse", 7, "right", "army"),
+                S("mother_witch", 3, "right", "back"),
+            ]),
+            Wave("Into the Void", level=12, spawns=[
+                S("golem", 0, "left"), S("void", 10, "left", "army"),
+            ]),
+            Wave("Graveyard Shift", level=11, spawns=[
+                S("graveyard", 0, "left", "tower"), S("mother_witch", 4, "left"),
+            ]),
+            Wave("Midnight", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("mother_witch", 0, "mid", mult=1.4),
+                S("witch", 2, "left"), S("night_witch", 2, "right"),
+                S("void", 12, "mid", "army"),
+                S("goblin_curse", 16, "mid", "army"),
+            ]),
+        ]),
+    Level(
+        "rascal_alley", "Rascal Alley", "Level 25",
+        "Kids with slingshots, a girl with a rocket launcher and a bush that "
+        "is definitely just a bush.",
+        "rascals",
+        waves=[
+            Wave("Playground", level=11, spawns=[S("rascals", 0, "left")]),
+            Wave("Fireworks", level=11, spawns=[
+                S("firecracker", 0, "right"), S("firecracker", 3, "left"),
+                S("knight", 1, "right"),
+            ]),
+            Wave("Suspicious...", level=11, spawns=[
+                S("suspicious_bush", 0, "left"), S("suspicious_bush", 4, "right"),
+                S("berserker", 1, "left"),
+            ]),
+            Wave("Street Gang", level=11, spawns=[
+                S("berserker", 0, "right"), S("bandit", 2, "right"),
+                S("firecracker", 4, "right", "back"),
+            ]),
+            Wave("Bully", level=12, spawns=[
+                S("rascals", 0, "right"), S("dart_goblin", 2, "right", "back"),
+            ]),
+            Wave("Ambush", level=11, spawns=[
+                S("suspicious_bush", 0, "mid"), S("royal_hogs", 5, "mid"),
+            ]),
+            Wave("Boss of the Block", level=11, boss=True, bonus_elixir=8, timeout=100,
+                 spawns=[
+                     S("boss_bandit", 0, "left", mult=1.3),
+                     S("rascals", 3, "left"),
+                     S("firecracker", 6, "right", "back"),
+                     S("berserker", 10, "right"),
+                 ]),
+        ]),
+    Level(
+        "rune_forge", "The Rune Forge", "Level 26",
+        "The Rune Giant sharpens every blade in her army. Kill the escort "
+        "before the third hit lands.",
+        "rune_giant",
+        waves=[
+            Wave("Apprentices", level=11, spawns=[
+                S("rune_giant", 0, "left"), S("barbarians", 2, "left", "back"),
+            ]),
+            Wave("Sharpened Steel", level=11, spawns=[
+                S("rune_giant", 0, "right"), S("elite_barbarians", 2, "right", "back"),
+            ]),
+            Wave("Anvil", level=11, spawns=[
+                S("rune_giant", 0, "left"), S("executioner", 3, "left", "back"),
+                S("dart_goblin", 4, "left", "back"),
+            ]),
+            Wave("Enchanted Dash", level=11, spawns=[
+                S("rune_giant", 0, "right"), S("lumberjack", 3, "right"),
+                S("bandit", 4, "right"),
+            ]),
+            Wave("Forge Fire", level=12, spawns=[
+                S("rune_giant", 0, "left"), S("inferno_dragon", 3, "left", "back"),
+                S("fireball", 10, "left", "army"),
+            ]),
+            Wave("Double Order", level=11, spawns=[
+                S("rune_giant", 0, "left"), S("rune_giant", 1, "right"),
+                S("valkyrie", 3, "mid"),
+            ]),
+            Wave("Master Smith", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("rune_giant", 0, "mid", mult=1.4),
+                S("mini_pekka", 3, "mid", "back"), S("prince", 6, "left"),
+                S("dark_prince", 6, "right"),
+            ]),
+        ]),
+    Level(
+        "fishers_wharf", "Fisher's Wharf", "Level 27",
+        "Duelists of the docks. The Fisherman reels you in and the Ronin "
+        "parries everything you swing.",
+        "ronin",
+        waves=[
+            Wave("Catch of the Day", level=11, spawns=[
+                S("fisherman", 0, "left"), S("musketeer", 2, "left", "back"),
+            ]),
+            Wave("The Wandering Blade", level=11, spawns=[S("ronin", 0, "right")]),
+            Wave("Harpoon", level=11, spawns=[
+                S("fisherman", 0, "right"), S("hunter", 2, "right", "back"),
+            ]),
+            Wave("Bowling Night", level=11, spawns=[
+                S("bowler", 0, "left"), S("fisherman", 2, "left"),
+            ]),
+            Wave("Swordmasters", level=12, spawns=[
+                S("ronin", 0, "left"), S("golden_knight", 4, "right"),
+            ]),
+            Wave("Nets and Anchors", level=11, spawns=[
+                S("fisherman", 0, "left"), S("fisherman", 1, "right"),
+                S("executioner", 3, "mid", "back"),
+            ]),
+            Wave("The Last Duel", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("ronin", 0, "left", mult=1.4),
+                S("fisherman", 2, "right", mult=1.2),
+                S("pekka", 8, "mid"),
+            ]),
+        ]),
+    Level(
+        "dragon_roost", "Dragon Roost", "Level 28",
+        "Bone dragons, toxic giants and a firebird that won't stay dead. "
+        "Bring anti-air. Lots of it.",
+        "skeleton_dragons",
+        waves=[
+            Wave("Bone Wings", level=11, spawns=[S("skeleton_dragons", 0, "left")]),
+            Wave("Toxic Cloud", level=11, spawns=[
+                S("minion_giant", 0, "right"), S("minions", 3, "right", "back"),
+            ]),
+            Wave("Phoenix Down", level=11, spawns=[
+                S("phoenix", 0, "left"), S("skeleton_dragons", 3, "left", "back"),
+            ]),
+            Wave("Storm Front", level=11, spawns=[
+                S("electro_dragon", 0, "right"), S("inferno_dragon", 2, "right"),
+            ]),
+            Wave("Flying Fortress", level=12, spawns=[
+                S("minion_giant", 0, "left"), S("balloon", 4, "left"),
+            ]),
+            Wave("Swarm", level=11, spawns=[
+                S("minion_horde", 0, "mid"), S("bats", 2, "left"), S("bats", 2, "right"),
+                S("skeleton_dragons", 4, "mid", "back"),
+            ]),
+            Wave("The Ancient Wyrm", level=11, boss=True, bonus_elixir=8, timeout=110,
+                 spawns=[
+                     S("lava_hound", 0, "mid", mult=1.3),
+                     S("minion_giant", 4, "left"),
+                     S("phoenix", 8, "right"),
+                     S("skeleton_dragons", 12, "mid", "back"),
+                 ]),
+        ]),
+    Level(
+        "machine_works", "Machine Works", "Level 29",
+        "The goblin engineers rolled out everything with a gear in it. "
+        "Siege, sparks and rockets.",
+        "goblin_machine",
+        waves=[
+            Wave("Assembly Line", level=11, spawns=[
+                S("goblin_machine", 0, "left"), S("spear_goblins", 2, "left", "back"),
+            ]),
+            Wave("Live Wire", level=11, spawns=[
+                S("sparky", 0, "right"), S("goblin_gang", 2, "right"),
+            ]),
+            Wave("Artillery", level=11, spawns=[
+                S("mortar", 0, "left", "river"), S("cannon_cart", 2, "left"),
+            ]),
+            Wave("Fuse Lit", level=11, spawns=[
+                S("goblin_demolisher", 0, "right"), S("goblin_demolisher", 3, "left"),
+                S("flying_machine", 4, "right", "back"),
+            ]),
+            Wave("Crossfire", level=11, spawns=[
+                S("xbow", 0, "mid", "river"), S("knight", 1, "mid"),
+                S("goblin_drill", 6, "left", "near"),
+            ]),
+            Wave("Heavy Metal", level=11, spawns=[
+                S("goblin_machine", 0, "right"), S("electro_giant", 2, "left"),
+            ]),
+            Wave("Prototype X", level=11, boss=True, bonus_elixir=9, timeout=110, spawns=[
+                S("goblin_machine", 0, "left", mult=1.4),
+                S("sparky", 4, "left", "back"),
+                S("goblin_machine", 10, "right", mult=1.2),
+                S("rocket", 16, "mid", "army"),
+            ]),
+        ]),
+    Level(
+        "grand_finale", "The Grand Finale", "Level 30",
+        "Every new champion of the arena, all at once. This is the real "
+        "final boss.",
+        "spirit_empress_air",
+        waves=[
+            Wave("Opening Act", level=11, spawns=[
+                S("goblin_gang", 0, "left"), S("rascals", 2, "right"),
+            ]),
+            Wave("Hooks and Blades", level=11, spawns=[
+                S("fisherman", 0, "right"), S("ronin", 2, "right"),
+            ]),
+            Wave("Curses", level=11, spawns=[
+                S("mother_witch", 0, "left"), S("goblin_curse", 8, "left", "army"),
+                S("royal_ghost", 2, "left"),
+            ]),
+            Wave("Air Superiority", level=11, spawns=[
+                S("phoenix", 0, "right"), S("skeleton_dragons", 2, "right", "back"),
+            ]),
+            Wave("Enchanted Siege", level=11, spawns=[
+                S("rune_giant", 0, "left"), S("goblin_machine", 2, "left"),
+                S("void", 12, "left", "army"),
+            ]),
+            Wave("Parade", level=11, spawns=[
+                S("royal_recruits", 0, "mid"), S("ram_rider", 4, "left"),
+                S("firecracker", 5, "right", "back"),
+            ]),
+            Wave("The Empress and Her Court", level=11, boss=True, bonus_elixir=10,
+                 timeout=130, spawns=[
+                     S("spirit_empress_air", 0, "mid", mult=1.3),
+                     S("ronin", 4, "left", mult=1.2),
+                     S("goblin_machine", 8, "right", mult=1.2),
+                     S("phoenix", 12, "mid"),
+                     S("vines", 18, "mid", "army"),
+                 ]),
+        ]),
 ]
 
 # ---------------------------------------------------------------------------
@@ -857,7 +1183,8 @@ LEVELS = [
 # 11 on Level 1 to level 16 on Level 20 - you upgrade your cards to keep up.
 # recommended_level() is the card level the level was balanced for.
 # ---------------------------------------------------------------------------
-LEVEL_SHIFTS = [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3]
+LEVEL_SHIFTS = [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3,
+                3, 3, 3, 4, 4, 4, 4, 4, 5, 5]
 for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
     _lv.shift = _sh
 
@@ -1056,7 +1383,7 @@ class LevelRun:
         m = self.m
         wave = self.current_wave()
         lv = (sp.level if sp.level is not None else wave.level) + self.level.shift
-        mult = level_mult(lv) * sp.mult
+        mult = level_mult(lv) * sp.mult * self.level.power
         x = LANE_X.get(sp.lane, 9.0)
         c = cards.CARDS[sp.key]
         place, _, wait = sp.place.partition(":wait")
@@ -1068,12 +1395,12 @@ class LevelRun:
                 place = "tower"
             else:
                 x, y = spot
-        if place == "tower":
+        if place in ("tower", "near"):
             side = "left" if sp.lane == "left" else "right"
             tw = m.towers[(PLAYER, side)]
             if not tw.alive:
                 tw = m.towers[(PLAYER, "king")]
-            x, y = tw.x, tw.y
+            x, y = tw.x, tw.y - (3.0 if place == "near" else 0.0)
         elif place == "army":
             pass
         elif place in PLACE_Y:

@@ -1877,11 +1877,14 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
         cx = cfg.WINDOW_W // 2
         self._screen_title("How To Play", 40)
         lines = [
+            "Trophy Road: ranked battles - win trophies, climb",
+            "arenas; your trophies pick the AI you face.",
             "Battle: destroy more towers than the AI (King = win).",
             "Click a card then the arena - or drag it there.",
             "Elixir: max 10, x2 in the last minute, x3 in overtime.",
+            "Tower Troops: pick one per deck (Decks > Tower chip).",
             "",
-            "Levels: 20 levels of waves. No enemy towers and no",
+            "Levels: 30 levels of waves. No enemy towers and no",
             "win conditions. Every 2 stars opens the next level.",
             "Special Modes: 7 twisted battles + Endless Survival.",
             "",

@@ -19,21 +19,74 @@ python src/main.py
 
 The first launch generates all the unit sprites into `assets/sprites/`.
 
-## What's in it (v1.1)
+## What's in it (v1.2)
 
+* **Trophy Road**: a ranked ladder through 16 arenas (Goblin Stadium ->
+  Legendary Arena). Win trophies, lose some, and your trophy count picks the
+  bot: the higher you climb, the smarter it plays and the higher its cards.
+  Gold and shards line the road.
+* **Tower Troops**: Tower Princess, Cannoneer, Dagger Duchess and Royal Chef
+  man your Princess Towers, unlocked along the Trophy Road.
 * **Battle** the AI: 5 intelligence levels, a 0.5x-2x elixir handicap
   slider, 14 archetype decks (or random / custom), and an AI card level that
   climbs as you beat it.
-* **Levels**: 20 themed wave challenges, unlocked by stars.
+* **Levels**: 30 themed wave challenges, unlocked by stars.
 * **Special Modes**: Triple Elixir, Sudden Death, Mirror Match, Draft, Rage
   Battle, Random Decks, Double Trouble and **Endless Survival**.
 * **Progression**: gold and shards, card levels 11-16, all 43 **Evolutions**
   and all 18 **Heroes** of the real game (as of the Minion Giant update), 5
-  saved decks, 22 achievements, a daily first-win bonus.
-* 123 cards (8 Champions) - the whole roster up to the Minion Giant - with
-  original art, procedural music and a unique sound for every card,
-  collisions, path-finding around buildings, card animations and a
+  saved decks, 28 achievements, a daily first-win bonus.
+* 123 cards (8 Champions) - the whole roster up to the Minion Giant - each
+  with a one-line description, original art, procedural music and a unique
+  sound, collisions, path-finding around buildings, card animations and a
   post-match stats screen.
+
+**New in v1.2**: Trophy Road, Tower Troops, Levels 21-30, card descriptions
+on the Cards screen, ability call-outs and clearer status markers in battle
+(roots, curses, runes), and a smarter AI with the newer cards (Void, Vines,
+Rune Giant escorts, Rage/Clone combos; its preset decks now use their Evo
+and Hero slots).
+
+## Trophy Road
+
+**Trophy Road** on the main menu (the button shows your trophies) is the
+ranked ladder. You play your current deck against a bot chosen by your
+trophy count:
+
+| Trophies | Arenas | Bot |
+|---|---|---|
+| 0-599 | Goblin Stadium, Bone Pit | Novice |
+| 600-1299 | Barbarian Bowl, Spell Valley | Casual |
+| 1300-2299 | Builder's Workshop, P.E.K.K.A's Playhouse, Royal Arena | Skilled |
+| 2300-3399 | Frozen Peak, Jungle Arena, Hog Mountain | Expert |
+| 3400+ | Electro Valley, Spooky Town, Rascal's Hideout, Serenity Peak, Miner's Mine, Legendary Arena (5500) | Master |
+
+* A win is **+30 trophies** (+2 per crown you won by), a loss **-20**, a
+  draw 0. You never drop below the gate of an arena you've reached.
+* The bot's cards are level 11 + 1 per 1000 trophies (up to 16), but never
+  more than **one level above your crown towers**.
+* The bot plays one of the archetype decks (sometimes a random deck) and
+  brings a Tower Troop you could have unlocked by then.
+* **Road rewards** every 100 trophies (gold, and 3 shards at every new
+  arena) are paid once, the first time you reach them. The Trophy Road
+  screen shows the whole road and points at your next reward.
+
+Tune it in `src/trophy.py` (arenas, trophies per win/loss, rewards).
+
+## Tower Troops
+
+The troop on your Princess Towers is picked per deck: click the tower chip
+at the top right of the deck editor to cycle through the ones you own. Stats
+are the real game's ratios against the Tower Princess.
+
+| Troop | Unlock | What it does |
+|---|---|---|
+| Tower Princess | start | the default: long-range arrows, hits air and ground |
+| Cannoneer | 2300 (Frozen Peak) | slow, very heavy cannonballs; a little less HP |
+| Dagger Duchess | 3400 (Electro Valley) | a magazine of 8 fast daggers; once it's empty she throws slowly, and reloads one dagger every 0.9s while idle |
+| Royal Chef | 4200 (Rascal's Hideout) | cooks a pancake (a dial on the tower) and serves it to your strongest troop for **+1 level**; cooks slower while his towers are fighting |
+
+The AI uses Tower Troops in Trophy Road battles. Mirror Match copies yours.
 
 ## How to play
 
@@ -85,11 +138,12 @@ progress, to start over).
   Battle wins (more against smarter AIs), the first win in each Special
   Battle, every 5 Endless waves, and achievements. Spend them on
   **Evolutions** (5 shards) and **Heroes** (8 shards).
-* **Cards screen** - filter by type / Evos / Heroes, see each card's stats
+* **Cards screen** - filter by type / Evos / Heroes, read what each card
+  does, see its stats
   now and at the next level, upgrade, and unlock its Evolution / Hero.
-* **Achievements** - 22 milestones across every mode (win 10/50 battles,
-  beat Expert/Master at even elixir, clear Level 10/20, 30/60 stars, Endless
-  wave 10/20, max a card...). Claim the reward on the Achievements screen;
+* **Achievements** - 28 milestones across every mode (win 10/50 battles,
+  beat Expert/Master at even elixir, clear Level 10/20/30, 30/60/90 stars,
+  Endless wave 10/20, 1000/2300/5500 trophies, max a card...). Claim the reward on the Achievements screen;
   the menu button shows how many are waiting.
 * **Sandbox** (Settings) unlocks every Level, Evolution and Hero for free
   play without touching your saved progress.
@@ -213,7 +267,7 @@ half. Stars: 3 = no tower lost, 2 = one Princess Tower lost, 1 = both lost.
 Your best stars are saved in `progress.json`. Level 1 is open from the
 start and **every 2 stars you earn opens the next level**.
 
-Enemy levels ramp up from **11 on Level 1 to 16 by Level 20** (with a mix of
+Enemy levels ramp up from **11 on Level 1 to 16 by Level 30** (with a mix of
 levels inside each level); each card shows the enemy levels and the card
 level it was balanced for ("rec. Lv"). Upgrade your cards to keep up.
 
@@ -240,7 +294,7 @@ above that adds +10% HP and damage (compounding), as in Clash Royale. Each
 unit's level is shown on a badge next to its health bar, and bosses carry a
 red **BOSS** tag.
 
-There are **20 levels**, each built around a theme, and they get harder as
+There are **30 levels**, each built around a theme, and they get harder as
 you go. The Levels screen scrolls (mouse wheel, drag, arrow keys or the
 scrollbar). Each card shows the level's number, waves, enemy levels, your
 stars and your win/play record, and the screen opens at the first level you
@@ -268,6 +322,16 @@ haven't cleared yet.
 | 18 | Splash Zone | Valkyries, Bowlers, Bombers, Executioners; boss: two Mega Knights (1.3x) |
 | 19 | Champions' Arena | a champion every wave; boss: the Hall of Champions (1.38x) |
 | 20 | The Final Siege | 8 waves of everything; boss: the Overlords (P.E.K.K.A + Mega Knight + Lava Hound) |
+| 21 | Goblin Uprising | Goblin Gang, Drills, Cages, Demolishers, Goblin Curse; boss: the Machine (Goblin Machine + Goblinstein) |
+| 22 | Royal Parade | Royal Recruits, Royal Hogs, Royal Delivery, Royal Ghost, Ram Rider; boss: the Royal Guard |
+| 23 | Spirit Grove | every spirit, the Phoenix, Spirit Empress; boss: the Empress ascends |
+| 24 | Witching Hour | Mother Witch, Night Witch, Goblin Curse, Void; boss: Midnight (the whole coven) |
+| 25 | Rascal Alley | Rascals, Firecrackers, Suspicious Bushes, Berserkers; boss: Boss of the Block |
+| 26 | The Rune Forge | Rune Giants enchanting their escort; boss: the Master Smith |
+| 27 | Fisher's Wharf | Fishermen, Ronin, Hunters, Bowlers, Golden Knight; boss: the Last Duel |
+| 28 | Dragon Roost | Skeleton Dragons, Minion Giants, Phoenixes; boss: the Ancient Wyrm (Lava Hound) |
+| 29 | Machine Works | Goblin Machines, Sparky, Mortars, X-Bows, Cannon Carts; boss: Prototype X |
+| 30 | The Grand Finale | every new card at once; boss: the Empress and Her Court |
 
 Waves can also **cast spells**: Graveyards, Goblin Barrels, Miners and
 Earthquakes land on your towers, and Snowball, Freeze, Barbarian Barrel,
@@ -515,10 +579,12 @@ src/
   ui.py       shared text / gradient / button helpers
   screens.py  Cards, Settings, Match Stats, Achievements screens
   modes.py    Special Battles, Draft and Endless Survival
-  levels.py   the 20 Levels, the wave runner and the Endless generator
+  levels.py   the 30 Levels, the wave runner and the Endless generator
   profile_data.py  gold, shards, card levels, unlocks (profile.json)
   evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do
   achievements.py  milestones + daily first-win bonus
+  trophy.py   Trophy Road arenas, trophies and rewards;  trophyroad.py  its screen
+  towers.py   Tower Troops;  carddesc.py  the one-line card descriptions
 assets/
   sprites/    generated (and user-replaceable) PNGs
   sounds/     generated (and user-replaceable) WAVs
