@@ -21,7 +21,8 @@ every level below takes 10% off:
 
     level 11 = x1.00   level 12 = x1.10   level 13 = x1.21   level 14 = x1.33
 
-A spawn can also carry an extra multiplier (`mult`) on top - bosses use it.
+A spawn can also carry an extra multiplier (`mult`) on top - bosses use it -
+and LEVEL_POWER (near the bottom) scales a whole level for tuning.
 
 Adding a level
 --------------
@@ -1187,6 +1188,17 @@ LEVEL_SHIFTS = [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3,
                 3, 3, 3, 4, 4, 4, 4, 4, 5, 5]
 for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
     _lv.shift = _sh
+
+# Extra hp & damage for every enemy of a level (Levels 21-30 were tuned with
+# this against the defend-only Expert AI; 1.0 = untouched).
+LEVEL_POWER = {
+    "goblin_uprising": 1.25, "royal_parade": 1.07, "spirit_grove": 1.22,
+    "witching_hour": 1.25, "rascal_alley": 1.2, "rune_forge": 1.12,
+    "fishers_wharf": 1.6, "dragon_roost": 0.82, "machine_works": 1.28,
+    "grand_finale": 0.96,
+}
+for _lv in LEVELS:
+    _lv.power = LEVEL_POWER.get(_lv.key, 1.0)
 
 
 def recommended_level(level):
