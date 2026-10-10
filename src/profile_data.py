@@ -68,7 +68,7 @@ def battle_gold(win, ai_level, ai_elixir, crowns):
 
 
 # Special battles (fixed AI card level)
-SPECIAL_AI_LEVEL = 13
+SPECIAL_AI_LEVEL = 12
 
 
 def special_gold(win, ai_level, crowns):

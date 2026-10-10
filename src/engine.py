@@ -1234,6 +1234,9 @@ class Match:
         self._src = None           # (team, card key) dealing damage right now
         self._src_ent = None       # ...and the entity, if a unit
         self.later = []            # [(time, kind, data)] delayed actions
+        # special modes (modes.py)
+        self.elixir_rate = None    # fixed elixir multiplier (Triple Elixir...)
+        self.always_rage = False   # Rage Battle: everyone is permanently raged
         # Evolutions: per team the card keys that evolve, and their charge
         # (plays since the last evolved copy). Charges start FULL, so the
         # first copy you play comes out evolved.
@@ -1341,6 +1344,8 @@ class Match:
 
     # ---- elixir ------------------------------------------------------------
     def elixir_multiplier(self):
+        if self.elixir_rate is not None:          # special modes: fixed rate
+            return self.elixir_rate
         if not self.timed:
             return 1.0
         if self.overtime:
@@ -1999,6 +2004,10 @@ class Match:
         self.add_elixir(PLAYER, cfg.ELIXIR_PER_SECOND * mult * dt)
         self.add_elixir(ENEMY, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)
 
+        if self.always_rage:
+            for e in self.entities:
+                if not e.is_tower:
+                    e.rage_timer = max(e.rage_timer, 0.2)
         for e in list(self.entities):
             self._src = (e.team, e.key)
             self._src_ent = e

@@ -1111,3 +1111,105 @@ def new_level_match(level, player_deck, card_levels=None, tower_level=None,
     m.banned = set(BANNED)
     m.miasma = (miasma_damage(), MIASMA_TICK)
     return m, LevelRun(m, level)
+
+
+# ===========================================================================
+#  ENDLESS SURVIVAL
+# ===========================================================================
+# Procedural waves that never stop. Each wave has an elixir "budget" that
+# grows with the wave number, spent on troops from tiers that unlock as you
+# go; every 5th wave is a boss wave. Enemy levels rise from 11 by one every
+# 3 waves (to 16), after which bosses keep getting tougher. Your cards use
+# their own levels (no catch-up), so upgrades matter.
+ENDLESS_POOLS = [
+    ["skeletons", "goblins", "spear_goblins", "bats", "minions", "archers",
+     "knight", "bomber", "ice_spirit", "fire_spirit", "guards", "dart_goblin"],
+    ["valkyrie", "musketeer", "mini_pekka", "wizard", "baby_dragon", "hog_rider",
+     "dark_prince", "prince", "lumberjack", "bandit", "mega_minion", "barbarians",
+     "skeleton_army", "witch", "executioner", "hunter", "electro_wizard",
+     "inferno_dragon", "battle_ram", "night_witch"],
+    ["giant", "pekka", "balloon", "giant_skeleton", "royal_giant", "elite_barbarians",
+     "bowler", "sparky", "goblin_giant", "electro_dragon", "minion_horde",
+     "golden_knight", "skeleton_king", "monk"],
+    ["golem", "mega_knight", "lava_hound", "electro_giant", "three_musketeers",
+     "boss_bandit", "goblinstein"],
+]
+ENDLESS_SPELLS = ["fireball", "arrows", "poison", "lightning", "snowball", "zap",
+                  "goblin_barrel", "graveyard"]
+ENDLESS_NAMES = ["Skirmish", "Raiders", "Vanguard", "Onslaught", "Stampede",
+                 "Ambush", "Warband", "Swarm", "Siege", "Horde", "Legion", "Storm"]
+
+
+def endless_wave(n, rng):
+    """Wave number n (1-based) of an Endless run."""
+    lv = min(16, 11 + (n - 1) // 3)
+    boss = n % 5 == 0
+    tiers = min(len(ENDLESS_POOLS), 1 + n // 3)
+    budget = 4 + n * 1.6
+    spawns = []
+    t = 0.0
+    lanes = ["left", "right", "mid"]
+    if boss:
+        key = rng.choice(ENDLESS_POOLS[min(3, 1 + n // 6)])
+        mult = 1.3 + 0.1 * (n // 5) + (0.08 * max(0, n - 18))
+        spawns.append(Spawn(key, 0.0, rng.choice(["left", "right"]), None, round(mult, 2)))
+        budget *= 0.45
+        t = 3.0
+    while budget >= 2:
+        pool = ENDLESS_POOLS[rng.randrange(tiers)]
+        key = rng.choice(pool)
+        c = cards.CARDS[key]
+        if c.elixir > budget + 1:
+            continue
+        budget -= c.elixir
+        place = "back" if c.range >= 4 else "field"
+        spawns.append(Spawn(key, t, rng.choice(lanes), None, 1.0, place))
+        t += rng.uniform(1.5, 4.0)
+    if n >= 4 and rng.random() < 0.45:
+        sp = rng.choice(ENDLESS_SPELLS)
+        place = "tower" if sp in ("goblin_barrel", "graveyard") else "army"
+        spawns.append(Spawn(sp, t + 2.0, rng.choice(["left", "right"]), None, 1.0, place))
+    name = ("BOSS " if boss else "") + rng.choice(ENDLESS_NAMES)
+    return Wave(name, spawns, level=lv, boss=boss,
+                bonus_elixir=4 if boss else (1 if n % 2 == 0 else 0),
+                timeout=60 if boss else 40)
+
+
+class EndlessRun(LevelRun):
+    """A LevelRun whose waves are generated on the fly, forever."""
+
+    def __init__(self, match, seed=None):
+        import random as _r
+        self.rng = _r.Random(seed)
+        lv = Level("endless", "Endless Survival", "Endless",
+                   "Waves never stop. How long can you last?", "skeleton_king",
+                   waves=[endless_wave(1, self.rng)], prep_first=8.0, prep=6.0)
+        super().__init__(match, lv)
+        self._show("Endless Survival", "how many waves can you hold?")
+
+    @property
+    def total_waves(self):
+        return 0                        # unlimited
+
+    def update(self, dt):
+        while len(self.level.waves) <= self.wave_idx + 1:
+            self.level.waves.append(endless_wave(len(self.level.waves) + 1, self.rng))
+        super().update(dt)
+
+    def waves_survived(self):
+        """Waves fully cleared (the current one counts if it was cleared)."""
+        if self.state == "prep":
+            return self.wave_number
+        return max(0, self.wave_number - 1)
+
+
+def new_endless_match(player_deck, card_levels=None, tower_level=None,
+                      evo_cards=None, hero_cards=None, seed=None):
+    from engine import Match
+    m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False,
+              card_levels={PLAYER: card_levels} if card_levels is not None else None,
+              tower_levels={PLAYER: tower_level} if tower_level is not None else None,
+              evo_cards={PLAYER: evo_cards or []}, hero_cards={PLAYER: hero_cards or []})
+    m.banned = set(BANNED)
+    m.miasma = (miasma_damage(), MIASMA_TICK)
+    return m, EndlessRun(m, seed)

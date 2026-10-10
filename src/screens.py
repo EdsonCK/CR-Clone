@@ -58,25 +58,6 @@ class ScreensMixin:
         elif self.state == "settings" and getattr(self, "settings_drag", None):
             self._settings_drag_to(pos[0])
 
-    # placeholders (filled in by later sections)
-    def _open_modes(self):
-        self.state = "modes"
-
-    def _mode_again(self):
-        self._open_modes()
-
-    def _draw_modes(self):
-        self._screen_title("Special Modes", 30)
-
-    def _modes_click(self, pos):
-        self.state = "menu"
-
-    def _draw_draft(self):
-        pass
-
-    def _draft_click(self, pos):
-        pass
-
     def _stats_buttons(self):
         return [Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
                        lambda: self._goto("result"), "dark")]

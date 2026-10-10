@@ -36,6 +36,7 @@ from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
 from ai import AIController
 from screens import ScreensMixin
+from modes import ModesMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -105,7 +106,7 @@ CHAIN_COLORS = {
 }
 
 
-class Game(ScreensMixin):
+class Game(ModesMixin, ScreensMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -804,6 +805,16 @@ class Game(ScreensMixin):
 
     def _on_match_end(self):
         w = self.match.winner
+        if self.mode == "endless":
+            self.result_text = "GAME OVER"
+            self.last_rewards = []
+            self._mode_rewards(w)
+            self.profile.save()
+            self._handle_events(self.match.take_events())
+            self.sfx.music(None)
+            self.sfx.play("defeat", 1.0, min_gap=0.0)
+            self.state = "result"
+            return
         if self.level_run is not None:
             run = self.level_run
             self.result_text = "VICTORY!" if w == PLAYER else "DEFEAT"
@@ -872,9 +883,6 @@ class Game(ScreensMixin):
     def _reward(self, label, gold=0, shards=0):
         self.profile.add(gold, shards)
         self.last_rewards.append((label, gold, shards))
-
-    def _mode_rewards(self, w):
-        """Special battles / Endless: overridden in screens.py."""
 
     # ================================================================= EVENTS
     def _events(self, dt):
@@ -2897,7 +2905,10 @@ class Game(ScreensMixin):
             self.screen.blit(grad_rect(chip.w, chip.h, lt_c(col, 20), col, 15), chip.topleft)
             pygame.draw.rect(self.screen, (150, 130, 80), chip, 1, border_radius=15)
             nxt = run.next_wave_in()
-            if run.state == "prep" and run.wave_number < run.total_waves:
+            if run.total_waves == 0:                    # Endless
+                label = ("Wave %d in %d" % (run.wave_number + 1, math.ceil(max(0, nxt)))
+                         if run.state == "prep" else "Wave %d" % run.wave_number)
+            elif run.state == "prep" and run.wave_number < run.total_waves:
                 label = "Wave %d in %d" % (run.wave_number + 1, math.ceil(max(0, nxt)))
             else:
                 label = "Wave %d / %d" % (run.wave_number, run.total_waves)
@@ -2909,6 +2920,10 @@ class Game(ScreensMixin):
             self._crown_icon(cfg.WINDOW_W - 52, cy, cfg.COLOR_TEAM_PLAYER)
             self._text("%d/3" % alive, self.font_m, topleft=(cfg.WINDOW_W - 40, cy - 12))
             return
+        if self.mode is not None and self.mode != "endless":
+            import modes as _modes
+            self._text(_modes.MODE_NAMES[self.mode], self.font_s, (240, 210, 140),
+                       center=(cfg.WINDOW_W // 2, cfg.TOP_BAR + 10))
         # timer chip (amber during overtime / boosted elixir)
         t = max(0, m.time_left)
         label = "%d:%02d" % (int(t) // 60, int(t) % 60)
@@ -3134,8 +3149,7 @@ class Game(ScreensMixin):
         if self.level_run is not None:
             run = self.level_run
             if self.mode == "endless":
-                self._text("Survived %d waves" % max(0, run.wave_number - 1 if not win
-                                                     else run.wave_number),
+                self._text("Survived %d waves" % run.waves_survived(),
                            self.font_m, center=(cx, mid - 6))
                 self._text("Best: wave %d" % self.profile.endless_best, self.font_sb,
                            (220, 224, 236), center=(cx, mid + 22))
