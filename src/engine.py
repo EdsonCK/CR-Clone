@@ -41,6 +41,14 @@ def dist(ax, ay, bx, by):
     return math.hypot(ax - bx, ay - by)
 
 
+class _Spot:
+    """A bare map position used as a movement goal."""
+    __slots__ = ("x", "y")
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+
+
 def _seg_dist(px, py, ax, ay, bx, by):
     """Distance from point P to segment AB."""
     abx, aby = bx - ax, by - ay
@@ -336,6 +344,12 @@ class Entity:
                 self.ramp_time = 0.0
                 self._ramp_id = tid
         if self.target is None:
+            # Levels: nothing in sight -> keep marching to where the enemy
+            # tower would be, until it would be in attack range
+            mp = match.march_point(self)
+            if mp is not None and not self.is_tower:
+                if dist(self.x, self.y, mp[0], mp[1]) > self.range + TOWER_R:
+                    self._move_toward(_Spot(mp[0], mp[1]), dt, match)
             return
 
         d = dist(self.x, self.y, self.target.x, self.target.y)
@@ -993,6 +1007,12 @@ class Match:
         self.elapsed = 0.0
         self.team_power = {}       # team -> (hp, dmg) multiplier for its spawns
         self.team_level = {}       # team -> unit level shown on its spawns
+        self.banned = set()        # cards that can't be played (Levels: win
+                                   #   conditions - there are no towers)
+        # Levels: a weak permanent poison over the enemy half, so you can't
+        # camp an army at their spawn. (damage per tick, seconds per tick)
+        self.miasma = None
+        self._miasma_t = 0.0
         self.entities = []
         self.projectiles = []
         self.effects = []
@@ -1118,6 +1138,8 @@ class Match:
             return False
         key = self.hands[team][hand_index]
         card = cards.CARDS[key]
+        if key in self.banned and team == PLAYER:
+            return False
         if self.elixir[team] < card.elixir:
             return False
         if not self.can_place(team, key, x, y):
@@ -1568,6 +1590,15 @@ class Match:
                 ent.target = None
         # "point" dashes (Guardian charge, Boss Bandit getaway) just stop
 
+    def march_point(self, ent):
+        """Levels (no enemy towers): where a troop with nothing to fight walks
+        to - the spot the enemy Princess Tower of its lane would stand on."""
+        if self.enemy_towers or ent.team != PLAYER or ent.is_building:
+            return None
+        side = "left" if ent.x < cfg.GRID_COLS / 2 else "right"
+        tw = self.towers[(ENEMY, side)]
+        return tw.x, tw.y
+
     def find_target(self, ent):
         """Nearest attackable enemy in sight; else march to nearest enemy tower."""
         best = None
@@ -1629,6 +1660,16 @@ class Match:
                     e._reflect_pending = False
         for p in list(self.projectiles):
             p.update(dt, self)
+        if self.miasma:
+            self._miasma_t += dt
+            dmg, every = self.miasma
+            while self._miasma_t >= every:
+                self._miasma_t -= every
+                for e in self.entities:
+                    if (e.alive and e.team == PLAYER and not e.is_tower
+                            and e.y < RIVER_TOP):
+                        e.take_damage(dmg)
+                        self.emit("miasma", e.key, e.x, e.y, PLAYER)
         for fx in list(self.effects):
             fx.update(dt, self)
 

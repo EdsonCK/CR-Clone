@@ -41,6 +41,7 @@ AI_DECK_FILE = os.path.join(_ROOT, "ai_custom_deck.json")
 STATS_FILE = os.path.join(_ROOT, "records.json")
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 PROGRESS_FILE = os.path.join(_ROOT, "progress.json")
+LEVEL_DECK_FILE = os.path.join(_ROOT, "level_deck.json")
 
 # Colors for spell telegraphs & detonations, roughly matching each spell.
 SPELL_FX_COLORS = {
@@ -226,7 +227,13 @@ class Game:
             pass
         pygame.init()
         pygame.display.set_caption("Clash Clone - Singleplayer")
-        self.screen = pygame.display.set_mode((cfg.WINDOW_W, cfg.WINDOW_H))
+        try:
+            # SCALED + RESIZABLE: drag the window smaller on small screens and
+            # the whole game scales with it (mouse clicks map automatically)
+            self.screen = pygame.display.set_mode(
+                (cfg.WINDOW_W, cfg.WINDOW_H), pygame.SCALED | pygame.RESIZABLE)
+        except pygame.error:
+            self.screen = pygame.display.set_mode((cfg.WINDOW_W, cfg.WINDOW_H))
         self.clock = pygame.time.Clock()
         sprites.ensure_sprites()
 
@@ -269,6 +276,10 @@ class Game:
         self.sfx.set_music_on(self.music_on)
         self.sfx.set_sfx_on(self.sfx_on)
         self.ai_custom_deck = self._load_deck(AI_DECK_FILE, cards.DEFAULT_AI_DECK)
+        self.level_deck = self._load_deck(LEVEL_DECK_FILE,
+                                          levels.default_level_deck(self.player_deck))
+        if levels.banned_in(self.level_deck):         # never keep a banned card
+            self.level_deck = levels.default_level_deck(self.level_deck)
         self.deck_scroll = 0        # vertical scroll offset in the deck builder
         self.deck_mode = "player"   # "player" or "ai" - which deck is being edited
         self.deck_return = "menu"   # screen to return to after editing a deck
@@ -325,7 +336,7 @@ class Game:
         return list(default)
 
     def _save_deck(self):
-        path = AI_DECK_FILE if self.deck_mode == "ai" else DECK_FILE
+        path = {"ai": AI_DECK_FILE, "level": LEVEL_DECK_FILE}.get(self.deck_mode, DECK_FILE)
         try:
             with open(path, "w") as f:
                 json.dump(self._active_deck(), f)
@@ -425,11 +436,15 @@ class Game:
 
     # which deck the builder is currently editing
     def _active_deck(self):
+        if self.deck_mode == "level":
+            return self.level_deck
         return self.ai_custom_deck if self.deck_mode == "ai" else self.player_deck
 
     def _set_active_deck(self, d):
         if self.deck_mode == "ai":
             self.ai_custom_deck = d
+        elif self.deck_mode == "level":
+            self.level_deck = d
         else:
             self.player_deck = d
 
@@ -531,13 +546,13 @@ class Game:
         lv = levels.LEVELS_BY_KEY.get(key)
         if lv is None or lv.locked:
             return
-        if len(self.player_deck) != cfg.DECK_SIZE:
-            self._open_player_deck("levels")
-            self.deck_msg = "Pick 8 cards first!"
+        if len(self.level_deck) != cfg.DECK_SIZE or levels.banned_in(self.level_deck):
+            self._open_deck_editor("level", "levels")
+            self.deck_msg = "Your Level Deck needs 8 cards (no win conditions)."
             return
         self._arena_surf = None
         self.level_key = key
-        self.match, self.level_run = levels.new_level_match(lv, self.player_deck)
+        self.match, self.level_run = levels.new_level_match(lv, self.level_deck)
         self.match.record_events = True
         self.ai = None
         self.selected = None
@@ -563,8 +578,8 @@ class Game:
             out.append(b)
         y = cfg.WINDOW_H - 60
         bw = (cfg.WINDOW_W - 44) // 2
-        out.append(Button((16, y, bw, 42), "Edit My Deck",
-                          lambda: self._open_player_deck("levels")))
+        out.append(Button((16, y, bw, 42), "Edit Level Deck",
+                          lambda: self._open_deck_editor("level", "levels")))
         out.append(Button((cfg.WINDOW_W - 16 - bw, y, bw, 42), "Main Menu",
                           lambda: self._goto("menu"), "dark"))
         return out
@@ -848,8 +863,8 @@ class Game:
         # center the hand in the space left of the Next box, with real margins
         x0 = (cfg.WINDOW_W - self.NEXT_BOX_W - 12 - total) // 2
         x0 = max(10, x0)
-        y0 = cfg.HUD_Y + 30
-        return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 92)
+        y0 = cfg.HUD_Y + 28
+        return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 88)
                 for i in range(n)]
 
     def _ability_btn_rect(self):
@@ -1148,7 +1163,10 @@ class Game:
         self.deck_msg = ""
 
     def _deck_default(self):
-        d = cards.DEFAULT_AI_DECK if self.deck_mode == "ai" else cards.DEFAULT_PLAYER_DECK
+        if self.deck_mode == "level":
+            d = levels.default_level_deck(self.player_deck)
+        else:
+            d = cards.DEFAULT_AI_DECK if self.deck_mode == "ai" else cards.DEFAULT_PLAYER_DECK
         self._set_active_deck(list(d))
         self.deck_msg = ""
 
@@ -1161,6 +1179,9 @@ class Game:
             return
         if card.is_champion and any(cards.CARDS[k].is_champion for k in deck):
             self.deck_msg = "Only 1 Champion per deck."
+            return
+        if self.deck_mode == "level" and card.key in levels.BANNED:
+            self.deck_msg = "Win conditions can't be used in Levels."
             return
         deck.append(card.key)
         self.deck_msg = ""
@@ -1539,8 +1560,8 @@ class Game:
             "Battle Setup: pick the AI's intelligence (1-5)",
             "and its elixir boost (0.5x-2x, 1x = even).",
             "",
-            "Levels: survive scripted waves (no enemy",
-            "towers). Lose no tower for 3 stars.",
+            "Levels: survive waves (no enemy towers, no",
+            "win conditions). Lose no tower for 3 stars.",
             "",
             "M = music on/off      N = sound on/off",
             "",
@@ -1571,7 +1592,8 @@ class Game:
         cx = cfg.WINDOW_W // 2
         deck = self._active_deck()
         mouse = pygame.mouse.get_pos()
-        title = "Edit AI Deck" if self.deck_mode == "ai" else "Edit Your Deck"
+        title = {"ai": "Edit AI Deck", "level": "Edit Level Deck"}.get(
+            self.deck_mode, "Edit Your Deck")
         self._text(title, self.font_l, center=(cx, 22))
         avg = (sum(cards.CARDS[k].elixir for k in deck) / len(deck) if deck else 0)
         full = len(deck) == cfg.DECK_SIZE
@@ -1669,6 +1691,15 @@ class Game:
                                    (ck[0] + 4, ck[1] - 3)], 2)
             self._text(self._fit(card.name, self.font_s, r.w - 4), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
+            if self.deck_mode == "level" and card.key in levels.BANNED:
+                # win conditions are locked out of Levels: grey + "no" sign
+                shade = pygame.Surface(r.size, pygame.SRCALPHA)
+                pygame.draw.rect(shade, (14, 14, 20, 175), shade.get_rect(), border_radius=7)
+                self.screen.blit(shade, r.topleft)
+                c0 = (r.centerx, r.y + 26)
+                pygame.draw.circle(self.screen, (220, 60, 60), c0, 13, 3)
+                pygame.draw.line(self.screen, (220, 60, 60), (c0[0] - 9, c0[1] + 9),
+                                 (c0[0] + 9, c0[1] - 9), 3)
         self.screen.set_clip(None)
 
         # ---- scrollbar (drag it, or use the mouse wheel) ----
@@ -1690,6 +1721,8 @@ class Game:
     def _draw_match(self):
         self._draw_arena()
         m = self.match
+        if m.miasma:
+            self._draw_miasma()
         self._draw_no_deploy_zone()
         self.fx.draw_decals(self.screen)
         for e in m.entities:
@@ -1739,11 +1772,11 @@ class Game:
         self._arena_key = key
         enemy_towers = key[0]
         ts = cfg.TILE_SIZE
-        B = cfg.ARENA_BORDER
-        W, H = cfg.WINDOW_W, cfg.ARENA_PX_H + 2 * B
+        BX, BY = cfg.ARENA_BORDER_X, cfg.ARENA_BORDER_Y
+        W, H = cfg.WINDOW_W, cfg.ARENA_PX_H + 2 * BY
         surf = pygame.Surface((W, H))
         rng = random.Random(11)
-        ox, oy = B, B                          # grid origin inside this surface
+        ox, oy = BX, BY                        # grid origin inside this surface
         # ---- scenery ground around the arena ----
         surf.fill((58, 112, 62))
         for _ in range(900):                   # grass texture
@@ -1804,12 +1837,14 @@ class Game:
             y = rng.randint(4, 30)
             while y < H - 10:
                 if not (ry - 16 < y < ry + rh + 16):
-                    x = rng.uniform(-6, B - 12) if side == 0 else W - rng.uniform(-6, B - 12)
-                    tree(x, y, rng.randint(11, 17))
-                y += rng.randint(26, 46)
+                    for col_ in range(2):          # two staggered rows of trees
+                        xx = rng.uniform(4, BX * 0.45) + col_ * BX * 0.45
+                        x = xx if side == 0 else W - xx
+                        tree(x, y + col_ * 12, rng.randint(10, 15))
+                y += rng.randint(24, 40)
         for _ in range(26):                    # bushes / rocks / flowers top & bottom
-            x = rng.uniform(B, W - B)
-            y = rng.choice((rng.uniform(4, B - 10), H - rng.uniform(4, B - 10)))
+            x = rng.uniform(BX, W - BX)
+            y = rng.choice((rng.uniform(4, BY - 10), H - rng.uniform(4, BY - 10)))
             kind = rng.random()
             if kind < 0.45:
                 pygame.draw.circle(surf, (44, 92, 48), (int(x), int(y)), 6)
@@ -1894,6 +1929,26 @@ class Game:
                 x, y = tile_to_px(c, 0)
                 pygame.draw.line(self.screen, (0, 0, 0), (x, cfg.ARENA_Y0),
                                  (x, cfg.ARENA_Y0 + cfg.ARENA_PX_H))
+
+    def _draw_miasma(self):
+        """Levels: the Crypt Miasma - a faint drifting haze on the enemy half."""
+        ts = cfg.TILE_SIZE
+        h = int(RIVER_TOP * ts)
+        surf = getattr(self, "_miasma_surf", None)
+        if surf is None:
+            surf = pygame.Surface((cfg.ARENA_PX_W, h), pygame.SRCALPHA)
+            surf.fill((70, 140, 60, 26))
+            rng = random.Random(4)
+            for _ in range(40):
+                r = rng.randint(14, 34)
+                pygame.draw.circle(surf, (110, 170, 80, 18),
+                                   (rng.randrange(cfg.ARENA_PX_W), rng.randrange(h)), r)
+            self._miasma_surf = surf
+        t = self._now()
+        dx = int(math.sin(t * 0.4) * 8)
+        self.screen.set_clip(pygame.Rect(cfg.ARENA_X0, cfg.ARENA_Y0, cfg.ARENA_PX_W, h))
+        self.screen.blit(surf, (cfg.ARENA_X0 + dx, cfg.ARENA_Y0))
+        self.screen.set_clip(None)
 
     def _draw_no_deploy_zone(self):
         """While a card is selected, tint the tiles you can't deploy on."""
@@ -2419,11 +2474,11 @@ class Game:
                 pygame.draw.rect(self.screen, (250, 240, 140), r, 3, border_radius=9)
             elif affordable:
                 pygame.draw.rect(self.screen, (96, 108, 138), r, 1, border_radius=9)
-            spr = sprites.get_sprite(key, 52)
+            spr = sprites.get_sprite(key, 50)
             if not affordable:
                 spr = spr.copy()
                 spr.fill((90, 90, 90, 160), special_flags=pygame.BLEND_RGBA_MULT)
-            self.screen.blit(spr, (r.centerx - 26, r.y + 8))
+            self.screen.blit(spr, (r.centerx - 25, r.y + 7))
             # cost badge (top-left, so the name row gets full width)
             pygame.draw.circle(self.screen, dk_c(cfg.COLOR_ELIXIR, 40),
                                (r.x + 11, r.y + 12), 10)
@@ -2587,15 +2642,14 @@ class Game:
                            topleft=(r.x + 128, r.bottom - 30))
         for b in btns:
             b.draw(self.screen, self.font_m)
-        # your deck
-        if self.player_deck:
-            n = len(self.player_deck)
-            sz, gap = 36, 6
-            total = n * sz + (n - 1) * gap
-            x0 = cx - total // 2
-            strip = self._panel((x0 - 12, cfg.WINDOW_H - 138, total + 24, 60))
-            self._text("Your Deck", self.font_sb, center=(cx, strip.y - 2))
-            for i, k in enumerate(self.player_deck):
-                self.screen.blit(sprites.get_sprite(k, sz), (x0 + i * (sz + gap), strip.y + 14))
+        # the Levels deck (separate from your battle deck: no win conditions)
+        deck = self.level_deck
+        sz, gap = 36, 6
+        total = 8 * sz + 7 * gap
+        x0 = cx - total // 2
+        strip = self._panel((x0 - 12, cfg.WINDOW_H - 134, total + 24, 60))
+        self._text("Level Deck  (no win conditions)", self.font_sb, center=(cx, strip.y - 2))
+        for i, k in enumerate(deck):
+            self.screen.blit(sprites.get_sprite(k, sz), (x0 + i * (sz + gap), strip.y + 14))
 
 

@@ -5,7 +5,11 @@
 
 In a level the opponent has NO towers. Scripted waves of enemies march at
 yours and the only goal is to survive them all with your King Tower
-standing. Stars: 3 = no tower lost, 2 = one Princess Tower lost,
+standing. Because there are no towers to hit, win conditions (cards that
+only attack buildings) can't be used - Levels have their own deck. With
+nothing to fight, your troops march to where the enemy towers would be; a
+weak permanent poison (the Crypt Miasma) hangs over the enemy half so an army
+can't camp their spawn: it kills a Goblin on the 6th one-second tick. Stars: 3 = no tower lost, 2 = one Princess Tower lost,
 1 = both lost (King Tower falling = defeat).
 
 Unit levels
@@ -124,16 +128,134 @@ LEVELS = [
                 Spawn("bomber", 3, "left", place="back"),
                 Spawn("skeleton_army", 7, "right"),
             ]),
-            Wave("Twin Titans", level=11, boss=True, bonus_elixir=5, timeout=90,
+            Wave("Twin Titans", level=11, boss=True, bonus_elixir=6, timeout=90,
                  spawns=[
                      Spawn("giant_skeleton", 0, "left", mult=2.0),
-                     Spawn("giant_skeleton", 10, "right", mult=2.0),
+                     Spawn("giant_skeleton", 16, "right", mult=2.0),
                  ]),
         ]),
-    # placeholders so the series shows on the Levels screen
-    Level("coming_2", "???", "Level 2", "Coming soon.", "goblin_giant", [], locked=True),
-    Level("coming_3", "???", "Level 3", "Coming soon.", "pekka", [], locked=True),
+    Level(
+        "goblin_ambush", "Goblin Ambush", "Level 2",
+        "The goblin clans have dug in. Darts from the trees, barrels from the "
+        "sky, huts, giants and a mad doctor - then the Warlords arrive.",
+        "goblin_giant",
+        waves=[
+            Wave("Scouts", level=11, spawns=[
+                Spawn("goblins", 0, "left"),
+                Spawn("spear_goblins", 3, "right"),
+                Spawn("goblins", 7, "right"),
+            ]),
+            Wave("Dart Volley", level=11, spawns=[
+                Spawn("goblins", 0, "left"),
+                Spawn("dart_goblin", 1, "left", place="back"),
+                Spawn("spear_goblins", 5, "right"),
+                Spawn("dart_goblin", 6, "right", place="back"),
+            ]),
+            Wave("Barrels Incoming", level=11, spawns=[
+                Spawn("goblin_barrel", 0, "left", place="tower"),
+                Spawn("spear_goblins", 3, "mid"),
+                Spawn("goblin_barrel", 7, "right", place="tower"),
+            ]),
+            Wave("Hut Raid", level=12, spawns=[
+                Spawn("goblin_hut", 0, "mid", place="front"),
+                Spawn("goblins", 4, "left"),
+                Spawn("goblins", 9, "right"),
+            ]),
+            Wave("Big Green", level=11, spawns=[
+                Spawn("goblin_giant", 0, "left"),
+                Spawn("spear_goblins", 2, "left", place="back"),
+                Spawn("dart_goblin", 6, "right"),
+            ]),
+            Wave("Mad Science", level=12, spawns=[
+                Spawn("goblinstein", 0, "right"),
+                Spawn("goblins", 3, "left"),
+                Spawn("goblin_barrel", 6, "left", place="tower"),
+            ]),
+            Wave("The Warlords", level=11, boss=True, bonus_elixir=6, timeout=100,
+                 spawns=[
+                     Spawn("goblin_giant", 0, "left", mult=1.5),
+                     Spawn("spear_goblins", 6, "left", place="back", level=12),
+                     Spawn("goblin_giant", 16, "right", mult=1.5),
+                     Spawn("spear_goblins", 20, "right", place="back", level=12),
+                 ]),
+        ]),
+    Level(
+        "iron_legion", "The Iron Legion", "Level 3",
+        "Armoured P.E.K.K.As march under a sky black with wings. Mini "
+        "P.E.K.K.As cut through anything in reach - and two titans close "
+        "the gates behind them.",
+        "pekka",
+        waves=[
+            Wave("Black Wings", level=12, spawns=[
+                Spawn("bats", 0, "left"),
+                Spawn("minions", 3, "right"),
+                Spawn("bats", 7, "right"),
+            ]),
+            Wave("Little Iron", level=12, spawns=[
+                Spawn("mini_pekka", 0, "left"),
+                Spawn("minions", 2, "left", place="back"),
+                Spawn("mini_pekka", 7, "right"),
+            ]),
+            Wave("The Swarm", level=12, spawns=[
+                Spawn("minion_horde", 0, "mid"),
+                Spawn("bats", 5, "left"),
+                Spawn("bats", 7, "right"),
+            ]),
+            Wave("Night Shift", level=12, spawns=[
+                Spawn("night_witch", 0, "left"),
+                Spawn("mega_minion", 3, "right"),
+                Spawn("dark_prince", 5, "right"),
+            ]),
+            Wave("Iron Knight", level=13, spawns=[
+                Spawn("pekka", 0, "left"),
+                Spawn("minions", 3, "left", place="back"),
+                Spawn("bats", 6, "right"),
+            ]),
+            Wave("Twin Blades", level=13, spawns=[
+                Spawn("mini_pekka", 0, "left"),
+                Spawn("mini_pekka", 1, "right"),
+                Spawn("minion_horde", 5, "mid"),
+                Spawn("mega_minion", 8, "left"),
+            ]),
+            Wave("The Iron Titans", level=11, boss=True, bonus_elixir=7, timeout=110,
+                 spawns=[
+                     Spawn("pekka", 0, "left", mult=2.0),
+                     Spawn("minions", 4, "left", place="back", level=13),
+                     Spawn("pekka", 18, "right", mult=2.0),
+                     Spawn("bats", 20, "right", place="back", level=13),
+                 ]),
+        ]),
 ]
+
+# Win conditions only hit buildings - with no enemy towers they'd do
+# nothing, so they can't be used in Levels.
+BANNED = frozenset(c.key for c in cards.DEPLOYABLE_CARDS if c.attacks == "buildings")
+
+
+def banned_in(deck):
+    return [k for k in deck if k in BANNED]
+
+
+def default_level_deck(base=None):
+    """A Levels-legal deck: your deck minus win conditions, topped up."""
+    fill = ["knight", "musketeer", "valkyrie", "archers", "fireball", "zap",
+            "cannon", "minions", "baby_dragon", "mini_pekka", "wizard", "arrows"]
+    deck = [k for k in (base or []) if k not in BANNED][:8]
+    champ = any(cards.CARDS[k].is_champion for k in deck)
+    for k in fill:
+        if len(deck) >= 8:
+            break
+        if k not in deck and not (champ and cards.CARDS[k].is_champion):
+            deck.append(k)
+    return deck
+
+MIASMA_TICK = 1.0        # seconds between poison ticks on the enemy half
+
+
+def miasma_damage():
+    """Tiny poison: a Goblin dies on the 6th tick, everything else lasts longer."""
+    import math
+    return math.ceil(cards.CARDS["goblins"].hp / 6.0)
 LEVELS_BY_KEY = {lv.key: lv for lv in LEVELS}
 
 
@@ -272,4 +394,6 @@ def new_level_match(level, player_deck):
     """A Match set up for a level: no enemy towers, no clock."""
     from engine import Match
     m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False)
+    m.banned = set(BANNED)
+    m.miasma = (miasma_damage(), MIASMA_TICK)
     return m, LevelRun(m, level)

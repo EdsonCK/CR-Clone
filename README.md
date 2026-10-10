@@ -49,9 +49,27 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 
 **Levels** on the main menu are set-piece challenges. The opponent has **no
 towers**: scripted waves of enemies march at yours, and your only goal is to
-survive them all with your King Tower standing. You use your own deck and can
-only deploy on your half. Stars: 3 = no tower lost, 2 = one Princess Tower
-lost, 1 = both lost. Your best stars are saved in `progress.json`.
+survive them all with your King Tower standing. You can only deploy on your
+half. Stars: 3 = no tower lost, 2 = one Princess Tower lost, 1 = both lost.
+Your best stars are saved in `progress.json`.
+
+Level rules:
+
+* **Level Deck** – Levels use their own deck (**Edit Level Deck** on the
+  Levels screen, saved in `level_deck.json`). With no towers to hit, **win
+  conditions are banned**: Giant, Golem, Hog Rider, Balloon, Royal Giant,
+  Lava Hound, Battle Ram, Wall Breakers, Skeleton Barrel, Goblin Giant,
+  Electro Giant, Elixir Golem, Ice Golem, X-Bow and Mortar are greyed out in
+  the editor and can't be played.
+* **Marching** – your troops don't stand around waiting. With nothing to
+  fight they march up their lane until the spot where the enemy Princess
+  Tower would be is within their attack range, then hold there.
+* **Crypt Miasma** – the whole enemy half is covered in a faint poison haze.
+  Your troops standing in it take 16 damage every second (a Goblin dies on
+  the 6th tick), so you can't build an army at the spawn and camp the waves.
+
+The window is 420×800. It can be resized (or maximised) and the game scales
+to fit.
 
 Enemy units have **levels**. Card stats count as level 11, and every level
 above that adds +10% HP and damage (compounding), as in Clash Royale. Each
@@ -62,9 +80,24 @@ red **BOSS** tag.
 Skeletons, Guards + Bomber, Skeleton Army, Wall Breakers + Skeleton Barrel,
 Tombstone + a Graveyard on your tower, the Skeleton King (level 12), and
 finally a boss wave of **two Giant Skeletons with double HP and damage**
-(their death bombs too). You get +5 elixir when the boss wave starts. In
-simulated playtests a "Skilled" AI defender won about 3 in 4 runs and an
-"Expert" one about 11 in 12.
+(their death bombs too). You get +6 elixir when the boss wave starts.
+
+**Level 2 – Goblin Ambush** is all goblins: Goblins and Spear Goblins,
+a Dart Goblin volley, Goblin Barrels thrown at your towers, a Goblin Hut raid,
+a level-11 Goblin Giant, Goblinstein with a Goblin Barrel, and the boss wave
+**"The Warlords"**: two Goblin Giants at 1.5x HP and damage with level-12
+Spear Goblin backup.
+
+**Level 3 – Iron Legion** is the hardest: Bats and Minions, Mini P.E.K.K.As,
+a Minion Horde swarm, Night Witch + Mega Minion + Dark Prince, a level-13
+P.E.K.K.A with air cover, twin Mini P.E.K.K.As with a Minion Horde, and the
+boss wave **"The Iron Titans"**: two P.E.K.K.As with double HP and damage
+plus level-13 Minions and Bats.
+
+In simulated playtests with a sensible level deck, a "Skilled" AI defender
+cleared Level 1 about half the time, Level 2 about 1 in 6 and Level 3 about
+1 in 12; an "Expert" one cleared Level 1 every time, Level 2 10 in 12 and
+Level 3 8 in 12.
 
 New levels are plain data: see the docstring at the top of `src/levels.py`.
 
