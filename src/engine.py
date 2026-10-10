@@ -70,6 +70,8 @@ class Entity:
         self.key = card.key
         # (hp, damage) multipliers inherited from the card that spawned us
         self.power = power or (1.0, 1.0)
+        self.level = None          # unit level badge (Levels mode)
+        self.boss = False
         self.team = team
         self.x = x
         self.y = y
@@ -306,7 +308,7 @@ class Entity:
                 fwd = -1 if self.team == PLAYER else 1
                 match.spawn_units(self.team, ukey, ucount, self.x,
                                   self.y + fwd * 1.2, deploy=0.0,
-                                  power=self.child_power())
+                                  power=self.child_power(), level=self.level)
 
         if self.attack_cd > 0:
             self.attack_cd -= dt
@@ -503,6 +505,7 @@ class Entity:
                 return
             if self.card.death_damage:
                 rad, kdmg = self.card.death_damage
+                kdmg *= self.power[1]
             else:
                 rad, kdmg = max(self.card.splash, 1.2), self.dmg
             # blast is centered at the point of CONTACT with the target, so
@@ -654,6 +657,7 @@ class Entity:
         # before attacking they simply die with no blast
         if c.death_damage and not c.kamikaze:
             radius, ddmg = c.death_damage
+            ddmg *= self.power[1]
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
                                         radius, 0.35, card_key=self.key))
             match.area_damage(self.team, self.x, self.y, radius, ddmg, hit_air=True,
@@ -664,7 +668,7 @@ class Entity:
                 match.effects.append(Effect("rage", self.team, self.x, self.y, 3.0, 4.0))
             elif ukey in cards.CARDS and ucount > 0:
                 match.spawn_units(self.team, ukey, ucount, self.x, self.y, deploy=0.0,
-                                  power=self.child_power())
+                                  power=self.child_power(), level=self.level)
 
 
 # ===========================================================================
@@ -950,10 +954,12 @@ class Effect:
                 ang = random.uniform(0, 2 * math.pi)
                 rr = random.uniform(0, self.radius)
                 gc = cards.CARDS.get(self.card_key or "graveyard")
+                tp = match.team_power.get(self.team, (1.0, 1.0))
                 match.spawn_units(self.team, "skeleton", 1,
                                   self.x + math.cos(ang) * rr,
                                   self.y + math.sin(ang) * rr, deploy=0.0,
-                                  power=(gc.sub_hp_mult, gc.sub_dmg_mult) if gc else None)
+                                  power=((gc.sub_hp_mult if gc else 1) * tp[0],
+                                         (gc.sub_dmg_mult if gc else 1) * tp[1]))
         elif self.kind == "rage":
             for e in match.entities:
                 if e.alive and e.team == self.team and dist(self.x, self.y, e.x, e.y) <= self.radius:
@@ -977,10 +983,16 @@ class Effect:
 #  MATCH
 # ===========================================================================
 class Match:
-    def __init__(self, player_deck, ai_deck):
+    def __init__(self, player_deck, ai_deck, enemy_towers=True, timed=True):
         # sound / visual-effect events for the game layer (off in simulations)
         self.record_events = False
         self.events = []
+        # Levels mode: the opponent has no towers and the clock doesn't run
+        self.enemy_towers = enemy_towers
+        self.timed = timed
+        self.elapsed = 0.0
+        self.team_power = {}       # team -> (hp, dmg) multiplier for its spawns
+        self.team_level = {}       # team -> unit level shown on its spawns
         self.entities = []
         self.projectiles = []
         self.effects = []
@@ -1005,6 +1017,14 @@ class Match:
         self.next_card = [self.queues[t][0] if self.queues[t] else None for t in (PLAYER, ENEMY)]
 
         self._setup_towers()
+        if not enemy_towers:
+            # the towers exist (so rules code stays simple) but are gone
+            for side in ("left", "right", "king"):
+                tw = self.towers[(ENEMY, side)]
+                tw.alive = False
+                tw.hp = 0
+                tw._death_done = True
+                self.entities.remove(tw)
 
     # ---- setup -------------------------------------------------------------
     def _setup_towers(self):
@@ -1046,6 +1066,8 @@ class Match:
 
     # ---- elixir ------------------------------------------------------------
     def elixir_multiplier(self):
+        if not self.timed:
+            return 1.0
         if self.overtime:
             return cfg.TRIPLE_ELIXIR_MULT
         if self.time_left <= cfg.DOUBLE_ELIXIR_AT:
@@ -1067,8 +1089,10 @@ class Match:
         if RIVER_TOP - 0.2 <= y <= RIVER_BOTTOM + 0.2:
             return False
         # "deploy anywhere" troops (e.g. Miner) ignore the half-field rule
-        if card.deploy_anywhere:
+        if card.deploy_anywhere and self.enemy_towers:
             return True
+        if not self.enemy_towers and team == PLAYER:
+            return y > RIVER_BOTTOM               # Levels: defend your half
         own_bottom = (team == PLAYER)
         if own_bottom:
             if y > RIVER_BOTTOM:
@@ -1123,10 +1147,14 @@ class Match:
                     units[0].partner = comp[0]
                     comp[0].partner = units[0]
 
-    def spawn_units(self, team, key, count, x, y, deploy=None, power=None):
+    def spawn_units(self, team, key, count, x, y, deploy=None, power=None, level=None):
         """Create `count` units of `key` around (x, y); returns them."""
         card = cards.CARDS[key]
         made = []
+        if power is None and team in self.team_power:
+            power = self.team_power[team]          # Levels: wave unit level
+        if level is None:
+            level = self.team_level.get(team)
         if count <= 1:
             made.append(Entity(card, team, x, y, deploy=deploy, power=power))
         else:
@@ -1138,6 +1166,7 @@ class Match:
                 made.append(Entity(card, team, ox, oy, deploy=deploy, power=power))
         for e in made:
             e._match_ref = self
+            e.level = level
         self.entities.extend(made)
         # landing shockwave (Mega Knight slam, Electro Wizard zap, Ice Wizard)
         if card.spawn_damage:
@@ -1603,9 +1632,11 @@ class Match:
         for fx in list(self.effects):
             fx.update(dt, self)
 
-        # process deaths
-        for e in list(self.entities):
-            if not e.alive and not e._death_done:
+        # process deaths (repeat: a death can kill more - e.g. a death bomb)
+        while any(not e.alive and not e._death_done for e in self.entities):
+            for e in list(self.entities):
+                if e.alive or e._death_done:
+                    continue
                 e._death_done = True
                 self.emit("death", e.key, e.x, e.y, e.team, tower=e.is_tower,
                           king=e.is_king, building=e.is_building,
@@ -1621,6 +1652,9 @@ class Match:
         self.effects = [fx for fx in self.effects if fx.alive]
 
         # timer
+        self.elapsed += dt
+        if not self.timed:
+            return
         self.time_left -= dt
         if self.time_left <= 0:
             self._advance_phase()

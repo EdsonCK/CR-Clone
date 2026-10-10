@@ -93,6 +93,7 @@ class AIController:
         self._noise = 0.0
         self._noise_t = 0.0
         self.last_def_lane = None
+        self.defend_only = False           # Levels playtests: never attack
         self.plan = None                   # lookahead search in progress
         self.search_horizon = 10.0 if self.lv(5) else 4.0
         self.search_wide = self.lv(5)      # more cards / spots per search
@@ -350,10 +351,11 @@ class AIController:
         prim = threats[0]
         group = self._group(prim, threats)
         gs = self._group_stats(group)
-        if self._tower_can_handle(gs, group):
+        flush = self._el() >= 9.0          # full on elixir: never just watch
+        if not flush and self._tower_can_handle(gs, group):
             return False
         # defended enough already? (lots of my units near the threat)
-        if self.lv(3):
+        if self.lv(3) and not flush:
             mine = [u for u in self._my_units()
                     if dist(u.x, u.y, prim.x, prim.y) <= 4.0]
             mine_val = sum(_share(u.card) * u.hp / max(u.max_hp, 1) for u in mine)
@@ -1047,6 +1049,8 @@ class AIController:
             elif self._try_defend(threats):
                 return
         if self._try_value_spell():
+            return
+        if self.defend_only:
             return
         if not threats and self._try_buildings():
             return

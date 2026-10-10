@@ -30,6 +30,7 @@ import cards
 import sprites
 import sounds
 import fx as fxmod
+import levels
 from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
 from ai import AIController
@@ -39,6 +40,7 @@ DECK_FILE = os.path.join(_ROOT, "player_deck.json")
 AI_DECK_FILE = os.path.join(_ROOT, "ai_custom_deck.json")
 STATS_FILE = os.path.join(_ROOT, "records.json")
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
+PROGRESS_FILE = os.path.join(_ROOT, "progress.json")
 
 # Colors for spell telegraphs & detonations, roughly matching each spell.
 SPELL_FX_COLORS = {
@@ -114,35 +116,101 @@ def px_to_tile(px, py):
     return ((px - cfg.ARENA_X0) / cfg.TILE_SIZE, (py - cfg.ARENA_Y0) / cfg.TILE_SIZE)
 
 
+WHITE = (255, 255, 255)
+_TEXT_CACHE = {}
+
+
+def render_text(font, text, color=WHITE, outline=True, outline_col=(0, 0, 0)):
+    """Text surface; big text gets a thin black outline (cached)."""
+    key = (id(font), text, color, outline, outline_col)
+    surf = _TEXT_CACHE.get(key)
+    if surf is not None:
+        return surf
+    base = font.render(text, True, color)
+    if not outline:
+        surf = base
+    else:
+        edge = font.render(text, True, outline_col)
+        w, h = base.get_width() + 2, base.get_height() + 2
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        for dx, dy in ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0),
+                       (-1, 1), (0, 1), (1, 1)):
+            surf.blit(edge, (1 + dx, 1 + dy))
+        surf.blit(base, (1, 1))
+    if len(_TEXT_CACHE) > 4000:
+        _TEXT_CACHE.clear()
+    _TEXT_CACHE[key] = surf
+    return surf
+
+
+_GRAD_CACHE = {}
+
+
+def grad_rect(w, h, top, bottom, radius=10):
+    """Rounded rectangle with a vertical gradient (cached surface)."""
+    key = (w, h, top, bottom, radius)
+    surf = _GRAD_CACHE.get(key)
+    if surf is None:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        for y in range(h):
+            t = y / max(1, h - 1)
+            c = tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3))
+            pygame.draw.line(surf, c, (0, y), (w, y))
+        mask = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, w, h), border_radius=radius)
+        surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+        if len(_GRAD_CACHE) > 400:
+            _GRAD_CACHE.clear()
+        _GRAD_CACHE[key] = surf
+    return surf
+
+
+BUTTON_STYLES = {
+    #           top              bottom           border
+    "primary": ((88, 132, 214), (46, 78, 150), (24, 34, 66)),
+    "go":      ((108, 200, 96), (52, 138, 58), (22, 60, 26)),
+    "gold":    ((250, 206, 92), (196, 140, 40), (90, 60, 14)),
+    "dark":    ((70, 78, 100), (42, 48, 64), (16, 18, 26)),
+    "danger":  ((226, 98, 88), (160, 52, 48), (70, 20, 18)),
+}
+
+
 class Button:
-    def __init__(self, rect, label, cb):
+    def __init__(self, rect, label, cb, style="primary"):
         self.rect = pygame.Rect(rect)
         self.label = label
         self.cb = cb
+        self.style = style
+        self.enabled = True
 
     def draw(self, surf, font):
         mouse = pygame.mouse.get_pos()
-        hover = self.rect.collidepoint(mouse)
-        r = self.rect.inflate(6, 4) if hover else self.rect
-        # drop shadow
-        sh = r.move(0, 3)
-        pygame.draw.rect(surf, (15, 18, 26), sh, border_radius=10)
-        color = cfg.COLOR_BUTTON_HOVER if hover else cfg.COLOR_BUTTON
-        pygame.draw.rect(surf, color, r, border_radius=10)
-        # top sheen + border
-        sheen = pygame.Rect(r.x + 3, r.y + 3, r.w - 6, r.h // 2 - 3)
-        pygame.draw.rect(surf, tuple(min(255, c + 22) for c in color), sheen,
-                         border_radius=8)
-        pygame.draw.rect(surf, (250, 240, 150) if hover else (20, 24, 32), r,
-                         2, border_radius=10)
-        txt = font.render(self.label, True, cfg.COLOR_TEXT)
+        hover = self.rect.collidepoint(mouse) and self.enabled
+        pressed = hover and pygame.mouse.get_pressed()[0]
+        top, bot, border = BUTTON_STYLES.get(self.style, BUTTON_STYLES["primary"])
+        if not self.enabled:
+            top, bot = (80, 82, 90), (56, 58, 66)
+        elif hover:
+            top, bot = lt_c(top, 18), lt_c(bot, 14)
+        r = self.rect.move(0, 2 if pressed else 0)
+        # drop shadow (shorter when pressed)
+        pygame.draw.rect(surf, (10, 12, 18), self.rect.move(0, 4), border_radius=11)
+        surf.blit(grad_rect(r.w, r.h, top, bot, 11), r.topleft)
+        # glossy top highlight
+        hl = pygame.Rect(r.x + 4, r.y + 3, r.w - 8, max(2, r.h // 3))
+        gl = pygame.Surface(hl.size, pygame.SRCALPHA)
+        pygame.draw.rect(gl, (255, 255, 255, 38), gl.get_rect(), border_radius=8)
+        surf.blit(gl, hl.topleft)
+        pygame.draw.rect(surf, (255, 222, 110) if hover else border, r,
+                         2, border_radius=11)
+        txt = render_text(font, self.label, WHITE if self.enabled else (190, 190, 190))
         surf.blit(txt, (r.centerx - txt.get_width() // 2,
                         r.centery - txt.get_height() // 2))
 
     click_sound = None      # set by Game: plays the UI click
 
     def click(self, pos):
-        if self.rect.collidepoint(pos):
+        if self.enabled and self.rect.collidepoint(pos):
             if Button.click_sound:
                 Button.click_sound()
             self.cb()
@@ -163,9 +231,11 @@ class Game:
         sprites.ensure_sprites()
 
         self.font_s = pygame.font.SysFont("arial", 13)
-        self.font_m = pygame.font.SysFont("arial", 18, bold=True)
-        self.font_l = pygame.font.SysFont("arial", 30, bold=True)
-        self.font_xl = pygame.font.SysFont("arial", 44, bold=True)
+        self.font_sb = pygame.font.SysFont("arial", 14, bold=True)
+        self.font_m = pygame.font.SysFont("arial", 19, bold=True)
+        self.font_l = pygame.font.SysFont("arial", 32, bold=True)
+        self.font_xl = pygame.font.SysFont("arial", 46, bold=True)
+        self.font_title = pygame.font.SysFont("arial", 50, bold=True)
 
         # music & sound effects (rendered once into assets/sounds)
         sounds.ensure_sounds(progress=self._loading_screen)
@@ -175,6 +245,10 @@ class Game:
         self.sfx_on = True
         self._audio = {}
         self.fx = fxmod.FX()
+        self._arena_surf = None
+        self.level_run = None          # LevelRun while playing a level
+        self.level_key = None
+        self.progress = self._load_progress()
 
         self.state = "menu"
         self.running = True
@@ -362,25 +436,27 @@ class Game:
     # -------------------------------------------------------------- menu
     def _build_menu_buttons(self):
         cx = cfg.WINDOW_W // 2
-        w, h = 220, 42
-        y0 = 196
-        gap = 50
+        w, h = 270, 50
+        y0 = 232
+        gap = 60
         labels = [
-            ("Battle", self._open_prematch),
-            ("Edit Deck", lambda: self._open_player_deck("menu")),
-            ("AI Deck", lambda: self._open_aideck("menu")),
-            ("Records", lambda: self._goto("records")),
-            ("How To Play", lambda: self._goto("help")),
-            ("Quit", self._quit),
+            ("Battle", self._open_prematch, "go"),
+            ("Levels", lambda: self._goto("levels"), "gold"),
+            ("Edit Deck", lambda: self._open_player_deck("menu"), "primary"),
+            ("AI Deck", lambda: self._open_aideck("menu"), "primary"),
+            ("Records", lambda: self._goto("records"), "primary"),
+            ("How To Play", lambda: self._goto("help"), "primary"),
+            ("Quit", self._quit, "danger"),
         ]
         self.menu_buttons = [
-            Button((cx - w // 2, y0 + i * gap, w, h), lbl, cb)
-            for i, (lbl, cb) in enumerate(labels)
+            Button((cx - w // 2, y0 + i * gap, w, h), lbl, cb, style)
+            for i, (lbl, cb, style) in enumerate(labels)
         ]
         # sound toggles (top corners); labels refreshed every frame
-        self.music_btn = Button((8, 8, 104, 28), "Music", lambda: self._toggle_music())
-        self.sfx_btn = Button((cfg.WINDOW_W - 112, 8, 104, 28), "Sound",
-                              lambda: self._toggle_sfx())
+        self.music_btn = Button((10, 10, 118, 30), "Music", lambda: self._toggle_music(),
+                                "dark")
+        self.sfx_btn = Button((cfg.WINDOW_W - 128, 10, 118, 30), "Sound",
+                              lambda: self._toggle_sfx(), "dark")
         self.menu_buttons += [self.music_btn, self.sfx_btn]
 
     def _open_deck_editor(self, mode, return_to):
@@ -424,6 +500,8 @@ class Game:
             return
         cfg.apply_ai_settings(self.ai_level, self.ai_elixir)
         self._save_settings()
+        self._arena_surf = None
+        self.level_run = None
         self.match = Match(self.player_deck, self._resolve_ai_deck())
         self.match.record_events = True
         self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
@@ -432,6 +510,72 @@ class Game:
         self.sfx.play("match_start", 0.9, min_gap=0.0)
         self.selected = None
         self.state = "match"
+
+    # ---- Levels ----
+    def _load_progress(self):
+        try:
+            with open(PROGRESS_FILE) as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_progress(self):
+        try:
+            with open(PROGRESS_FILE, "w") as f:
+                json.dump(self.progress, f, indent=1)
+        except Exception:
+            pass
+
+    def _begin_level(self, key):
+        lv = levels.LEVELS_BY_KEY.get(key)
+        if lv is None or lv.locked:
+            return
+        if len(self.player_deck) != cfg.DECK_SIZE:
+            self._open_player_deck("levels")
+            self.deck_msg = "Pick 8 cards first!"
+            return
+        self._arena_surf = None
+        self.level_key = key
+        self.match, self.level_run = levels.new_level_match(lv, self.player_deck)
+        self.match.record_events = True
+        self.ai = None
+        self.selected = None
+        self._audio = {}
+        self.fx.clear()
+        self.state = "match"
+        self.sfx.play("match_start", 0.9, min_gap=0.0)
+
+    def _retry(self):
+        if self.level_run is not None and self.level_key:
+            self._begin_level(self.level_key)
+        else:
+            self._begin_battle()
+
+    def _level_buttons(self):
+        out = []
+        for i, lv in enumerate(levels.LEVELS):
+            r = self._level_card_rect(i)
+            b = Button((r.right - 112, r.bottom - 48, 100, 38),
+                       "Play" if not lv.locked else "Locked",
+                       (lambda k=lv.key: self._begin_level(k)), "go")
+            b.enabled = not lv.locked
+            out.append(b)
+        y = cfg.WINDOW_H - 60
+        bw = (cfg.WINDOW_W - 44) // 2
+        out.append(Button((16, y, bw, 42), "Edit My Deck",
+                          lambda: self._open_player_deck("levels")))
+        out.append(Button((cfg.WINDOW_W - 16 - bw, y, bw, 42), "Main Menu",
+                          lambda: self._goto("menu"), "dark"))
+        return out
+
+    def _level_card_rect(self, i):
+        return pygame.Rect(16, 78 + i * 168, cfg.WINDOW_W - 32, 156)
+
+    def _levels_click(self, pos):
+        for b in self._level_buttons():
+            if b.click(pos):
+                return
 
     def _resolve_ai_deck(self):
         if self.ai_deck_choice == "Random":
@@ -462,7 +606,10 @@ class Game:
             self._events(dt)
             if self.state == "match" and self.match and not self.match.finished:
                 self.match.update(dt)
-                self.ai.update(dt)
+                if self.ai is not None:
+                    self.ai.update(dt)
+                if self.level_run is not None:
+                    self.level_run.update(dt)
                 if self.match.finished:
                     self._on_match_end()
             self._update_audio(dt)
@@ -509,7 +656,11 @@ class Game:
         m = self.match
         # ---- music follows the screen ----
         if self.state == "match" and m is not None:
-            final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
+            if self.level_run is not None:
+                w = self.level_run.current_wave()
+                final = w is not None and w.boss
+            else:
+                final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
             self.sfx.music("final" if final else "battle")
         elif self.state == "result":
             self.sfx.music(None)
@@ -571,12 +722,32 @@ class Game:
                 self.sfx.play("ability", 1.0, pan, min_gap=0.0)
             elif kind == "dash":
                 self.sfx.play("dash", 0.6, pan)
+            elif kind == "wave":
+                self.sfx.play("overtime" if key == "boss" else "match_start", 0.9,
+                              min_gap=0.0)
+            elif kind == "portal":
+                self.sfx.play("portal", 0.6, pan, min_gap=0.15)
             elif kind == "land" and ev.get("slam"):
                 self.sfx.play("slam", 0.85, pan)
         self.fx.handle_events(evs, self.match)
 
     def _on_match_end(self):
         w = self.match.winner
+        if self.level_run is not None:
+            run = self.level_run
+            self.result_text = "VICTORY!" if w == PLAYER else "DEFEAT"
+            rec = self.progress.setdefault(self.level_key, {"stars": 0, "wins": 0,
+                                                            "plays": 0})
+            rec["plays"] = rec.get("plays", 0) + 1
+            if w == PLAYER:
+                rec["wins"] = rec.get("wins", 0) + 1
+                rec["stars"] = max(rec.get("stars", 0), run.stars())
+            self._save_progress()
+            self._handle_events(self.match.take_events())
+            self.sfx.music(None)
+            self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
+            self.state = "result"
+            return
         if w == PLAYER:
             self.result_text = "VICTORY!"
         elif w == ENEMY:
@@ -615,7 +786,8 @@ class Game:
                     elif self.state == "aideck":
                         self.state = self.aideck_return
                         self._save_settings()
-                    elif self.state in ("help", "result", "prematch", "records"):
+                    elif self.state in ("help", "result", "prematch", "records",
+                                        "levels"):
                         self.state = "menu"
             elif e.type == pygame.MOUSEWHEEL:
                 # the wheel ONLY scrolls - it never selects anything
@@ -654,6 +826,8 @@ class Game:
                     self._prematch_click(e.pos)
                 elif self.state == "aideck":
                     self._aideck_click(e.pos)
+                elif self.state == "levels":
+                    self._levels_click(e.pos)
                 elif self.state == "help":
                     self.state = "menu"
                 elif self.state == "records":
@@ -664,18 +838,18 @@ class Game:
                     self._match_click(e.pos, e.button)
 
     # ================================================================= MATCH INPUT
-    NEXT_BOX_W = 52   # reserved width for the "Next:" preview on the right
+    NEXT_BOX_W = 60   # reserved width for the "Next:" preview on the right
 
     def _hand_slot_rects(self):
         n = cfg.HAND_SIZE
-        slot_w = 62
+        slot_w = 72
         gap = 8
         total = n * slot_w + (n - 1) * gap
         # center the hand in the space left of the Next box, with real margins
         x0 = (cfg.WINDOW_W - self.NEXT_BOX_W - 12 - total) // 2
         x0 = max(10, x0)
-        y0 = cfg.ARENA_Y0 + cfg.ARENA_PX_H + 26
-        return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 84)
+        y0 = cfg.HUD_Y + 30
+        return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 92)
                 for i in range(n)]
 
     def _ability_btn_rect(self):
@@ -716,8 +890,8 @@ class Game:
 
     # ================================================================= PREMATCH
     # Battle Setup layout ------------------------------------------------
-    PM_LEVEL_Y = 74         # intelligence buttons
-    PM_SLIDER_Y = 214       # elixir slider centre line
+    PM_LEVEL_Y = 104        # intelligence buttons
+    PM_SLIDER_Y = 262       # elixir slider centre line
 
     def _prematch_level_rects(self):
         n = len(cfg.AI_LEVELS)
@@ -764,14 +938,14 @@ class Game:
         cx = cfg.WINDOW_W // 2
         bw = (cfg.WINDOW_W - 16 * 2 - 12) // 2
         return [
-            Button((16, cfg.WINDOW_H - 168, bw, 40), "Change AI Deck",
+            Button((16, cfg.WINDOW_H - 182, bw, 44), "Change AI Deck",
                    lambda: self._open_aideck("prematch")),
-            Button((cfg.WINDOW_W - 16 - bw, cfg.WINDOW_H - 168, bw, 40),
+            Button((cfg.WINDOW_W - 16 - bw, cfg.WINDOW_H - 182, bw, 44),
                    "Edit My Deck", lambda: self._open_player_deck("prematch")),
-            Button((16, cfg.WINDOW_H - 116, cfg.WINDOW_W - 32, 48),
-                   "Start Battle!", self._begin_battle),
-            Button((cx - 60, cfg.WINDOW_H - 56, 120, 34), "Back",
-                   lambda: self._goto("menu")),
+            Button((16, cfg.WINDOW_H - 126, cfg.WINDOW_W - 32, 54),
+                   "Start Battle!", self._begin_battle, "go"),
+            Button((cx - 70, cfg.WINDOW_H - 60, 140, 40), "Back",
+                   lambda: self._goto("menu"), "dark"),
         ]
 
     def _prematch_click(self, pos):
@@ -806,7 +980,7 @@ class Game:
         opts = self._aideck_options()
         cols = 2
         w = (cfg.WINDOW_W - 32 - 8) // cols
-        h, gap_y, top = 30, 6, 60
+        h, gap_y, top = 34, 7, 80
         rects = []
         for i, name in enumerate(opts):
             r, c = divmod(i, cols)
@@ -842,19 +1016,18 @@ class Game:
     def _draw_aideck(self):
         cx = cfg.WINDOW_W // 2
         mouse = pygame.mouse.get_pos()
-        self._text("AI Deck", self.font_l, (240, 220, 120), center=(cx, 24))
-        self._text("Pick the deck the AI will play", self.font_s,
-                   (170, 178, 195), center=(cx, 44))
+        self._screen_title("AI Deck", 30, "Pick the deck the AI will play")
         rects = self._aideck_preset_rects()
         for r, name in rects:
             sel = (self.ai_deck_choice == name)
-            bg = (70, 100, 130) if sel else (44, 50, 62)
+            bg = (64, 98, 150) if sel else (48, 54, 70)
             if r.collidepoint(mouse):
-                bg = tuple(min(255, c + 18) for c in bg)
-            pygame.draw.rect(self.screen, bg, r, border_radius=6)
-            if sel:
-                pygame.draw.rect(self.screen, (250, 240, 140), r, 2, border_radius=6)
-            self._text(name, self.font_s, cfg.COLOR_TEXT, center=r.center)
+                bg = lt_c(bg, 18)
+            pygame.draw.rect(self.screen, (10, 12, 18), r.move(0, 3), border_radius=8)
+            self.screen.blit(grad_rect(r.w, r.h, lt_c(bg, 16), bg, 8), r.topleft)
+            pygame.draw.rect(self.screen, (250, 222, 110) if sel else (20, 24, 34), r,
+                             2, border_radius=8)
+            self._text(name, self.font_sb, center=r.center, outline=True)
 
         py = rects[-1][0].bottom + 16
         self._text("Selected:  " + self.ai_deck_choice, self.font_m,
@@ -879,7 +1052,7 @@ class Game:
             self._text("avg elixir %.1f" % avg, self.font_s, (190, 190, 190),
                        topleft=(16, py + sz + 6))
         for b in self._aideck_buttons():
-            b.draw(self.screen, self.font_s)
+            b.draw(self.screen, self.font_sb)
 
     # ================================================================= DECK INPUT
     # Layout (top to bottom): title, your 8 cards as 2 rows of 4 big slots,
@@ -1039,9 +1212,13 @@ class Game:
     # ================================================================= RESULT
     def _result_buttons(self):
         cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
-        return [Button((cx - 132, cy + 40, 124, 36), "Play Again",
-                       self._begin_battle),
-                Button((cx + 8, cy + 40, 124, 36), "Main Menu",
+        if self.level_run is not None:
+            return [Button((cx - 140, cy + 52, 132, 42), "Retry", self._retry, "go"),
+                    Button((cx + 8, cy + 52, 132, 42), "Levels",
+                           lambda: self._goto("levels"))]
+        return [Button((cx - 140, cy + 52, 132, 42), "Play Again",
+                       self._begin_battle, "go"),
+                Button((cx + 8, cy + 52, 132, 42), "Main Menu",
                        lambda: self._goto("menu"))]
 
     def _result_click(self, pos):
@@ -1051,7 +1228,8 @@ class Game:
 
     # ================================================================= DRAW
     def _draw(self):
-        self.screen.blit(self.bg_grad, (0, 0))
+        if self.state not in ("match", "result", "menu"):
+            self._menu_backdrop(floating=False)
         if self.state == "menu":
             self._draw_menu()
         elif self.state == "prematch":
@@ -1064,13 +1242,22 @@ class Game:
             self._draw_help()
         elif self.state == "records":
             self._draw_records()
+        elif self.state == "levels":
+            self._draw_levels()
         elif self.state in ("match", "result"):
             self._draw_match()
             if self.state == "result":
                 self._draw_result()
 
-    def _text(self, s, font, color, center=None, topleft=None):
-        t = font.render(s, True, color)
+    def _text(self, s, font, color=None, center=None, topleft=None, outline=None):
+        """Draw text. Bigger fonts default to WHITE with a thin black
+        outline; small text stays plain."""
+        big = font is not self.font_s
+        if color is None:
+            color = WHITE
+        if outline is None:
+            outline = big
+        t = render_text(font, s, color, outline)
         if center:
             self.screen.blit(t, (center[0] - t.get_width() // 2,
                                  center[1] - t.get_height() // 2))
@@ -1078,46 +1265,80 @@ class Game:
             self.screen.blit(t, topleft)
         return t
 
+    def _menu_backdrop(self, floating=True):
+        """Shared menu background: gradient, drifting cards, vignette."""
+        t = self._now()
+        self.screen.blit(self.bg_grad, (0, 0))
+        if floating:
+            for fc in self.menu_float:
+                y = (fc["y0"] - t * fc["spd"]) % (cfg.WINDOW_H + 60) - 50
+                x = fc["x"] + math.sin(t * fc["sway"] + fc["ph"]) * 12
+                spr = sprites.get_sprite(fc["key"], fc["size"]).copy()
+                spr.set_alpha(55)
+                self.screen.blit(spr, (x, y))
+        vig = getattr(self, "_vignette", None)
+        if vig is None:
+            vig = pygame.Surface((cfg.WINDOW_W, cfg.WINDOW_H), pygame.SRCALPHA)
+            for i in range(28):
+                a = int(5 * (28 - i) / 28 * 7)
+                pygame.draw.rect(vig, (0, 0, 0, a),
+                                 (i * 2, i * 2, cfg.WINDOW_W - i * 4, cfg.WINDOW_H - i * 4),
+                                 2, border_radius=24)
+            self._vignette = vig
+        self.screen.blit(vig, (0, 0))
+
+    def _screen_title(self, title, y=34, sub=None):
+        """Big outlined screen title with a gold underline."""
+        cx = cfg.WINDOW_W // 2
+        self._text(title, self.font_l, center=(cx, y))
+        w = self.font_l.size(title)[0] // 2 + 16
+        pygame.draw.line(self.screen, (232, 190, 90), (cx - w, y + 20), (cx + w, y + 20), 2)
+        if sub:
+            self._text(sub, self.font_s, (190, 196, 214), center=(cx, y + 34))
+
+    def _panel(self, rect, border=(92, 100, 128), radius=12, top=(42, 46, 64),
+               bottom=(28, 30, 44)):
+        rect = pygame.Rect(rect)
+        pygame.draw.rect(self.screen, (8, 10, 16), rect.move(0, 4), border_radius=radius)
+        self.screen.blit(grad_rect(rect.w, rect.h, top, bottom, radius), rect.topleft)
+        pygame.draw.rect(self.screen, border, rect, 2, border_radius=radius)
+        return rect
+
     def _draw_menu(self):
         cx = cfg.WINDOW_W // 2
         t = self._now()
-        self.screen.blit(self.bg_grad, (0, 0))
-        # floating card sprites drifting upward with a gentle sway
-        for fc in self.menu_float:
-            y = (fc["y0"] - t * fc["spd"]) % (cfg.WINDOW_H + 60) - 50
-            x = fc["x"] + math.sin(t * fc["sway"] + fc["ph"]) * 12
-            spr = sprites.get_sprite(fc["key"], fc["size"]).copy()
-            spr.set_alpha(70)
-            self.screen.blit(spr, (x, y))
-        # bobbing title with drop shadow + underline
+        self._menu_backdrop()
+        # crown + bobbing title
         bob = int(math.sin(t * 2.0) * 4)
-        self._text("CLASH CLONE", self.font_xl, (25, 22, 40),
-                   center=(cx + 3, 118 + bob + 3))
-        self._text("CLASH CLONE", self.font_xl, (250, 214, 100),
-                   center=(cx, 118 + bob))
-        pygame.draw.line(self.screen, (250, 214, 100),
-                         (cx - 120, 148 + bob), (cx + 120, 148 + bob), 2)
-        self._text("Singleplayer  v" + cfg.GAME_VERSION, self.font_m,
-                   (205, 210, 225), center=(cx, 170 + bob))
+        crown_y = 84 + bob
+        pts = [(cx - 30, crown_y + 16), (cx - 30, crown_y - 4), (cx - 15, crown_y + 6),
+               (cx, crown_y - 14), (cx + 15, crown_y + 6), (cx + 30, crown_y - 4),
+               (cx + 30, crown_y + 16)]
+        pygame.draw.polygon(self.screen, (0, 0, 0), [(x + 2, y + 3) for x, y in pts])
+        pygame.draw.polygon(self.screen, (250, 206, 92), pts)
+        pygame.draw.polygon(self.screen, (120, 80, 20), pts, 2)
+        for x in (cx - 30, cx, cx + 30):
+            pygame.draw.circle(self.screen, (230, 70, 80),
+                               (x, crown_y - (14 if x == cx else 4)), 4)
+        self._text("CLASH CLONE", self.font_title, center=(cx, 142 + bob))
+        self._text("Singleplayer  v" + cfg.GAME_VERSION, self.font_m, (226, 230, 240),
+                   center=(cx, 190 + bob))
         self.music_btn.label = "Music: %s (M)" % ("On" if self.music_on else "Off")
         self.sfx_btn.label = "Sound: %s (N)" % ("On" if self.sfx_on else "Off")
         for b in self.menu_buttons:
-            b.draw(self.screen, self.font_s if b in (self.music_btn, self.sfx_btn)
+            b.draw(self.screen, self.font_sb if b in (self.music_btn, self.sfx_btn)
                    else self.font_m)
         # your current deck, shown as sprites in a framed strip
         if self.player_deck:
             n = len(self.player_deck)
-            sz, gap = 34, 6
+            sz, gap = 38, 6
             total = n * sz + (n - 1) * gap
             x0 = cx - total // 2
-            strip = pygame.Rect(x0 - 10, cfg.WINDOW_H - 74, total + 20, 54)
-            pygame.draw.rect(self.screen, (22, 26, 38), strip, border_radius=10)
-            pygame.draw.rect(self.screen, (70, 80, 105), strip, 1, border_radius=10)
-            self._text("Your Deck", self.font_s, (170, 178, 195),
-                       center=(cx, cfg.WINDOW_H - 84))
+            strip = self._panel((x0 - 12, cfg.WINDOW_H - 92, total + 24, 64))
+            self._text("Your Deck", self.font_sb, center=(cx, strip.y - 2))
             for i, k in enumerate(self.player_deck):
                 self.screen.blit(sprites.get_sprite(k, sz),
-                                 (x0 + i * (sz + gap), cfg.WINDOW_H - 64))
+                                 (x0 + i * (sz + gap), strip.y + 14))
 
     LEVEL_COLORS = {1: (110, 200, 110), 2: (150, 200, 240), 3: (240, 200, 110),
                     4: (240, 150, 90), 5: (235, 110, 200)}
@@ -1135,25 +1356,26 @@ class Game:
     def _draw_prematch(self):
         cx = cfg.WINDOW_W // 2
         mouse = pygame.mouse.get_pos()
-        self._text("Battle Setup", self.font_l, (240, 220, 120), center=(cx, 24))
+        self._screen_title("Battle Setup", 30)
 
         # ---- AI intelligence: 5 big buttons ----
         info = cfg.AI_LEVELS[self.ai_level]
-        self._text("AI Intelligence", self.font_m, cfg.COLOR_TEXT, topleft=(12, 48))
+        ly0 = self.PM_LEVEL_Y - 28
+        self._text("AI Intelligence", self.font_m, topleft=(12, ly0))
         self._text(info["name"], self.font_m, self.LEVEL_COLORS[self.ai_level],
-                   topleft=(cfg.WINDOW_W - 12 - self.font_m.size(info["name"])[0], 48))
+                   topleft=(cfg.WINDOW_W - 14 - self.font_m.size(info["name"])[0], ly0))
         for r, lv in self._prematch_level_rects():
             sel = lv == self.ai_level
             col = self.LEVEL_COLORS[lv]
             bg = dk_c(col, 120) if sel else (44, 50, 62)
             if r.collidepoint(mouse):
                 bg = lt_c(bg, 18)
-            pygame.draw.rect(self.screen, (16, 18, 26), r.move(0, 3), border_radius=9)
-            pygame.draw.rect(self.screen, bg, r, border_radius=9)
+            pygame.draw.rect(self.screen, (10, 12, 18), r.move(0, 3), border_radius=9)
+            self.screen.blit(grad_rect(r.w, r.h, lt_c(bg, 16), bg, 9), r.topleft)
             pygame.draw.rect(self.screen, col if sel else dk_c(col, 70), r,
                              3 if sel else 1, border_radius=9)
-            self._text(str(lv), self.font_l, col if sel else (200, 200, 205),
-                       center=(r.centerx, r.y + 19))
+            self._text(str(lv), self.font_l, col if sel else WHITE,
+                       center=(r.centerx, r.y + 20))
             name = cfg.AI_LEVELS[lv]["name"]
             self._text(self._fit(name, self.font_s, r.w - 4), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 10))
@@ -1164,9 +1386,9 @@ class Game:
         v = self.ai_elixir
         vcol = self._elixir_color(v)
         ly = self.PM_SLIDER_Y - 62
-        self._text("AI Elixir", self.font_m, cfg.COLOR_TEXT, topleft=(12, ly + 4))
-        val = self.font_xl.render("%.2fx" % v, True, vcol)
-        self.screen.blit(val, (cfg.WINDOW_W - 12 - val.get_width(), ly - 8))
+        self._text("AI Elixir", self.font_m, topleft=(12, ly + 4))
+        val = render_text(self.font_xl, "%.2fx" % v, vcol)
+        self.screen.blit(val, (cfg.WINDOW_W - 12 - val.get_width(), ly - 10))
         bonus = (v - 1.0) * cfg.AI_START_BONUS_PER_MULT
         sub = ("even fight" if abs(v - 1.0) < 1e-6 else
                "regen x%.2f, start %+.1f" % (v, bonus))
@@ -1221,9 +1443,9 @@ class Game:
                    self.font_s, (130, 138, 158), center=(cx, self.PM_SLIDER_Y + 74))
 
         # ---- decks ----
-        self._deck_preview_panel(self.PM_SLIDER_Y + 88, "AI Deck:  " + self.ai_deck_choice,
+        self._deck_preview_panel(self.PM_SLIDER_Y + 100, "AI Deck:  " + self.ai_deck_choice,
                                  (240, 150, 150), self._ai_deck_preview_cards())
-        self._deck_preview_panel(self.PM_SLIDER_Y + 198, "Your Deck", (150, 200, 240),
+        self._deck_preview_panel(self.PM_SLIDER_Y + 232, "Your Deck", (150, 200, 240),
                                  self.player_deck)
 
         for b in self._prematch_buttons():
@@ -1231,9 +1453,7 @@ class Game:
 
     def _deck_preview_panel(self, y, label, col, deck):
         """Framed strip showing an 8-card deck (None = random deck)."""
-        panel = pygame.Rect(12, y, cfg.WINDOW_W - 24, 104)
-        pygame.draw.rect(self.screen, (28, 32, 46), panel, border_radius=10)
-        pygame.draw.rect(self.screen, dk_c(col, 60), panel, 1, border_radius=10)
+        panel = self._panel((12, y, cfg.WINDOW_W - 24, 108), border=dk_c(col, 50))
         self._text(label, self.font_m, col, topleft=(panel.x + 10, y + 6))
         if deck is None:
             self._text("A different random 8-card deck each match.",
@@ -1247,20 +1467,18 @@ class Game:
             self._text("Needs 8 cards - edit it first.", self.font_s,
                        (240, 180, 120), topleft=(panel.x + 10, y + 44))
             return
-        sz = 38
+        sz = 42
         gap = (panel.w - 20 - sz * 8) // 7
         for i, k in enumerate(deck):
             x = panel.x + 10 + i * (sz + gap)
             self.screen.blit(sprites.get_sprite(k, sz), (x, y + 32))
-            self._text(str(cards.CARDS[k].elixir), self.font_s, cfg.COLOR_ELIXIR,
-                       center=(x + sz // 2, y + 82))
+            self._text(str(cards.CARDS[k].elixir), self.font_sb, lt_c(cfg.COLOR_ELIXIR, 40),
+                       center=(x + sz // 2, y + 88), outline=True)
 
     def _draw_records(self):
         cx = cfg.WINDOW_W // 2
-        self._text("Records", self.font_l, (240, 220, 120), center=(cx, 30))
-        self._text("per AI intelligence level (any elixir boost)", self.font_s,
-                   (170, 178, 195), center=(cx, 54))
-        y = 74
+        self._screen_title("Records", 30, "per AI intelligence level (any elixir boost)")
+        y = 82
         tot_w = tot_l = tot_cf = tot_ca = 0
         for lv in sorted(cfg.AI_LEVELS):
             col = self.LEVEL_COLORS[lv]
@@ -1300,7 +1518,7 @@ class Game:
 
     def _draw_help(self):
         cx = cfg.WINDOW_W // 2
-        self._text("How To Play", self.font_l, (240, 220, 120), center=(cx, 40))
+        self._screen_title("How To Play", 40)
         lines = [
             "Goal: destroy more enemy towers than the AI.",
             "Destroy the King Tower for an instant win.",
@@ -1320,6 +1538,9 @@ class Game:
             "",
             "Battle Setup: pick the AI's intelligence (1-5)",
             "and its elixir boost (0.5x-2x, 1x = even).",
+            "",
+            "Levels: survive scripted waves (no enemy",
+            "towers). Lose no tower for 3 stars.",
             "",
             "M = music on/off      N = sound on/off",
             "",
@@ -1351,7 +1572,7 @@ class Game:
         deck = self._active_deck()
         mouse = pygame.mouse.get_pos()
         title = "Edit AI Deck" if self.deck_mode == "ai" else "Edit Your Deck"
-        self._text(title, self.font_l, (240, 220, 120), center=(cx, 22))
+        self._text(title, self.font_l, center=(cx, 22))
         avg = (sum(cards.CARDS[k].elixir for k in deck) / len(deck) if deck else 0)
         full = len(deck) == cfg.DECK_SIZE
         self._text("%d/8 cards   |   avg elixir %.1f   |   %d available"
@@ -1463,12 +1684,13 @@ class Game:
             pygame.draw.rect(self.screen, col, (track.x + 2, bar_y, track.w - 4, bar_h),
                              border_radius=3)
         for b in self._deck_buttons():
-            b.draw(self.screen, self.font_s)
+            b.draw(self.screen, self.font_sb)
 
     # --------------------------------------------------------- match screen
     def _draw_match(self):
         self._draw_arena()
         m = self.match
+        self._draw_no_deploy_zone()
         self.fx.draw_decals(self.screen)
         for e in m.entities:
             self._draw_entity(e)
@@ -1482,74 +1704,214 @@ class Game:
         self._draw_placement_preview()
         self._draw_topbar()
         self._draw_hud()
+        self._draw_wave_banner()
+
+    def _draw_wave_banner(self):
+        run = self.level_run
+        if run is None or not run.banner:
+            return
+        title, sub, age = run.banner
+        a = min(1.0, age / 0.25) * min(1.0, (3.0 - age) / 0.6)
+        if a <= 0:
+            return
+        cy = cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.42) - int((1 - min(1.0, age / 0.25)) * 20)
+        rib = pygame.Surface((cfg.WINDOW_W, 76), pygame.SRCALPHA)
+        rib.fill((10, 8, 18, int(170 * a)))
+        pygame.draw.line(rib, (232, 190, 90, int(255 * a)), (0, 1), (cfg.WINDOW_W, 1), 2)
+        pygame.draw.line(rib, (232, 190, 90, int(255 * a)), (0, 74), (cfg.WINDOW_W, 74), 2)
+        self.screen.blit(rib, (0, cy - 38))
+        boss = title.startswith("BOSS")
+        t1 = render_text(self.font_l, title, (255, 110, 110) if boss else WHITE).copy()
+        t1.set_alpha(int(255 * a))
+        self.screen.blit(t1, (cfg.WINDOW_W // 2 - t1.get_width() // 2, cy - 30))
+        if sub:
+            t2 = render_text(self.font_sb, sub, (230, 220, 190)).copy()
+            t2.set_alpha(int(255 * a))
+            self.screen.blit(t2, (cfg.WINDOW_W // 2 - t2.get_width() // 2, cy + 12))
+
+    # --------------------------------------------------------- arena
+    def _arena_bg(self):
+        """The static arena picture (grass, scenery border, river, bridges,
+        tower pads), rendered once per match and cached."""
+        key = (bool(self.match and self.match.enemy_towers),)
+        if getattr(self, "_arena_key", None) == key and self._arena_surf is not None:
+            return self._arena_surf
+        self._arena_key = key
+        enemy_towers = key[0]
+        ts = cfg.TILE_SIZE
+        B = cfg.ARENA_BORDER
+        W, H = cfg.WINDOW_W, cfg.ARENA_PX_H + 2 * B
+        surf = pygame.Surface((W, H))
+        rng = random.Random(11)
+        ox, oy = B, B                          # grid origin inside this surface
+        # ---- scenery ground around the arena ----
+        surf.fill((58, 112, 62))
+        for _ in range(900):                   # grass texture
+            x, y = rng.randrange(W), rng.randrange(H)
+            c = rng.choice(((52, 102, 56), (66, 124, 68), (48, 96, 52), (72, 130, 70)))
+            pygame.draw.ellipse(surf, c, (x, y, rng.randint(3, 8), rng.randint(2, 4)))
+        # ---- the playfield: checker grass ----
+        for r in range(cfg.GRID_ROWS):
+            for c in range(cfg.GRID_COLS):
+                col = cfg.COLOR_ARENA if (r + c) % 2 == 0 else cfg.COLOR_ARENA_ALT
+                if r > RIVER_BOTTOM:
+                    col = lt_c(col, 6)
+                v = rng.randint(-3, 3)
+                col = tuple(max(0, min(255, k + v)) for k in col)
+                pygame.draw.rect(surf, col, (ox + c * ts, oy + r * ts, ts + 1, ts + 1))
+        for _ in range(260):                   # tufts on the field
+            x = ox + rng.uniform(0, cfg.ARENA_PX_W)
+            y = oy + rng.uniform(0, cfg.ARENA_PX_H)
+            pygame.draw.line(surf, lt_c(cfg.COLOR_ARENA, 22), (x, y), (x + 1, y - 3), 1)
+        # worn lane paths toward each bridge
+        lane = pygame.Surface((int(1.8 * ts), cfg.ARENA_PX_H), pygame.SRCALPHA)
+        lane.fill((214, 196, 140, 26))
+        for bx in BRIDGE_X:
+            surf.blit(lane, (ox + (bx - 0.9) * ts, oy))
+        # ---- river (runs out under the rim to both screen edges) ----
+        ry = int(oy + RIVER_TOP * ts)
+        rh = int((RIVER_BOTTOM - RIVER_TOP) * ts)
+        pygame.draw.rect(surf, dk_c(cfg.COLOR_RIVER, 30), (0, ry - 2, W, rh + 4))
+        pygame.draw.rect(surf, cfg.COLOR_RIVER, (0, ry + 3, W, rh - 6))
+        pygame.draw.rect(surf, lt_c(cfg.COLOR_RIVER, 18), (0, ry + rh // 2 - 2, W, 4))
+        for x in range(0, W, 9):               # pebbly banks
+            for yy in (ry - 3, ry + rh + 1):
+                pygame.draw.ellipse(surf, (138, 128, 112),
+                                    (x + rng.randint(-2, 2), yy + rng.randint(-1, 1),
+                                     rng.randint(5, 9), 4))
+        # ---- stone rim around the placeable field ----
+        rim = pygame.Rect(ox - 5, oy - 5, cfg.ARENA_PX_W + 10, cfg.ARENA_PX_H + 10)
+        stone, joint = (170, 164, 150), (118, 112, 102)
+        for seg in ((rim.x, rim.y, rim.w, 5), (rim.x, rim.bottom - 5, rim.w, 5)):
+            pygame.draw.rect(surf, stone, seg)
+            for x in range(seg[0], seg[0] + seg[2], 14):
+                pygame.draw.line(surf, joint, (x, seg[1]), (x, seg[1] + 4), 1)
+        for side_x in (rim.x, rim.right - 5):
+            for (y0, y1) in ((rim.y, ry - 3), (ry + rh + 3, rim.bottom)):
+                pygame.draw.rect(surf, stone, (side_x, y0, 5, y1 - y0))
+                for y in range(y0, y1, 14):
+                    pygame.draw.line(surf, joint, (side_x, y), (side_x + 4, y), 1)
+        pygame.draw.rect(surf, (88, 84, 76), rim, 1)
+        # ---- trees & bushes in the side margins ----
+        def tree(x, y, r):
+            pygame.draw.circle(surf, (34, 62, 36), (int(x) + 3, int(y) + 4), r)   # shadow
+            pygame.draw.circle(surf, (40, 88, 46), (int(x), int(y)), r)
+            pygame.draw.circle(surf, (56, 112, 58), (int(x) - r // 4, int(y) - r // 4),
+                               int(r * 0.7))
+            pygame.draw.circle(surf, (76, 136, 72), (int(x) - r // 3, int(y) - r // 3),
+                               int(r * 0.35))
+        for side in (0, 1):
+            y = rng.randint(4, 30)
+            while y < H - 10:
+                if not (ry - 16 < y < ry + rh + 16):
+                    x = rng.uniform(-6, B - 12) if side == 0 else W - rng.uniform(-6, B - 12)
+                    tree(x, y, rng.randint(11, 17))
+                y += rng.randint(26, 46)
+        for _ in range(26):                    # bushes / rocks / flowers top & bottom
+            x = rng.uniform(B, W - B)
+            y = rng.choice((rng.uniform(4, B - 10), H - rng.uniform(4, B - 10)))
+            kind = rng.random()
+            if kind < 0.45:
+                pygame.draw.circle(surf, (44, 92, 48), (int(x), int(y)), 6)
+                pygame.draw.circle(surf, (66, 122, 62), (int(x) - 2, int(y) - 2), 4)
+            elif kind < 0.75:
+                pygame.draw.ellipse(surf, (120, 116, 108), (x - 6, y - 3, 12, 8))
+                pygame.draw.ellipse(surf, (156, 150, 140), (x - 4, y - 3, 7, 4))
+            else:
+                for k in range(3):
+                    pygame.draw.circle(surf, rng.choice(((240, 220, 90), (240, 120, 160),
+                                                         (250, 250, 250))),
+                                       (int(x + k * 4), int(y + (k % 2) * 3)), 2)
+        # team banners in the corners
+        for (bx, by, col) in ((14, 14, cfg.COLOR_TEAM_ENEMY), (W - 14, 14, cfg.COLOR_TEAM_ENEMY),
+                              (14, H - 34, cfg.COLOR_TEAM_PLAYER),
+                              (W - 14, H - 34, cfg.COLOR_TEAM_PLAYER)):
+            pygame.draw.line(surf, (90, 70, 50), (bx, by), (bx, by + 22), 2)
+            pygame.draw.polygon(surf, col, [(bx + 1, by + 1), (bx + 12, by + 4),
+                                            (bx + 1, by + 9)])
+            pygame.draw.polygon(surf, dk_c(col, 70), [(bx + 1, by + 1), (bx + 12, by + 4),
+                                                      (bx + 1, by + 9)], 1)
+        # ---- bridges ----
+        for bx in BRIDGE_X:
+            bxp = ox + (bx - 0.9) * ts
+            bw = 1.8 * ts
+            pygame.draw.rect(surf, (40, 30, 22), (bxp + 2, ry + 2, bw, rh + 2))
+            pygame.draw.rect(surf, cfg.COLOR_BRIDGE, (bxp, ry - 3, bw, rh + 6))
+            for i in range(1, 5):
+                yy = ry - 3 + i * (rh + 6) / 5
+                pygame.draw.line(surf, dk_c(cfg.COLOR_BRIDGE, 35), (bxp, yy), (bxp + bw, yy), 2)
+            for rx in (bxp, bxp + bw - 3):
+                pygame.draw.rect(surf, dk_c(cfg.COLOR_BRIDGE, 60), (rx, ry - 5, 3, rh + 10))
+        # ---- tower pads ----
+        for tw in self.match.towers.values():
+            if not tw.alive:
+                continue
+            px, py = ox + tw.x * ts, oy + tw.y * ts
+            rad = int((2.1 if tw.is_king else 1.8) * ts)
+            pygame.draw.circle(surf, (120, 116, 106), (int(px), int(py) + 2), rad)
+            pygame.draw.circle(surf, (158, 154, 144), (int(px), int(py)), rad)
+            for k in range(8):                 # flagstones
+                a = k * math.pi / 4
+                pygame.draw.line(surf, (134, 130, 120), (px, py),
+                                 (px + math.cos(a) * rad, py + math.sin(a) * rad), 1)
+            pygame.draw.circle(surf, (110, 106, 98), (int(px), int(py)), rad, 2)
+        # ---- Levels: crypt gates where the enemy waves come from ----
+        if not enemy_towers:
+            for gx in (3.5, 14.5, 9.0):
+                px, py = ox + gx * ts, oy + (3.0 if gx == 9.0 else 6.0) * ts
+                gate = pygame.Rect(0, 0, 44, 34)
+                gate.center = (int(px), int(py))
+                pygame.draw.rect(surf, (70, 66, 74), gate.inflate(10, 8), border_top_left_radius=18,
+                                 border_top_right_radius=18)
+                pygame.draw.rect(surf, (24, 18, 30), gate, border_top_left_radius=16,
+                                 border_top_right_radius=16)
+                pygame.draw.rect(surf, (120, 110, 130), gate.inflate(10, 8), 2,
+                                 border_top_left_radius=18, border_top_right_radius=18)
+                for k in (-12, 0, 12):         # skull studs
+                    pygame.draw.circle(surf, (220, 214, 196), (gate.centerx + k, gate.y - 1), 3)
+        self._arena_surf = surf
+        return surf
 
     def _draw_arena(self):
         t = self._now()
         ts = cfg.TILE_SIZE
-        # grass checker with a slightly warmer tint on your half
-        for r in range(cfg.GRID_ROWS):
-            for c in range(cfg.GRID_COLS):
-                col = cfg.COLOR_ARENA if (r + c) % 2 == 0 else cfg.COLOR_ARENA_ALT
-                if r > RIVER_BOTTOM:                    # your side: touch brighter
-                    col = tuple(min(255, v + 6) for v in col)
-                x, y = tile_to_px(c, r)
-                pygame.draw.rect(self.screen, col, (x, y, ts + 1, ts + 1))
-        # mowed lane stripes toward each bridge
-        lane = pygame.Surface((int(1.8 * ts), cfg.ARENA_PX_H), pygame.SRCALPHA)
-        lane.fill((255, 255, 255, 10))
-        for bx in BRIDGE_X:
-            lx, _ = tile_to_px(bx - 0.9, 0)
-            self.screen.blit(lane, (lx, cfg.ARENA_Y0))
-        # river: deep-to-light gradient bands + drifting ripples
-        rx, ry = tile_to_px(0, RIVER_TOP)
+        self.screen.blit(self._arena_bg(), (0, cfg.TOP_BAR))
+        # drifting ripples on the river (full width, under the bridges' rails)
+        ry = cfg.ARENA_Y0 + RIVER_TOP * ts
         rh = (RIVER_BOTTOM - RIVER_TOP) * ts
-        pygame.draw.rect(self.screen, dk_c(cfg.COLOR_RIVER, 25), (rx, ry, cfg.ARENA_PX_W, rh))
-        pygame.draw.rect(self.screen, cfg.COLOR_RIVER,
-                         (rx, ry + 4, cfg.ARENA_PX_W, rh - 8))
-        self.screen.set_clip(pygame.Rect(rx, ry, cfg.ARENA_PX_W, rh))
-        for i in range(7):
-            wx = (t * 26 + i * 67) % (cfg.ARENA_PX_W + 40) - 20
+        self.screen.set_clip(pygame.Rect(0, ry + 3, cfg.WINDOW_W, rh - 6))
+        for i in range(9):
+            wx = (t * 26 + i * 61) % (cfg.WINDOW_W + 40) - 20
             wy = ry + 6 + (i % 3) * (rh - 14) // 2
-            pygame.draw.ellipse(self.screen, lt_c(cfg.COLOR_RIVER, 45),
-                                (rx + wx, wy, 22, 4))
+            pygame.draw.ellipse(self.screen, lt_c(cfg.COLOR_RIVER, 45), (wx, wy, 22, 4))
         self.screen.set_clip(None)
-        # banks
-        pygame.draw.line(self.screen, lt_c(cfg.COLOR_ARENA, 30), (rx, ry),
-                         (rx + cfg.ARENA_PX_W, ry), 2)
-        pygame.draw.line(self.screen, lt_c(cfg.COLOR_ARENA, 30), (rx, ry + rh),
-                         (rx + cfg.ARENA_PX_W, ry + rh), 2)
-        # bridges: wooden planks with rails
-        for bx in BRIDGE_X:
-            bxp, byp = tile_to_px(bx - 0.9, RIVER_TOP)
-            bw = 1.8 * ts
-            pygame.draw.rect(self.screen, cfg.COLOR_BRIDGE, (bxp, byp - 2, bw, rh + 4))
-            for i in range(1, 4):
-                pygame.draw.line(self.screen, dk_c(cfg.COLOR_BRIDGE, 35),
-                                 (bxp, byp - 2 + i * (rh + 4) / 4),
-                                 (bxp + bw, byp - 2 + i * (rh + 4) / 4), 2)
-            pygame.draw.rect(self.screen, dk_c(cfg.COLOR_BRIDGE, 55),
-                             (bxp, byp - 3, bw, 3))
-            pygame.draw.rect(self.screen, dk_c(cfg.COLOR_BRIDGE, 55),
-                             (bxp, byp + rh, bw, 3))
-        # stone pads under towers
-        for tw in self.match.towers.values():
-            if not tw.alive:
-                continue
-            px, py = tile_to_px(tw.x, tw.y)
-            rad = int((2.1 if tw.is_king else 1.8) * ts)
-            pygame.draw.circle(self.screen, (150, 148, 138), (int(px), int(py)), rad)
-            pygame.draw.circle(self.screen, (120, 118, 110), (int(px), int(py)), rad, 2)
-        # arena frame
-        pygame.draw.rect(self.screen, (52, 44, 38),
-                         (cfg.ARENA_X0 - 4, cfg.ARENA_Y0 - 4,
-                          cfg.ARENA_PX_W + 8, cfg.ARENA_PX_H + 8), 4, border_radius=6)
-        pygame.draw.rect(self.screen, (20, 24, 32),
-                         (cfg.ARENA_X0, cfg.ARENA_Y0, cfg.ARENA_PX_W, cfg.ARENA_PX_H), 2)
+        for bx in BRIDGE_X:                     # bridges back on top of ripples
+            bxp, _ = tile_to_px(bx - 0.9, 0)
+            area = pygame.Rect(int(bxp), int(ry - 5) - cfg.TOP_BAR, int(1.8 * ts) + 1, int(rh) + 10)
+            self.screen.blit(self._arena_surf, (area.x, area.y + cfg.TOP_BAR), area)
         if cfg.SHOW_TILE_GRID:
             for c in range(cfg.GRID_COLS + 1):
                 x, y = tile_to_px(c, 0)
                 pygame.draw.line(self.screen, (0, 0, 0), (x, cfg.ARENA_Y0),
                                  (x, cfg.ARENA_Y0 + cfg.ARENA_PX_H))
+
+    def _draw_no_deploy_zone(self):
+        """While a card is selected, tint the tiles you can't deploy on."""
+        if self.selected is None or self.match is None:
+            return
+        key = self.match.hands[PLAYER][self.selected]
+        if cards.CARDS[key].category == "spell":
+            return
+        ts = cfg.TILE_SIZE
+        tint = getattr(self, "_nodeploy_tile", None)
+        if tint is None:
+            tint = pygame.Surface((ts, ts), pygame.SRCALPHA)
+            tint.fill((220, 50, 50, 46))
+            self._nodeploy_tile = tint
+        for r in range(cfg.GRID_ROWS):
+            for c in range(cfg.GRID_COLS):
+                if not self.match.can_place(PLAYER, key, c + 0.5, r + 0.5):
+                    self.screen.blit(tint, tile_to_px(c, r))
 
     def _team_color(self, team):
         return cfg.COLOR_TEAM_PLAYER if team == PLAYER else cfg.COLOR_TEAM_ENEMY
@@ -1610,6 +1972,8 @@ class Game:
                                  (px, cyy - 4), (px + 3, cyy + 1), (px + 6, cyy - 2),
                                  (px + 6, cyy + 3)])
         self._draw_hp_bar(e, px, py - size // 2 - 5, size)
+        if e.level is not None and e.team == ENEMY:
+            self._draw_level_badge(e, px, py, size)
         # ramp-up stage pips (Mighty Miner drill, Little Prince)
         if e.card.ramp_stages:
             n = len(e.card.ramp_stages)
@@ -1669,12 +2033,28 @@ class Game:
                            center=(px, r.y + size // 4 + 2))
         self._draw_hp_bar(e, px, r.y - 14, size + 6)
 
+    def _draw_level_badge(self, e, px, py, size):
+        """Levels mode: unit level next to the health bar; bosses get a tag."""
+        bx, by = int(px - size // 2 - 6), int(py - size // 2 - 4)
+        col = (150, 60, 190) if not e.boss else (200, 40, 50)
+        pygame.draw.circle(self.screen, (0, 0, 0), (bx + 1, by + 1), 8)
+        pygame.draw.circle(self.screen, col, (bx, by), 8)
+        pygame.draw.circle(self.screen, (240, 220, 255), (bx, by), 8, 1)
+        self._text(str(e.level), self.font_s, center=(bx, by), outline=True)
+        if e.boss:
+            pulse = 0.5 + 0.5 * math.sin(self._now() * 6)
+            rr = size // 2 + 7
+            aura = pygame.Surface((rr * 2 + 4, rr * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(aura, (220, 40, 60, int(60 + 60 * pulse)), (rr + 2, rr + 2), rr, 3)
+            self.screen.blit(aura, (px - rr - 2, py - rr - 2))
+            self._text("BOSS", self.font_sb, (255, 90, 90), center=(px, py - size // 2 - 18))
+
     def _draw_hp_bar(self, e, px, top, width):
         if e.hp >= e.max_hp and e.shield <= 0:
             frac = 1.0
         frac = max(0.0, e.hp / e.max_hp)
         w = width
-        h = 4
+        h = 6 if getattr(e, "boss", False) else 4
         x = px - w // 2
         pygame.draw.rect(self.screen, (30, 30, 30), (x, top, w, h))
         col = cfg.COLOR_HP_GOOD if frac > 0.35 else cfg.COLOR_HP_BAD
@@ -1946,9 +2326,33 @@ class Game:
 
     def _draw_topbar(self):
         m = self.match
-        pygame.draw.rect(self.screen, (22, 26, 38), (0, 0, cfg.WINDOW_W, cfg.TOP_BAR))
-        pygame.draw.line(self.screen, (60, 66, 88), (0, cfg.TOP_BAR - 1),
-                         (cfg.WINDOW_W, cfg.TOP_BAR - 1), 1)
+        self.screen.blit(grad_rect(cfg.WINDOW_W, cfg.TOP_BAR, (44, 48, 70),
+                                   (22, 24, 36), 0), (0, 0))
+        pygame.draw.line(self.screen, (92, 84, 64), (0, cfg.TOP_BAR - 1),
+                         (cfg.WINDOW_W, cfg.TOP_BAR - 1), 2)
+        cy = cfg.TOP_BAR // 2
+        if self.level_run is not None:
+            # Levels: level name, wave counter and next-wave countdown
+            run = self.level_run
+            chip = pygame.Rect(0, 0, 150, 30)
+            chip.center = (cfg.WINDOW_W // 2, cy)
+            boss = run.current_wave() is not None and run.current_wave().boss
+            col = (120, 40, 60) if boss else (40, 48, 66)
+            self.screen.blit(grad_rect(chip.w, chip.h, lt_c(col, 20), col, 15), chip.topleft)
+            pygame.draw.rect(self.screen, (150, 130, 80), chip, 1, border_radius=15)
+            nxt = run.next_wave_in()
+            if run.state == "prep" and run.wave_number < run.total_waves:
+                label = "Wave %d in %d" % (run.wave_number + 1, math.ceil(max(0, nxt)))
+            else:
+                label = "Wave %d / %d" % (run.wave_number, run.total_waves)
+            self._text(label, self.font_m, center=chip.center)
+            self._text(run.level.name, self.font_sb, (235, 225, 190),
+                       topleft=(10, cy - 9), outline=True)
+            alive = sum(1 for s_ in ("left", "right", "king")
+                        if m.towers[(PLAYER, s_)].alive)
+            self._crown_icon(cfg.WINDOW_W - 52, cy, cfg.COLOR_TEAM_PLAYER)
+            self._text("%d/3" % alive, self.font_m, topleft=(cfg.WINDOW_W - 40, cy - 12))
+            return
         # timer chip (amber during overtime / boosted elixir)
         t = max(0, m.time_left)
         label = "%d:%02d" % (int(t) // 60, int(t) % 60)
@@ -1956,27 +2360,27 @@ class Game:
         prefix = "OT " if m.overtime else ""
         if mult > 1:
             prefix += "x%d " % int(mult)
-        chip_col = (120, 80, 30) if (m.overtime or mult > 1) else (40, 48, 66)
-        chip = pygame.Rect(0, 0, 110, 26)
-        chip.center = (cfg.WINDOW_W // 2, cfg.TOP_BAR // 2)
-        pygame.draw.rect(self.screen, chip_col, chip, border_radius=13)
-        pygame.draw.rect(self.screen, lt_c(chip_col, 40), chip, 1, border_radius=13)
-        self._text(prefix + label, self.font_m, cfg.COLOR_TEXT, center=chip.center)
+        chip_col = (130, 84, 30) if (m.overtime or mult > 1) else (40, 48, 66)
+        chip = pygame.Rect(0, 0, 120, 30)
+        chip.center = (cfg.WINDOW_W // 2, cy)
+        self.screen.blit(grad_rect(chip.w, chip.h, lt_c(chip_col, 22), chip_col, 15),
+                         chip.topleft)
+        pygame.draw.rect(self.screen, (150, 130, 80), chip, 1, border_radius=15)
+        self._text(prefix + label, self.font_m, center=chip.center)
         # crowns with icons
-        self._crown_icon(18, cfg.TOP_BAR // 2, cfg.COLOR_TEAM_ENEMY)
+        self._crown_icon(20, cy, cfg.COLOR_TEAM_ENEMY)
         self._text("%d" % m.crowns[ENEMY], self.font_m, cfg.COLOR_TEAM_ENEMY,
-                   topleft=(32, cfg.TOP_BAR // 2 - 10))
-        self._crown_icon(cfg.WINDOW_W - 44, cfg.TOP_BAR // 2, cfg.COLOR_TEAM_PLAYER)
+                   topleft=(34, cy - 12))
+        self._crown_icon(cfg.WINDOW_W - 46, cy, cfg.COLOR_TEAM_PLAYER)
         self._text("%d" % m.crowns[PLAYER], self.font_m, cfg.COLOR_TEAM_PLAYER,
-                   topleft=(cfg.WINDOW_W - 30, cfg.TOP_BAR // 2 - 10))
+                   topleft=(cfg.WINDOW_W - 32, cy - 12))
 
     def _draw_hud(self):
         m = self.match
-        hud_y = cfg.ARENA_Y0 + cfg.ARENA_PX_H
-        pygame.draw.rect(self.screen, cfg.COLOR_HUD_BG,
-                         (0, hud_y, cfg.WINDOW_W, cfg.HUD_HEIGHT))
-        pygame.draw.line(self.screen, (60, 66, 88), (0, hud_y),
-                         (cfg.WINDOW_W, hud_y), 1)
+        hud_y = cfg.HUD_Y
+        self.screen.blit(grad_rect(cfg.WINDOW_W, cfg.HUD_HEIGHT, (40, 44, 62),
+                                   (20, 22, 32), 0), (0, hud_y))
+        pygame.draw.line(self.screen, (92, 84, 64), (0, hud_y), (cfg.WINDOW_W, hud_y), 2)
         # elixir bar with droplet icon
         el = m.elixir[PLAYER]
         bar_x, bar_y, bar_w, bar_h = 36, hud_y + 8, cfg.WINDOW_W - 70, 12
@@ -2015,33 +2419,32 @@ class Game:
                 pygame.draw.rect(self.screen, (250, 240, 140), r, 3, border_radius=9)
             elif affordable:
                 pygame.draw.rect(self.screen, (96, 108, 138), r, 1, border_radius=9)
-            spr = sprites.get_sprite(key, 44)
+            spr = sprites.get_sprite(key, 52)
             if not affordable:
                 spr = spr.copy()
                 spr.fill((90, 90, 90, 160), special_flags=pygame.BLEND_RGBA_MULT)
-            self.screen.blit(spr, (r.centerx - 22, r.y + 6))
+            self.screen.blit(spr, (r.centerx - 26, r.y + 8))
             # cost badge (top-left, so the name row gets full width)
             pygame.draw.circle(self.screen, dk_c(cfg.COLOR_ELIXIR, 40),
                                (r.x + 11, r.y + 12), 10)
             pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.x + 10, r.y + 11), 9)
             self._text(str(card.elixir), self.font_s, (255, 255, 255),
                        center=(r.x + 10, r.y + 11))
-            name = card.name if len(card.name) <= 9 else card.name[:8] + "."
-            self._text(name, self.font_s, cfg.COLOR_TEXT,
-                       center=(r.centerx, r.bottom - 10))
+            self._text(self._fit(card.name, self.font_s, r.w - 6), self.font_s,
+                       cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
         # next card in a framed box on the right
         nk = m.next_card[PLAYER]
         if nk:
             hand = self._hand_slot_rects()
-            nb = pygame.Rect(hand[-1].right + 12, hand[-1].y + 14,
-                             self.NEXT_BOX_W - 8, 56)
+            nb = pygame.Rect(hand[-1].right + 12, hand[-1].y + 16,
+                             self.NEXT_BOX_W - 8, 62)
             if nb.right > cfg.WINDOW_W - 4:
                 nb.right = cfg.WINDOW_W - 4
             pygame.draw.rect(self.screen, (30, 34, 46), nb, border_radius=8)
             pygame.draw.rect(self.screen, (70, 78, 100), nb, 1, border_radius=8)
             self._text("Next", self.font_s, (170, 178, 195),
                        center=(nb.centerx, nb.y + 9))
-            self.screen.blit(sprites.get_sprite(nk, 32), (nb.centerx - 16, nb.y + 18))
+            self.screen.blit(sprites.get_sprite(nk, 38), (nb.centerx - 19, nb.y + 19))
         self._draw_ability_button()
 
     def _draw_ability_button(self):
@@ -2092,20 +2495,107 @@ class Game:
         pygame.draw.rect(self.screen, (150, 130, 70), chip, 1, border_radius=6)
         self.screen.blit(label, (chip.x + 5, chip.y + 3))
 
+    def _star(self, cx, cy, r, filled):
+        pts = []
+        for k in range(10):
+            a = -math.pi / 2 + k * math.pi / 5
+            rr = r if k % 2 == 0 else r * 0.45
+            pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr))
+        pygame.draw.polygon(self.screen, (0, 0, 0), [(x + 2, y + 3) for x, y in pts])
+        pygame.draw.polygon(self.screen, (250, 206, 92) if filled else (60, 62, 74), pts)
+        pygame.draw.polygon(self.screen, (120, 80, 20) if filled else (30, 32, 40), pts, 2)
+
     def _draw_result(self):
         overlay = pygame.Surface((cfg.WINDOW_W, cfg.WINDOW_H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 170))
         self.screen.blit(overlay, (0, 0))
         cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
-        color = (120, 240, 120) if self.result_text == "VICTORY!" else \
+        win = self.result_text == "VICTORY!"
+        color = (120, 240, 120) if win else \
                 (240, 120, 120) if self.result_text == "DEFEAT" else (230, 230, 230)
-        panel = pygame.Rect(cx - 150, cy - 92, 300, 190)
-        pygame.draw.rect(self.screen, (28, 32, 46), panel, border_radius=14)
-        pygame.draw.rect(self.screen, color, panel, 2, border_radius=14)
-        self._text(self.result_text, self.font_xl, color, center=(cx, cy - 46))
-        self._crown_icon(cx - 62, cy + 4, cfg.COLOR_TEAM_PLAYER)
-        self._crown_icon(cx + 62, cy + 4, cfg.COLOR_TEAM_ENEMY)
-        self._text("%d  -  %d" % (self.match.crowns[PLAYER], self.match.crowns[ENEMY]),
-                   self.font_l, cfg.COLOR_TEXT, center=(cx, cy + 4))
+        panel = self._panel((cx - 165, cy - 112, 330, 224), border=color, radius=16)
+        self._text(self.result_text, self.font_xl, color, center=(cx, cy - 64))
+        if self.level_run is not None:
+            run = self.level_run
+            stars = run.stars() if win else 0
+            for i in range(3):
+                self._star(cx - 54 + i * 54, cy - 2 - (8 if i == 1 else 0), 22, i < stars)
+            msg = ("All %d waves survived" % run.total_waves if win
+                   else "Fell on wave %d of %d" % (run.wave_number, run.total_waves))
+            self._text(msg, self.font_sb, (220, 224, 236), center=(cx, cy + 32))
+        else:
+            self._crown_icon(cx - 62, cy - 6, cfg.COLOR_TEAM_PLAYER)
+            self._crown_icon(cx + 62, cy - 6, cfg.COLOR_TEAM_ENEMY)
+            self._text("%d  -  %d" % (self.match.crowns[PLAYER], self.match.crowns[ENEMY]),
+                       self.font_l, center=(cx, cy - 6))
         for b in self._result_buttons():
             b.draw(self.screen, self.font_m)
+
+    # --------------------------------------------------------- levels screen
+    def _draw_levels(self):
+        cx = cfg.WINDOW_W // 2
+        self._screen_title("Levels", 30, "Survive every wave. The enemy has no towers.")
+        btns = self._level_buttons()
+        for i, lv in enumerate(levels.LEVELS):
+            r = self._level_card_rect(i)
+            locked = lv.locked
+            border = (110, 100, 120) if locked else (214, 176, 84)
+            self._panel(r, border=border, radius=14,
+                        top=(46, 44, 60) if locked else (60, 52, 72),
+                        bottom=(28, 28, 38) if locked else (34, 30, 46))
+            # picture
+            pic = pygame.Rect(r.x + 12, r.y + 14, 96, 96)
+            pygame.draw.rect(self.screen, (20, 18, 28), pic, border_radius=12)
+            spr = sprites.get_sprite(lv.icon, 88)
+            if locked:
+                spr = spr.copy()
+                spr.fill((60, 60, 70, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            self.screen.blit(spr, (pic.x + 4, pic.y + 4))
+            pygame.draw.rect(self.screen, border, pic, 2, border_radius=12)
+            tx = pic.right + 14
+            self._text(lv.subtitle, self.font_sb, (250, 206, 92), topleft=(tx, r.y + 12))
+            self._text(lv.name, self.font_m, topleft=(tx, r.y + 30))
+            # description, wrapped
+            words, line, yy = lv.desc.split(), "", r.y + 56
+            maxw = r.right - tx - 12
+            last = r.bottom - 66                  # keep clear of the Play button
+            for w_ in words:
+                test = (line + " " + w_).strip()
+                if self.font_s.size(test)[0] > maxw:
+                    if yy > last:
+                        line = line.rstrip(".,- ") + "..."
+                        break
+                    self._text(line, self.font_s, (206, 210, 224), topleft=(tx, yy))
+                    yy += 16
+                    line = w_
+                else:
+                    line = test
+            if line and yy <= last + 16:
+                self._text(line, self.font_s, (206, 210, 224), topleft=(tx, yy))
+            if locked:
+                lock = pygame.Rect(0, 0, 18, 14)
+                lock.center = (pic.centerx, pic.centery + 6)
+                pygame.draw.rect(self.screen, (220, 210, 170), lock, border_radius=3)
+                pygame.draw.arc(self.screen, (220, 210, 170),
+                                (lock.x + 3, lock.y - 10, 12, 16), 0, math.pi, 3)
+            else:
+                rec = self.progress.get(lv.key, {})
+                stars = rec.get("stars", 0)
+                for k in range(3):
+                    self._star(r.x + 30 + k * 30, r.bottom - 20, 11, k < stars)
+                self._text("%d waves" % len(lv.waves), self.font_sb, (220, 224, 236),
+                           topleft=(r.x + 128, r.bottom - 30))
+        for b in btns:
+            b.draw(self.screen, self.font_m)
+        # your deck
+        if self.player_deck:
+            n = len(self.player_deck)
+            sz, gap = 36, 6
+            total = n * sz + (n - 1) * gap
+            x0 = cx - total // 2
+            strip = self._panel((x0 - 12, cfg.WINDOW_H - 138, total + 24, 60))
+            self._text("Your Deck", self.font_sb, center=(cx, strip.y - 2))
+            for i, k in enumerate(self.player_deck):
+                self.screen.blit(sprites.get_sprite(k, sz), (x0 + i * (sz + gap), strip.y + 14))
+
+

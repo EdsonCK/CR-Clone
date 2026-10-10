@@ -25,9 +25,9 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "0.3.0"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "0.4.0"  # shown on the menu; bump when you ship a new build
 
-TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
+TILE_SIZE   = 20       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
 GRID_ROWS   = 32       # arena height in tiles (Clash Royale standard)
 
@@ -41,9 +41,11 @@ RIVER_ROWS  = (15, 16)  # the two middle rows that make up the river
 BRIDGE_COLS = (3, 14)   # left bridge center col, right bridge center col
 
 # How wide the on-screen side/bottom panels are (HUD area for your cards).
-HUD_HEIGHT  = 132      # pixels reserved at the bottom for your card hand
-TOP_BAR     = 40       # pixels reserved at the top for the timer / score
-SIDE_MARGIN = 24       # pixels of empty space on left/right of the arena
+HUD_HEIGHT  = 136      # pixels reserved at the bottom for your card hand
+TOP_BAR     = 44       # pixels reserved at the top for the timer / score
+ARENA_BORDER = 30      # decorative (non-placeable) scenery around the arena:
+                       #   stone rim, trees, bushes, banners. Purely visual.
+SIDE_MARGIN = ARENA_BORDER
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +237,8 @@ SHOW_RANGES       = False   # set True to see attack ranges (debug)
 # ---------------------------------------------------------------------------
 ARENA_PX_W = GRID_COLS * TILE_SIZE
 ARENA_PX_H = GRID_ROWS * TILE_SIZE
-ARENA_X0   = SIDE_MARGIN
-ARENA_Y0   = TOP_BAR
-WINDOW_W   = ARENA_PX_W + SIDE_MARGIN * 2
-WINDOW_H   = TOP_BAR + ARENA_PX_H + HUD_HEIGHT
+ARENA_X0   = ARENA_BORDER
+ARENA_Y0   = TOP_BAR + ARENA_BORDER
+HUD_Y      = ARENA_Y0 + ARENA_PX_H + ARENA_BORDER     # top of the card hand
+WINDOW_W   = ARENA_PX_W + ARENA_BORDER * 2
+WINDOW_H   = HUD_Y + HUD_HEIGHT

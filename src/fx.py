@@ -146,6 +146,9 @@ class FX:
                                (215, 215, 220), "smoke", grow=10)
             elif k == "land" and ev.get("slam"):
                 self.burst(x, y + 4, 22, 120, 0.6, 5, (190, 160, 110), "dust", grow=8)
+            elif k == "portal":
+                self.burst(x, y, 22, 70, 0.9, 7, (110, 60, 150), "smoke", grow=10)
+                self.burst(x, y, 16, 120, 0.6, 2.5, (200, 150, 255), "spark", up=20)
             elif k == "ability":
                 self.burst(x, y, 26, 110, 0.8, 3, (255, 225, 120), "spark", up=30)
 

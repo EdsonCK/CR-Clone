@@ -45,6 +45,29 @@ The first launch generates all the unit sprites into `assets/sprites/`.
    **King Tower** is an instant win. A tie goes to **overtime** (sudden death).
 5. After a match, **Play Again** rematches with the same settings.
 
+### Levels
+
+**Levels** on the main menu are set-piece challenges. The opponent has **no
+towers**: scripted waves of enemies march at yours, and your only goal is to
+survive them all with your King Tower standing. You use your own deck and can
+only deploy on your half. Stars: 3 = no tower lost, 2 = one Princess Tower
+lost, 1 = both lost. Your best stars are saved in `progress.json`.
+
+Enemy units have **levels**. Card stats count as level 11, and every level
+above that adds +10% HP and damage (compounding), as in Clash Royale. Each
+unit's level is shown on a badge next to its health bar, and bosses carry a
+red **BOSS** tag.
+
+**Level 1 – The Bone Crypt** sends every kind of skeleton in 7 waves:
+Skeletons, Guards + Bomber, Skeleton Army, Wall Breakers + Skeleton Barrel,
+Tombstone + a Graveyard on your tower, the Skeleton King (level 12), and
+finally a boss wave of **two Giant Skeletons with double HP and damage**
+(their death bombs too). You get +5 elixir when the boss wave starts. In
+simulated playtests a "Skilled" AI defender won about 3 in 4 runs and an
+"Expert" one about 11 in 12.
+
+New levels are plain data: see the docstring at the top of `src/levels.py`.
+
 ### Deck editor
 
 Your 8 cards sit at the top in two rows of four. Below is the full collection.

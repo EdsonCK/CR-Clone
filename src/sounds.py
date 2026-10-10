@@ -722,6 +722,10 @@ def make_extras():
     S["tick"] = normalize(tone(1500, 0.04, decay=0.03), 0.35)
     S["dash"] = normalize(s_whoosh(0.25, 500, 3000, 12, 1.0), 0.6)
     S["slam"] = normalize(s_explosion(1.0, 41, 0.3), 0.85)
+    por = gain(lowpass(noise(0.7, attack=0.2, decay=0.6, seed=17, color="brown"), 500, 1400), 2.5)
+    mix_into(por, tone(90, 0.7, 180, wave_="triangle", attack=0.15, decay=0.6, vol=0.4), 0)
+    mix_into(por, s_bones(23, 4, 1300), 0.25, 0.7)
+    S["portal"] = normalize(por, 0.7)
     vic = []
     for i, semi in enumerate((0, 4, 7, 12)):
         mix_into(vic, s_brass(262 * 2 ** (semi / 12), 0.5 if i < 3 else 1.4, (0, 4, 7)), i * 0.18, 0.6)
@@ -885,7 +889,7 @@ def _manifest_path():
 EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle",
                "ability", "death_small", "death_big", "death_building",
                "tower_down", "crown", "king_wake", "match_start", "double_elixir",
-               "overtime", "tick", "dash", "slam", "victory", "defeat"]
+               "overtime", "tick", "dash", "slam", "victory", "defeat", "portal"]
 
 
 def ensure_sounds(progress=None):
