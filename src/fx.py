@@ -126,6 +126,9 @@ class FX:
                 self._impact(ev["key"], x, y, ev["x"], ev["y"], match)
             elif k == "deploy":
                 c = cards.CARDS.get(ev["key"])
+                if ev.get("evo"):
+                    self.burst(x, y, 24, 110, 0.9, 3, (200, 130, 255), "spark", up=30)
+                    self.burst(x, y, 8, 40, 1.0, 9, (150, 80, 220), "smoke", grow=12)
                 if c is not None and c.category != "spell":
                     big = c.hp * max(c.count, 1) >= 1500 or c.category == "building"
                     self.burst(x, y + 6, 14 if big else 8, 70 if big else 45, 0.5,

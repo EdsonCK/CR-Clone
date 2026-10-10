@@ -762,6 +762,13 @@ def make_extras():
     pop = tone(520, 0.12, 900, decay=0.1, vol=0.6)
     mix_into(pop, s_chime(1318, (0, 7), 0.05, 0.35), 0.04, 0.5)
     S["elixir_pop"] = normalize(pop, 0.4)
+    ev = s_shimmer(1200, 0.7, 41, 6)
+    mix_into(ev, s_whoosh(0.5, 200, 2600, 42, 0.7), 0, 0.8)
+    mix_into(ev, tone(220, 0.6, 440, wave_="triangle", attack=0.05, decay=0.5, vol=0.4), 0, 1.0)
+    S["evo_deploy"] = normalize(ev, 0.7)
+    hr = s_brass(330, 0.45, (0, 4, 7, 12))
+    mix_into(hr, s_chime(1318, (0, 7, 12), 0.06, 0.5), 0.1, 0.6)
+    S["hero_ability"] = normalize(hr, 0.75)
     vic = []
     for i, semi in enumerate((0, 4, 7, 12)):
         mix_into(vic, s_brass(262 * 2 ** (semi / 12), 0.5 if i < 3 else 1.4, (0, 4, 7)), i * 0.18, 0.6)
@@ -926,12 +933,13 @@ EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle"
                "ability", "death_small", "death_big", "death_building",
                "tower_down", "crown", "king_wake", "match_start", "double_elixir",
                "overtime", "tick", "dash", "slam", "victory", "defeat", "portal",
-               "elixir_pop"]
+               "elixir_pop", "evo_deploy", "hero_ability"]
 
 # Sounds re-rendered since they were first shipped: bump a name's number to
 # regenerate just that file on the next launch (without a full SOUND_VERSION
 # rebuild). Your own replacement WAVs are still never overwritten.
-SOUND_REVS = {"tesla_attack": 3, "archers_attack": 3, "elixir_pop": 3}
+SOUND_REVS = {"tesla_attack": 3, "archers_attack": 3, "elixir_pop": 3,
+              "evo_deploy": 3, "hero_ability": 3}
 
 
 def ensure_sounds(progress=None):

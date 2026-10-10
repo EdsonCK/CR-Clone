@@ -942,8 +942,37 @@ class AIController:
                 self.hold = 0.3
 
     # ============================================================== champions
+    def _hero(self):
+        """Use a Hero's one-shot ability at a sensible moment."""
+        m = self.match
+        h, ready, cost = m.hero_status(self.me)
+        if h is None or not ready:
+            return
+        near = [e for e in m.entities if e.alive and e.team == self.opp and not e.is_tower
+                and dist(e.x, e.y, h.x, h.y) <= 4.0]
+        hpf = h.hp / max(h.max_hp, 1)
+        k = h.key
+        use = False
+        if k == "knight":
+            use = len(near) >= 2 or (near and hpf < 0.6)
+        elif k == "giant":
+            use = any(e.max_hp >= 500 for e in near if not e.flying
+                      and dist(e.x, e.y, h.x, h.y) <= 3.0)
+        elif k == "mini_pekka":
+            use = hpf < 0.5 or (h.target is not None and h.target.is_tower)
+        elif k in ("musketeer", "goblins"):
+            use = len(near) >= 1 or (h.target is not None and h.target.is_tower)
+        elif k == "ice_golem":
+            use = len([e for e in near if dist(e.x, e.y, h.x, h.y) <= 3.0]) >= 2
+        elif k == "valkyrie":
+            use = len([e for e in near if not e.flying
+                       and dist(e.x, e.y, h.x, h.y) <= 2.4]) >= 2
+        if use or (self.lv(1) and not self.lv(3) and near):
+            m.activate_hero(self.me)
+
     def _champion(self, dt):
         m = self.match
+        self._hero()
         champ, ready, cost = m.ability_status(self.me)
         if champ is None or not ready:
             return

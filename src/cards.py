@@ -665,6 +665,10 @@ _CARD_LIST = [
             attacks=G),
     # NOTE: Furnace spawns the deployable "fire_spirit" card above, so no
     # separate sub-unit entry is needed for it (that would collide on the key).
+    # Hero Musketeer's "Trusty Turret" (spawned by her ability)
+    CardDef("hero_turret", "Trusty Turret", 0, category="building", deployable=False,
+            hp=420, damage=72, hit_speed=0.8, range=5.5, attacks="air_ground",
+            lifetime=15.0),
     CardDef("golemite", "Golemite", 0, deployable=False,
             hp=1050, damage=90, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(1.5, 90), first_hit=1.0),

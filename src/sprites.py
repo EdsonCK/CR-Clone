@@ -246,6 +246,8 @@ def _load_raw(key):
 def unit_sprite_key(card_key):
     """Sprite name for ONE deployed unit of a card (single figure for
     multi-count cards; the plain card art otherwise)."""
+    if card_key == "hero_turret":
+        return "xbow"
     c = cards.CARDS.get(card_key)
     if c is not None and c.category == "troop" and c.count > 1:
         return card_key + "__u"

@@ -465,7 +465,9 @@ class Game(ScreensMixin):
         self.level_run = None
         self.mode = None
         ai_lv = self._ai_card_level()
-        self.match = Match(self.player_deck, self._resolve_ai_deck(),
+        ai_deck = self._resolve_ai_deck()
+        self.match = Match(self.player_deck, ai_deck,
+                           **self._match_specials(self.player_deck, ai_deck),
                            card_levels={PLAYER: self.profile.deck_levels(self.player_deck),
                                         ENEMY: ai_lv},
                            tower_levels={PLAYER: self.profile.tower_level(self.player_deck),
@@ -477,6 +479,36 @@ class Game(ScreensMixin):
         self.sfx.play("match_start", 0.9, min_gap=0.0)
         self.selected = None
         self.state = "match"
+
+    def _special_cards(self, deck, owned=True, n_evo=None, n_hero=None):
+        """(evo card keys, hero card keys) a deck brings: Evolutions in deck
+        slots 1-2 and a Hero in slot 3 - your unlocked ones, or (AI) up to
+        n_evo / n_hero of whatever its deck has there."""
+        import evos
+        ev, he = [], []
+        for i, k in enumerate(deck[:evos.EVO_SLOTS]):
+            if k in evos.EVOS and (self._evo_owned(k) if owned else True):
+                ev.append(k)
+        if len(deck) > evos.HERO_SLOT:
+            k = deck[evos.HERO_SLOT]
+            if k in evos.HEROES and (self._hero_owned(k) if owned else True):
+                he.append(k)
+        if n_evo is not None:
+            ev = ev[:n_evo]
+        if n_hero is not None:
+            he = he[:n_hero]
+        return ev, he
+
+    def _match_specials(self, player_deck, ai_deck=None):
+        pe, ph = self._special_cards(player_deck)
+        out = {"evo_cards": {PLAYER: pe}, "hero_cards": {PLAYER: ph}}
+        if ai_deck is not None:
+            # fairness: the AI brings as many Evolutions / Heroes as you do
+            ae, ah = self._special_cards(ai_deck, owned=False, n_evo=len(pe),
+                                         n_hero=len(ph))
+            out["evo_cards"][ENEMY] = ae
+            out["hero_cards"][ENEMY] = ah
+        return out
 
     def _ai_card_level(self):
         """AI card level in Battles: its ladder level vs this intelligence,
@@ -518,9 +550,10 @@ class Game(ScreensMixin):
         self._arena_surf = None
         self.level_key = key
         self.mode = None
+        ev, he = self._special_cards(self.level_deck)
         self.match, self.level_run = levels.new_level_match(
             lv, self.level_deck, self.profile.deck_levels(self.level_deck),
-            self.profile.tower_level(self.level_deck))
+            self.profile.tower_level(self.level_deck), ev, he)
         self.match.record_events = True
         self.ai = None
         self.selected = None
@@ -735,6 +768,8 @@ class Game(ScreensMixin):
                     self.sfx.play(key + "_cast", 0.85 if mine else 0.7, pan, min_gap=0.02)
                 else:
                     self.sfx.play(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
+                if ev.get("evo"):
+                    self.sfx.play("evo_deploy", 0.8, pan, min_gap=0.0)
             elif kind == "impact":
                 self.sfx.play(key + "_impact", 0.95, pan, min_gap=0.02)
             elif kind == "death":
@@ -748,7 +783,8 @@ class Game(ScreensMixin):
                 else:
                     self.sfx.play("death_small", 0.35, pan, min_gap=0.09)
             elif kind == "ability":
-                self.sfx.play("ability", 1.0, pan, min_gap=0.0)
+                hero = any(e.hero and e.key == key for e in self.match.entities)
+                self.sfx.play("hero_ability" if hero else "ability", 1.0, pan, min_gap=0.0)
             elif kind == "dash":
                 self.sfx.play("dash", 0.6, pan)
             elif kind == "wave":
@@ -972,6 +1008,12 @@ class Game(ScreensMixin):
             if self.selected is not None:
                 self.sfx.play("ui_deselect", 0.6, min_gap=0.0)
             self.selected = None
+            return
+        # hero ability button (bottom-right)
+        h, hready, hcost = self.match.hero_status(PLAYER)
+        if h is not None and self._hero_btn_rect().collidepoint(pos):
+            if not self.match.activate_hero(PLAYER):
+                self.sfx.play("ui_invalid", 0.6)
             return
         # champion ability button (bottom-left)
         champ, ready, cost = self.match.ability_status(PLAYER)
@@ -2203,6 +2245,8 @@ class Game(ScreensMixin):
             return
         base = (2.6 if e.is_building else 1.5) * cfg.TILE_SIZE
         size = int(base * sprites.render_scale(e.key))
+        if getattr(e, "general", False):
+            size = int(size * 1.35)
         cloaked = e.invis_timer > 0
         dashing = e.dash is not None
         # dash streak (Bandit, Golden Knight, Guardian charge...)
@@ -2226,8 +2270,15 @@ class Game(ScreensMixin):
             pygame.draw.ellipse(sh, (0, 0, 0, 70), sh.get_rect())
             self.screen.blit(sh, (px - size // 2, py + size // 4))
         py -= lift
-        # team ring (gold for champions)
-        ring = (245, 205, 85) if e.card.is_champion else self._team_color(e.team)
+        # team ring (gold for champions / heroes)
+        ring = (245, 205, 85) if (e.card.is_champion or e.hero) else self._team_color(e.team)
+        if e.evo:
+            # evolved: pulsing purple aura under the unit
+            pulse = 0.5 + 0.5 * math.sin(self._now() * 4 + e.anim_seed * 6)
+            rr = size // 2 + 6
+            aura = self._aura_surf(rr, int(60 + 70 * pulse))
+            self.screen.blit(aura, (px - rr - 2, py - rr - 2))
+            ring = (196, 120, 255)
         pygame.draw.circle(self.screen, ring, (int(px), int(py)), size // 2 + 2, 3)
         skey = sprites.unit_sprite_key(e.key)
         ox, oy, ang, sx, sy = self._anim_pose(e, size)
@@ -2261,6 +2312,19 @@ class Game(ScreensMixin):
             pygame.draw.circle(bub, (255, 225, 140, int(150 + 90 * pulse)),
                                (rr + 2, rr + 2), rr, 3)
             self.screen.blit(bub, (px - rr - 2, py - rr - 2))
+        if e.evo and not e.is_building:   # sparkle above evolved troops
+            t = self._now() * 3 + e.anim_seed * 7
+            sx_, sy_ = int(px + math.cos(t) * size * 0.4), int(py - size // 2 + math.sin(t * 1.3) * 3)
+            pygame.draw.circle(self.screen, (235, 200, 255), (sx_, sy_), 2)
+        if e.hero:                # golden star above heroes
+            cyy = py - size // 2 - 7
+            pts = []
+            for k in range(10):
+                a = -math.pi / 2 + k * math.pi / 5
+                rr_ = 6 if k % 2 == 0 else 2.6
+                pts.append((px + math.cos(a) * rr_, cyy + math.sin(a) * rr_))
+            pygame.draw.polygon(self.screen, (255, 210, 90), pts)
+            pygame.draw.polygon(self.screen, (120, 80, 20), pts, 1)
         if e.card.is_champion:    # little gold crown above
             cyy = py - size // 2 - 6
             pygame.draw.polygon(self.screen, (245, 205, 85),
@@ -2268,7 +2332,8 @@ class Game(ScreensMixin):
                                  (px, cyy - 4), (px + 3, cyy + 1), (px + 6, cyy - 2),
                                  (px + 6, cyy + 3)])
         self._draw_hp_bar(e, px, py - size // 2 - 5, size)
-        if e.level is not None and e.team == ENEMY:
+        if e.level is not None and (self.level_run is not None or e.level != 11) and (
+                e.team == ENEMY or e.level != 11):
             self._draw_level_badge(e, px, py, size)
         # ramp-up stage pips (Mighty Miner drill, Little Prince)
         if e.card.ramp_stages:
@@ -2290,6 +2355,17 @@ class Game(ScreensMixin):
     # Everything here is a light procedural pose on top of the unit's normal
     # art (bob, squash, lean, lunge). The sprite itself is never redrawn, so
     # every card keeps its exact look and silhouette.
+    def _aura_surf(self, rr, a):
+        cache = self.__dict__.setdefault("_aura_cache", {})
+        key = (rr, a // 10)
+        surf = cache.get(key)
+        if surf is None:
+            surf = pygame.Surface((rr * 2 + 4, rr * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (170, 90, 255, a // 3), (rr + 2, rr + 2), rr)
+            pygame.draw.circle(surf, (210, 150, 255, a), (rr + 2, rr + 2), rr, 2)
+            cache[key] = surf
+        return surf
+
     def _anim_pose(self, e, size):
         """-> (dx, dy, angle_deg, scale_x, scale_y) for this frame."""
         m = self.match
@@ -2506,6 +2582,8 @@ class Game(ScreensMixin):
         """Levels mode: unit level next to the health bar; bosses get a tag."""
         bx, by = int(px - size // 2 - 6), int(py - size // 2 - 4)
         col = (150, 60, 190) if not e.boss else (200, 40, 50)
+        if e.team == PLAYER:
+            col = (50, 100, 190)
         pygame.draw.circle(self.screen, (0, 0, 0), (bx + 1, by + 1), 8)
         pygame.draw.circle(self.screen, col, (bx, by), 8)
         pygame.draw.circle(self.screen, (240, 220, 255), (bx, by), 8, 1)
@@ -2519,15 +2597,19 @@ class Game(ScreensMixin):
             self._text("BOSS", self.font_sb, (255, 90, 90), center=(px, py - size // 2 - 18))
 
     def _draw_hp_bar(self, e, px, top, width):
-        if e.hp >= e.max_hp and e.shield <= 0:
-            frac = 1.0
         frac = max(0.0, e.hp / e.max_hp)
+        over = max(0.0, frac - 1.0)          # Evolved Bats overheal
+        frac = min(1.0, frac)
         w = width
         h = 6 if getattr(e, "boss", False) else 4
         x = px - w // 2
         pygame.draw.rect(self.screen, (30, 30, 30), (x, top, w, h))
         col = cfg.COLOR_HP_GOOD if frac > 0.35 else cfg.COLOR_HP_BAD
+        if e.team == ENEMY and not e.is_tower:
+            col = (230, 90, 90) if frac > 0.35 else (240, 160, 60)
         pygame.draw.rect(self.screen, col, (x, top, int(w * frac), h))
+        if over > 0:
+            pygame.draw.rect(self.screen, (230, 170, 255), (x, top, int(w * min(1.0, over * 2)), h))
         if e.shield > 0:
             pygame.draw.rect(self.screen, (150, 200, 255), (x, top - 3, w, 2))
 
@@ -2889,9 +2971,18 @@ class Game(ScreensMixin):
             pygame.draw.rect(self.screen, bg, r, border_radius=9)
             pygame.draw.rect(self.screen, lt_c(bg, 16),
                              (r.x + 2, r.y + 2, r.w - 4, r.h // 2), border_radius=7)
+            evo_p = m.evo_progress(PLAYER, key)
+            evo_now = evo_p is not None and evo_p[0] >= evo_p[1]
+            if evo_now:                       # evolved copy ready: purple glow
+                pulse = 0.5 + 0.5 * math.sin(self._now() * 5)
+                glow = pygame.Surface((r.w + 12, r.h + 12), pygame.SRCALPHA)
+                pygame.draw.rect(glow, (190, 110, 255, int(70 + 80 * pulse)),
+                                 glow.get_rect(), 6, border_radius=14)
+                self.screen.blit(glow, (r.x - 6, r.y - 6))
+                pygame.draw.rect(self.screen, (200, 130, 255), r, 3, border_radius=9)
             if sel:
                 pygame.draw.rect(self.screen, (250, 240, 140), r, 3, border_radius=9)
-            elif affordable:
+            elif affordable and not evo_now:
                 pygame.draw.rect(self.screen, (96, 108, 138), r, 1, border_radius=9)
             spr = sprites.get_sprite(key, 50)
             if not affordable:
@@ -2906,6 +2997,17 @@ class Game(ScreensMixin):
                        center=(r.x + 10, r.y + 11))
             self._text(self._fit(card.name, self.font_s, r.w - 6), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
+            if evo_p is not None:
+                if evo_now:
+                    self._text("EVO", self.font_sb, (220, 160, 255),
+                               center=(r.right - 16, r.y + 11), outline=True)
+                else:                         # charge pips
+                    for k in range(evo_p[1]):
+                        pygame.draw.circle(self.screen, (200, 130, 255) if k < evo_p[0]
+                                           else (60, 50, 80), (r.right - 10 - k * 9, r.y + 10), 3)
+            if key in m.hero_cards[PLAYER]:
+                self._text("HERO", self.font_s, (255, 200, 90),
+                           center=(r.right - 18, r.y + 24), outline=True)
         # next card in a framed box on the right
         nk = m.next_card[PLAYER]
         if nk:
@@ -2920,6 +3022,44 @@ class Game(ScreensMixin):
                        center=(nb.centerx, nb.y + 9))
             self.screen.blit(sprites.get_sprite(nk, 38), (nb.centerx - 19, nb.y + 19))
         self._draw_ability_button()
+        self._draw_hero_button()
+
+    def _hero_btn_rect(self):
+        r = 24
+        return pygame.Rect(cfg.ARENA_X0 + cfg.ARENA_PX_W - 2 * r - 8,
+                           cfg.ARENA_Y0 + cfg.ARENA_PX_H - 2 * r - 8, 2 * r, 2 * r)
+
+    def _draw_hero_button(self):
+        h, ready, cost = self.match.hero_status(PLAYER)
+        if h is None:
+            return
+        r = self._hero_btn_rect()
+        cx, cy = r.center
+        rad = r.w // 2
+        used = h.ability_uses <= 0
+        pygame.draw.circle(self.screen, (15, 18, 26), (cx, cy + 2), rad)
+        base = (255, 196, 80) if ready else (95, 88, 70)
+        if ready:
+            pulse = 0.5 + 0.5 * math.sin(self._now() * 6)
+            pygame.draw.circle(self.screen, (255, 220, 120), (cx, cy), rad + 3 + int(2 * pulse), 2)
+        pygame.draw.circle(self.screen, base, (cx, cy), rad)
+        pygame.draw.circle(self.screen, (255, 240, 160) if ready else (60, 60, 55),
+                           (cx, cy), rad, 2)
+        self.screen.blit(sprites.get_sprite(h.key, rad + 6),
+                         (cx - (rad + 6) // 2, cy - (rad + 6) // 2))
+        if used:
+            ov = pygame.Surface((r.w, r.h), pygame.SRCALPHA)
+            pygame.draw.circle(ov, (0, 0, 0, 170), (rad, rad), rad)
+            self.screen.blit(ov, r.topleft)
+            self._text("USED", self.font_s, (230, 230, 230), center=(cx, cy))
+        pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.x + 4, r.y + 4), 8)
+        self._text(str(cost), self.font_s, (255, 255, 255), center=(r.x + 4, r.y + 4))
+        label = self.font_s.render(h.hero_def.ability, True,
+                                   (255, 226, 150) if not used else (150, 150, 150))
+        chip = pygame.Rect(r.x - label.get_width() - 16, cy - 9, label.get_width() + 10, 18)
+        pygame.draw.rect(self.screen, (20, 24, 34), chip, border_radius=6)
+        pygame.draw.rect(self.screen, (170, 140, 70), chip, 1, border_radius=6)
+        self.screen.blit(label, (chip.x + 5, chip.y + 3))
 
     def _draw_ability_button(self):
         champ, ready, cost = self.match.ability_status(PLAYER)

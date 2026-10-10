@@ -70,6 +70,7 @@
 "elixir_golem_deploy",
 "elixir_golemite_attack",
 "elixir_pop",
+"evo_deploy",
 "executioner_attack",
 "executioner_deploy",
 "fire_spirit_attack",
@@ -107,6 +108,8 @@
 "graveyard_impact",
 "guards_attack",
 "guards_deploy",
+"hero_ability",
+"hero_turret_attack",
 "hog_rider_attack",
 "hog_rider_deploy",
 "hunter_attack",
@@ -233,6 +236,8 @@
 "revs": {
 "tesla_attack": 3,
 "archers_attack": 3,
-"elixir_pop": 3
+"elixir_pop": 3,
+"evo_deploy": 3,
+"hero_ability": 3
 }
 }

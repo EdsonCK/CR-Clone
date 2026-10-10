@@ -1098,13 +1098,16 @@ class LevelRun:
         return True
 
 
-def new_level_match(level, player_deck, card_levels=None, tower_level=None):
+def new_level_match(level, player_deck, card_levels=None, tower_level=None,
+                    evo_cards=None, hero_cards=None):
     """A Match set up for a level: no enemy towers, no clock. card_levels is
-    your {card: level} (or one level for all); tower_level your towers'."""
+    your {card: level} (or one level for all); tower_level your towers';
+    evo_cards / hero_cards your Evolutions and Hero."""
     from engine import Match
     m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False,
               card_levels={PLAYER: card_levels} if card_levels is not None else None,
-              tower_levels={PLAYER: tower_level} if tower_level is not None else None)
+              tower_levels={PLAYER: tower_level} if tower_level is not None else None,
+              evo_cards={PLAYER: evo_cards or []}, hero_cards={PLAYER: hero_cards or []})
     m.banned = set(BANNED)
     m.miasma = (miasma_damage(), MIASMA_TICK)
     return m, LevelRun(m, level)

@@ -19,6 +19,7 @@ import random
 
 import config as cfg
 import cards
+import evo_engine
 from cards import CardDef
 
 # --- river / bridge geometry (in tile coordinates) ---------------------------
@@ -183,6 +184,12 @@ class Entity:
         self.partner = None        # Goblinstein Doctor <-> Monster link
         self.combo_n = 0           # Monk combo counter
         self.ramp_time = 0.0           # for inferno ramping / ramp_stages
+        # evolutions / heroes (see evo_engine.py)
+        self.evo = False
+        self.hero = False
+        self.hero_def = None
+        self.haste_timer = 0.0
+        self.last_hitter = None
         # animation state (read by the renderer only - never affects play)
         self.walk = 0.0            # tiles walked (drives the step cycle)
         self.move_t = -9.0         # match time we last moved
@@ -248,6 +255,8 @@ class Entity:
         s = self.base_speed * self.slow_factor
         if self.rage_timer > 0:
             s *= 1.35
+        if self.haste_timer > 0:
+            s *= 1.15
         return s
 
     def effective_hitspeed(self):
@@ -304,6 +313,10 @@ class Entity:
     def take_damage(self, amount):
         if self.immune_timer > 0:
             return
+        m = self._match_ref
+        if self.evo or self.hero:
+            amount *= evo_engine.taken_damage_mult(self, m)
+        shield_before = self.shield
         if self.dash is not None and self.dash.get("immune"):
             return
         if self.protect_timer > 0:
@@ -318,6 +331,8 @@ class Entity:
                 return
             amount -= self.shield
             self.shield = 0
+            if self.evo and m is not None:
+                evo_engine.after_damaged(self, m, shield_before)
         dealt = min(amount, self.hp)
         self.hp -= amount
         if amount > 0:
@@ -331,6 +346,9 @@ class Entity:
                 if self.is_tower:
                     m.stats["tower_dmg"][st] += dealt
                 self.last_hit = m._src
+                self.last_hitter = m._src_ent
+        if self.evo and m is not None and self.hp > 0:
+            evo_engine.after_damaged(self, m, shield_before)
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -343,6 +361,13 @@ class Entity:
         # timers
         if self.hurt > 0:
             self.hurt -= dt
+        if getattr(self, "_taunt", 0) > 0:
+            self._taunt -= dt
+        if (self.evo or self.hero or getattr(self, "poison_t", 0) > 0
+                or self.haste_timer > 0):
+            evo_engine.tick(self, dt, match)
+            if not self.alive:
+                return
         if self.slow_timer > 0:
             self.slow_timer -= dt
             if self.slow_timer <= 0:
@@ -399,6 +424,7 @@ class Entity:
             if self.spawn_timer <= 0:
                 self.spawn_timer += self.card.spawner[2]
                 ukey, ucount, _ = self.card.spawner
+                ucount = evo_engine.spawner_count(self, ucount)
                 fwd = -1 if self.team == PLAYER else 1
                 match.spawn_units(self.team, ukey, ucount, self.x,
                                   self.y + fwd * 1.2, deploy=0.0,
@@ -427,7 +453,8 @@ class Entity:
                               and self.card.ramp_kind == "damage"):
             tid = id(self.target) if (self.target and self.target.alive) else None
             if tid != getattr(self, "_ramp_id", None):
-                self.ramp_time = 0.0
+                if not (evo_engine.keeps_ramp(self) and tid is not None):
+                    self.ramp_time = 0.0
                 self._ramp_id = tid
         if self.target is None:
             # Levels: nothing in sight -> keep marching to where the enemy
@@ -459,6 +486,8 @@ class Entity:
             # spirits explode on contact; a finished charge hits on impact)
             if self._engaged != id(self.target):
                 self._engaged = id(self.target)
+                if self.evo:
+                    evo_engine.on_new_target(self, self.target, match)
                 if self.is_melee() and not self.card.kamikaze and not self.charged:
                     self.attack_cd = max(self.attack_cd, self.first_hit_delay())
             self._attack(match)
@@ -559,6 +588,8 @@ class Entity:
         t = self.target
         if t is None or not t.alive or not self.can_attack(t):
             return False
+        if getattr(self, "_taunt", 0) > 0:
+            return True                       # taunted (Hero Knight)
         # never stay locked on a sleeping king while its princess towers stand
         if t.is_king and not t.active and any(
                 match.towers[(t.team, s)].alive for s in ("left", "right")):
@@ -652,6 +683,12 @@ class Entity:
         return best.x + px * r, best.y + py * r
 
     def _attack(self, match):
+        before = self.atk_t
+        self._attack_core(match)
+        if self.evo and self.atk_t != before and not self.card.kamikaze:
+            evo_engine.after_attack(self, match, getattr(self, "_last_dmg", self.dmg))
+
+    def _attack_core(self, match):
         if self.attack_cd > 0:
             return
         self.attack_cd = self.effective_hitspeed()
@@ -699,6 +736,9 @@ class Entity:
             return
 
         dmg = self.dmg
+        if self.evo:
+            dmg = evo_engine.before_attack(self, match, dmg)
+        self._last_dmg = dmg
         # charge bonus
         if self.charged:
             dmg *= self.card.charge_mult
@@ -836,7 +876,8 @@ class Entity:
         if c.death_spawn:
             ukey, ucount = c.death_spawn
             if ukey == "rage_pickup":
-                match.effects.append(Effect("rage", self.team, self.x, self.y, 3.0, 4.0))
+                rr, rd = evo_engine.lumberjack_rage(self)
+                match.effects.append(Effect("rage", self.team, self.x, self.y, rr, rd))
             elif ukey in cards.CARDS and ucount > 0:
                 match.spawn_units(self.team, ukey, ucount, self.x, self.y, deploy=0.0,
                                   power=self.child_power(), level=self.level)
@@ -966,6 +1007,8 @@ class Projectile:
             match.effects.append(Effect("aoe", e.team, e.x, e.y, 0.8, 0.25,
                                         card_key=e.key))
         e.take_damage(self.dmg)
+        if self.owner is not None and self.owner.evo:
+            evo_engine.on_projectile_hit(self, e, match)
         if self.stun:
             e.stun_timer = max(e.stun_timer, self.stun)
         if self.slow:
@@ -975,12 +1018,15 @@ class Projectile:
     def _impact(self, match):
         if self.pierce:
             return   # damage already dealt along the flight path
+        if self.owner is not None and self.owner.evo:
+            evo_engine.on_projectile_impact(self, match)
         # chain-lightning shooters (Electro Dragon): the bolt arcs onward from
         # the struck target instead of splashing
         card = cards.CARDS.get(self.style)
         if (card is not None and card.chain and self.homing
                 and self.target and self.target.alive):
             maxt, jump = card.chain
+            maxt = evo_engine.chain_targets(self.owner, maxt)
             match.chain_damage(self.team, self.x, self.y, self.target,
                                self.dmg, self.stun, maxt, jump, self.style)
             return
@@ -1045,7 +1091,8 @@ class Effect:
                 card = cards.CARDS[self.card_key]
                 match.emit("impact", self.card_key, self.x, self.y, self.team,
                            radius=self.radius)
-                match._resolve_spell(self.team, card, self.x, self.y)
+                match._resolve_spell(self.team, card, self.x, self.y,
+                                     evo=getattr(self, "evo", False))
                 match.effects.append(Effect("blast", self.team, self.x, self.y,
                                             max(self.radius, 1.0), 0.45,
                                             card_key=self.card_key))
@@ -1155,7 +1202,7 @@ class Effect:
 # ===========================================================================
 class Match:
     def __init__(self, player_deck, ai_deck, enemy_towers=True, timed=True,
-                 card_levels=None, tower_levels=None):
+                 card_levels=None, tower_levels=None, evo_cards=None, hero_cards=None):
         # sound / visual-effect events for the game layer (off in simulations)
         self.record_events = False
         self.events = []
@@ -1185,6 +1232,21 @@ class Match:
         self.stats = {"dmg": [{}, {}], "kills": [{}, {}], "played": [{}, {}],
                       "spent": [0.0, 0.0], "leaked": [0.0, 0.0], "tower_dmg": [0.0, 0.0]}
         self._src = None           # (team, card key) dealing damage right now
+        self._src_ent = None       # ...and the entity, if a unit
+        self.later = []            # [(time, kind, data)] delayed actions
+        # Evolutions: per team the card keys that evolve, and their charge
+        # (plays since the last evolved copy). Charges start FULL, so the
+        # first copy you play comes out evolved.
+        self.evo_cards = {PLAYER: set(), ENEMY: set()}
+        self.hero_cards = {PLAYER: set(), ENEMY: set()}
+        for t in (PLAYER, ENEMY):
+            if evo_cards and evo_cards.get(t):
+                self.evo_cards[t] = set(evo_cards[t])
+            if hero_cards and hero_cards.get(t):
+                self.hero_cards[t] = set(hero_cards[t])
+        import evos as _evos
+        self.evo_charge = {t: {k: _evos.EVOS[k].cycles for k in self.evo_cards[t]
+                               if k in _evos.EVOS} for t in (PLAYER, ENEMY)}
         self.entities = []
         self.projectiles = []
         self.effects = []
@@ -1344,7 +1406,14 @@ class Match:
         self.stats["spent"][team] += card.elixir
         pl = self.stats["played"][team]
         pl[key] = pl.get(key, 0) + 1
-        self._deploy(team, key, x, y)
+        evo = self.evo_ready(team, key)
+        if key in self.evo_charge[team]:
+            if evo:
+                self.evo_charge[team][key] = 0
+            else:
+                self.evo_charge[team][key] += 1
+        hero = key in self.hero_cards[team]
+        self._deploy(team, key, x, y, evo=evo, hero=hero)
         # cycle the card
         self.queues[team].append(key)
         newk = self.queues[team].pop(0)
@@ -1352,13 +1421,58 @@ class Match:
         self.next_card[team] = self.queues[team][0] if self.queues[team] else None
         return True
 
-    def _deploy(self, team, key, x, y):
+    def evo_ready(self, team, key):
+        import evos as _evos
+        ch = self.evo_charge[team].get(key)
+        return ch is not None and ch >= _evos.EVOS[key].cycles
+
+    def evo_progress(self, team, key):
+        """(charge, cycles) or None for the HUD."""
+        import evos as _evos
+        ch = self.evo_charge[team].get(key)
+        return None if ch is None else (ch, _evos.EVOS[key].cycles)
+
+    def later_add(self, delay, kind, **data):
+        self.later.append((self.elapsed + delay, kind, data))
+
+    def _run_later(self):
+        if not self.later:
+            return
+        due = [x for x in self.later if x[0] <= self.elapsed]
+        if not due:
+            return
+        self.later = [x for x in self.later if x[0] > self.elapsed]
+        for _, kind, d in due:
+            team = d["team"]
+            self._src = (team, d.get("key", kind))
+            self._src_ent = None
+            if kind == "blast":
+                self.effects.append(Effect("aoe", team, d["x"], d["y"], d["radius"],
+                                           0.35, card_key=d.get("key")))
+                self.area_damage(team, d["x"], d["y"], d["radius"], d["dmg"],
+                                 hit_air=d.get("air", True), stun=d.get("stun", 0.0),
+                                 freeze=d.get("freeze", 0.0), slow=d.get("slow"),
+                                 tower_damage=d.get("tower_dmg"))
+                self.emit("impact", d.get("key"), d["x"], d["y"], team,
+                          radius=d["radius"])
+            elif kind == "spawn":
+                self.emit("portal", d["key"], d["x"], d["y"], team)
+                self.spawn_units(team, d["key"], d["count"], d["x"], d["y"], deploy=0.0,
+                                 power=d.get("power"))
+        self._src = None
+
+    def effects_rage(self, team, x, y, radius, duration):
+        self.effects.append(Effect("rage", team, x, y, radius, duration))
+
+    def _deploy(self, team, key, x, y, evo=False, hero=False):
         card = cards.CARDS[key]
-        self.emit("deploy", key, x, y, team)
+        self.emit("deploy", key, x, y, team, evo=evo, hero=hero)
         if card.category == "spell":
-            self._cast_spell(team, card, x, y)
+            self._cast_spell(team, card, x, y, evo=evo)
         else:
             units = self.spawn_units(team, key, card.count, x, y)
+            if evo or hero:
+                evo_engine.on_spawn_group(self, units, card, evo=evo, hero=hero)
             if card.companion:   # Goblinstein's Monster, etc.
                 ck, cc = card.companion
                 cx = x + 1.2 if x + 1.2 < cfg.GRID_COLS - 0.5 else x - 1.2
@@ -1419,21 +1533,24 @@ class Match:
             return max(base * 0.5, dist(ox, oy, x, y) / spd)
         return base
 
-    def _cast_spell(self, team, card, x, y):
+    def _cast_spell(self, team, card, x, y, evo=False):
         # spells don't hit instantly: an incoming marker shows for a delay (or
         # the spell visibly FLIES from the king tower), then _resolve_spell()
         # applies the effect (see Effect.update).
         delay = self.spell_delay(team, card, x, y)
         fx = Effect("incoming", team, x, y, card.spell_radius or 1.2, delay,
                     card_key=card.key)
+        fx.evo = evo
         if card.key in cfg.SPELL_FLIGHT_SPEED:
             fx.origin = self.spell_origin(team)
         self.effects.append(fx)
 
-    def _resolve_spell(self, team, card, x, y):
+    def _resolve_spell(self, team, card, x, y, evo=False):
         fwd = -1 if team == PLAYER else 1
         # spells hit harder at higher card levels (Levels waves: wave level)
         lp = self.level_power(team, card.key)
+        if evo:
+            evo_engine.on_spell(self, team, card, x, y, evo, lp)
         pw = lp[1]
         lvl = self.team_level.get(team) if team in self.team_power else \
             self.card_level(team, card.key)
@@ -1581,6 +1698,30 @@ class Match:
             if (e.alive and e.card.ability_type == "skeletons"
                     and dist(e.x, e.y, dead.x, dead.y) <= 5.0):
                 e.souls = min(e.souls + 1, 10)
+
+    def hero_on_field(self, team):
+        for e in self.entities:
+            if e.team == team and e.alive and e.hero:
+                return e
+        return None
+
+    def hero_status(self, team):
+        """(hero, ready, cost) for the HUD; hero is None if none deployed."""
+        h = self.hero_on_field(team)
+        if h is None or h.hero_def is None:
+            return None, False, 0
+        cost = h.hero_def.cost
+        ready = evo_engine.hero_ready(h, self) and self.elixir[team] >= cost
+        return h, ready, cost
+
+    def activate_hero(self, team):
+        h, ready, cost = self.hero_status(team)
+        if h is None or not ready:
+            return False
+        self.elixir[team] -= cost
+        h.ability_uses -= 1
+        evo_engine.do_hero_ability(h, self)
+        return True
 
     def champion_on_field(self, team):
         for e in self.entities:
@@ -1860,6 +2001,7 @@ class Match:
 
         for e in list(self.entities):
             self._src = (e.team, e.key)
+            self._src_ent = e
             e.update(dt, self)
             # Electro Giant counter-zap: took a hit -> zap everything nearby
             if e.card.reflect:
@@ -1873,10 +2015,14 @@ class Match:
                     e.reflect_cd = 0.6
                     e._reflect_pending = False
         self._src = None
+        self._src_ent = None
         self._resolve_collisions(dt)
         for p in list(self.projectiles):
             self._src = (p.team, p.owner.key if p.owner is not None else (p.style or "?"))
+            self._src_ent = p.owner
             p.update(dt, self)
+        self._src_ent = None
+        self._run_later()
         self._src = ("miasma", "miasma")
         if self.miasma:
             self._miasma_t += dt
@@ -1906,12 +2052,15 @@ class Match:
                     k = self.stats["kills"][lh[0]]
                     k[lh[1]] = k.get(lh[1], 0) + 1
                 self._src = (e.team, e.key)
+                self._src_ent = e
                 if e.is_tower:
                     self._on_tower_destroyed(e)
                 else:
                     self._collect_souls(e)
                     e.on_death(self)
+                    evo_engine.on_death(e, self)
         self._src = None
+        self._src_ent = None
 
         self.entities = [e for e in self.entities if e.alive]
         self.projectiles = [p for p in self.projectiles if p.alive]
