@@ -318,9 +318,19 @@ class Entity:
                 return
             amount -= self.shield
             self.shield = 0
+        dealt = min(amount, self.hp)
         self.hp -= amount
         if amount > 0:
             self.hurt = 0.14
+            m = self._match_ref
+            if (m is not None and m._src is not None and m._src[0] in (0, 1)
+                    and m._src[0] != self.team):
+                st, sk = m._src
+                d = m.stats["dmg"][st]
+                d[sk] = d.get(sk, 0.0) + dealt
+                if self.is_tower:
+                    m.stats["tower_dmg"][st] += dealt
+                self.last_hit = m._src
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -578,6 +588,8 @@ class Entity:
                 ty2 = RIVER_TOP - 0.3 if t_top else RIVER_BOTTOM + 0.3
                 if abs(tx - bx) > BRIDGE_HALF:
                     tx, ty = bx, ty2
+        if not self.flying:
+            tx, ty = self._steer_around(tx, ty, target, match)
         dx, dy = tx - self.x, ty - self.y
         dd = math.hypot(dx, dy)
         if dd < 1e-6:
@@ -593,6 +605,51 @@ class Entity:
             self.charged = True
         if self.ramps():
             self.ramp_time = 0.0   # moving = not attacking -> ramp decays fully
+
+    def _steer_around(self, tx, ty, target, match):
+        """Ground path-finding lite: if a building or tower sits on the
+        straight line to (tx, ty), aim for a point beside it instead (on the
+        side the destination is on), so troops walk AROUND obstacles the way
+        they do in Clash Royale rather than sliding along them."""
+        dx, dy = tx - self.x, ty - self.y
+        dd = math.hypot(dx, dy)
+        if dd < 0.3:
+            return tx, ty
+        ux, uy = dx / dd, dy / dd
+        best, best_t = None, 1e9
+        for e in match.entities:
+            if not e.alive or e.mass > 0 or e is target or e is self:
+                continue                      # only buildings & towers block
+            ox, oy = e.x - self.x, e.y - self.y
+            t = ox * ux + oy * uy             # distance along our path
+            if t <= 0 or t > dd + e.crad:
+                continue
+            r = e.crad + self.crad + 0.15
+            perp = abs(ox * uy - oy * ux)     # distance from our path
+            if perp < r and t < best_t:
+                best, best_t = e, t
+        if best is None:
+            return tx, ty
+        ox, oy = best.x - self.x, best.y - self.y
+        od = math.hypot(ox, oy) or 1e-6
+        r = best.crad + self.crad + 0.35
+        # go round on the side of the line the destination lies; once a side
+        # is picked for this obstacle, stick with it (no dithering)
+        mem = getattr(self, "_steer_mem", None)
+        if mem is not None and mem[0] == id(best):
+            side = mem[1]
+        else:
+            cross = ox * dy - oy * dx
+            if abs(cross) < 0.05 * dd * od:
+                # dead ahead: go round on the side nearer the arena middle
+                mid = cfg.GRID_COLS / 2.0
+                cross = (best.x - mid) * (1 if dy < 0 else -1) or (0.5 - self.anim_seed)
+            side = 1.0 if cross < 0 else -1.0
+            self._steer_mem = (id(best), side)
+        px, py = -oy / od * side, ox / od * side
+        if od <= r + 0.05:                    # touching it: walk along the rim
+            return self.x + px * 2.0 + ux * 0.2, self.y + py * 2.0 + uy * 0.2
+        return best.x + px * r, best.y + py * r
 
     def _attack(self, match):
         if self.attack_cd > 0:
@@ -1124,6 +1181,10 @@ class Match:
         # camp an army at their spawn. (damage per tick, seconds per tick)
         self.miasma = None
         self._miasma_t = 0.0
+        # post-match stats (see stats_summary)
+        self.stats = {"dmg": [{}, {}], "kills": [{}, {}], "played": [{}, {}],
+                      "spent": [0.0, 0.0], "leaked": [0.0, 0.0], "tower_dmg": [0.0, 0.0]}
+        self._src = None           # (team, card key) dealing damage right now
         self.entities = []
         self.projectiles = []
         self.effects = []
@@ -1227,7 +1288,10 @@ class Match:
         return 1.0
 
     def add_elixir(self, team, amount):
-        self.elixir[team] = min(cfg.ELIXIR_MAX, self.elixir[team] + amount)
+        new = self.elixir[team] + amount
+        if new > cfg.ELIXIR_MAX:
+            self.stats["leaked"][team] += new - max(cfg.ELIXIR_MAX, self.elixir[team])
+        self.elixir[team] = min(cfg.ELIXIR_MAX, new)
 
     # ---- placement ---------------------------------------------------------
     def can_place(self, team, key, x, y):
@@ -1277,6 +1341,9 @@ class Match:
         if not self.can_place(team, key, x, y):
             return False
         self.elixir[team] -= card.elixir
+        self.stats["spent"][team] += card.elixir
+        pl = self.stats["played"][team]
+        pl[key] = pl.get(key, 0) + 1
         self._deploy(team, key, x, y)
         # cycle the card
         self.queues[team].append(key)
@@ -1792,6 +1859,7 @@ class Match:
         self.add_elixir(ENEMY, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)
 
         for e in list(self.entities):
+            self._src = (e.team, e.key)
             e.update(dt, self)
             # Electro Giant counter-zap: took a hit -> zap everything nearby
             if e.card.reflect:
@@ -1804,9 +1872,12 @@ class Match:
                                      hit_air=True, stun=rstun)
                     e.reflect_cd = 0.6
                     e._reflect_pending = False
+        self._src = None
         self._resolve_collisions(dt)
         for p in list(self.projectiles):
+            self._src = (p.team, p.owner.key if p.owner is not None else (p.style or "?"))
             p.update(dt, self)
+        self._src = ("miasma", "miasma")
         if self.miasma:
             self._miasma_t += dt
             dmg, every = self.miasma
@@ -1818,6 +1889,7 @@ class Match:
                         e.take_damage(dmg)
                         self.emit("miasma", e.key, e.x, e.y, PLAYER)
         for fx in list(self.effects):
+            self._src = (fx.team, fx.card_key or fx.kind)
             fx.update(dt, self)
 
         # process deaths (repeat: a death can kill more - e.g. a death bomb)
@@ -1829,11 +1901,17 @@ class Match:
                 self.emit("death", e.key, e.x, e.y, e.team, tower=e.is_tower,
                           king=e.is_king, building=e.is_building,
                           big=e.max_hp >= 1500)
+                lh = getattr(e, "last_hit", None)
+                if lh is not None and not e.is_tower and lh[0] in (PLAYER, ENEMY):
+                    k = self.stats["kills"][lh[0]]
+                    k[lh[1]] = k.get(lh[1], 0) + 1
+                self._src = (e.team, e.key)
                 if e.is_tower:
                     self._on_tower_destroyed(e)
                 else:
                     self._collect_souls(e)
                     e.on_death(self)
+        self._src = None
 
         self.entities = [e for e in self.entities if e.alive]
         self.projectiles = [p for p in self.projectiles if p.alive]

@@ -153,6 +153,21 @@ class Game(ScreensMixin):
         self.running = True
 
         self.player_deck = self._load_deck()
+        # saved deck slots (profile.json); slot 1 starts as your old deck
+        pr = self.profile
+        if not pr.decks:
+            pr.decks = [{"name": "Deck %d" % (i + 1),
+                         "cards": list(self.player_deck if i == 0 else cards.DEFAULT_PLAYER_DECK)}
+                        for i in range(profile_data.DECK_SLOTS)]
+            pr.active_slot = 0
+        while len(pr.decks) < profile_data.DECK_SLOTS:
+            pr.decks.append({"name": "Deck %d" % (len(pr.decks) + 1),
+                             "cards": list(cards.DEFAULT_PLAYER_DECK)})
+        pr.active_slot = max(0, min(pr.active_slot, profile_data.DECK_SLOTS - 1))
+        for d in pr.decks:
+            d["cards"] = [k for k in d.get("cards", []) if k in cards.CARDS][:cfg.DECK_SIZE]
+        self.player_deck = pr.decks[pr.active_slot]["cards"]
+        self.drag_card = None          # hand index being dragged (drag to deploy)
         self.match = None
         self.ai = None
         self.selected = None       # index into hand while deploying
@@ -230,7 +245,20 @@ class Game(ScreensMixin):
                 pass
         return list(default)
 
+    def _select_deck_slot(self, i):
+        """Switch the battle deck to saved slot i."""
+        pr = self.profile
+        pr.decks[pr.active_slot]["cards"] = list(self.player_deck)
+        pr.active_slot = i
+        self.player_deck = pr.decks[i]["cards"]
+        if self.state == "deck" and self.deck_mode == "player":
+            self.deck_backup = list(self.player_deck)
+        pr.save()
+
     def _save_deck(self):
+        if self.deck_mode == "player":
+            self.profile.decks[self.profile.active_slot]["cards"] = list(self.player_deck)
+            self.profile.save()
         path = {"ai": AI_DECK_FILE, "level": LEVEL_DECK_FILE}.get(self.deck_mode, DECK_FILE)
         try:
             with open(path, "w") as f:
@@ -349,6 +377,7 @@ class Game(ScreensMixin):
             self.level_deck = d
         else:
             self.player_deck = d
+            self.profile.decks[self.profile.active_slot]["cards"] = d
 
     # -------------------------------------------------------------- menu
     def _build_menu_buttons(self):
@@ -865,6 +894,16 @@ class Game(ScreensMixin):
                     self.deck_drag = False
                     self.levels_drag = None
                     self._extra_mouseup(e.pos)
+                    if self.drag_card is not None:
+                        i, self.drag_card = self.drag_card, None
+                        if (self.state == "match" and self.selected == i
+                                and e.pos[1] < cfg.ARENA_Y0 + cfg.ARENA_PX_H
+                                and e.pos[1] > cfg.ARENA_Y0):
+                            tx, ty = px_to_tile(*e.pos)
+                            if self.match.play_card(PLAYER, i, tx, ty):
+                                self.selected = None
+                            else:
+                                self.sfx.play("ui_invalid", 0.6)
                     if self.slider_drag:
                         self.slider_drag = False
                         self._save_settings()
@@ -949,6 +988,8 @@ class Game(ScreensMixin):
                 else:
                     self.selected = i
                     self.sfx.play("ui_select", 0.6, min_gap=0.0)
+                    if self.opt_drag_deploy:
+                        self.drag_card = i       # release over the arena to play
                 return
         # click on arena to deploy
         if self.selected is not None:
@@ -1017,6 +1058,17 @@ class Game(ScreensMixin):
             Button((cx - 70, cfg.WINDOW_H - 60, 140, 40), "Back",
                    lambda: self._goto("menu"), "dark"),
         ]
+
+    def _slot_tag(self, i, key):
+        """('EVO'|'HERO', colour) if deck slot i makes this card special."""
+        import evos
+        if i < evos.EVO_SLOTS and key in evos.EVOS and (
+                self.deck_mode == "ai" or self._evo_owned(key)):
+            return ("EVO", (190, 110, 255))
+        if i == evos.HERO_SLOT and key in evos.HEROES and (
+                self.deck_mode == "ai" or self._hero_owned(key)):
+            return ("HERO", (255, 196, 80))
+        return None
 
     def _deck_card_level(self, k, deck):
         if deck is self.player_deck or deck is self.level_deck:
@@ -1148,9 +1200,22 @@ class Game(ScreensMixin):
         m, gap = self.DECK_MARGIN, 8
         w = (cfg.WINDOW_W - m * 2 - gap * 3) // 4
         h = 78
-        top = 58
+        top = 76
         return [pygame.Rect(m + (i % 4) * (w + gap), top + (i // 4) * (h + gap), w, h)
                 for i in range(cfg.DECK_SIZE)]
+
+    def _deck_tab_rects(self):
+        """Saved deck slots 1-5 (battle deck only)."""
+        if self.deck_mode != "player":
+            return []
+        w, gap = 34, 5
+        x0 = cfg.WINDOW_W - 12 - profile_data.DECK_SLOTS * (w + gap) + gap
+        return [(pygame.Rect(x0 + i * (w + gap), 8, w, 30), i)
+                for i in range(profile_data.DECK_SLOTS)]
+
+    def _deck_arrow_rects(self, r):
+        return (pygame.Rect(r.x + 1, r.centery - 12, 15, 24),
+                pygame.Rect(r.right - 16, r.centery - 12, 15, 24))
 
     def _deck_viewport(self):
         """(top, bottom) y of the scrollable card collection."""
@@ -1263,11 +1328,22 @@ class Game(ScreensMixin):
                 self.deck_drag = True
                 self._deck_drag_to(pos[1])
                 return
-        # your 8 cards: either button removes
+        for r, i in self._deck_tab_rects():
+            if r.collidepoint(pos):
+                self._select_deck_slot(i)
+                self.deck_msg = "Deck %d" % (i + 1)
+                return
+        # your 8 cards: arrows move a card, otherwise either button removes
         for i, r in enumerate(self._deck_slot_rects()):
             if r.collidepoint(pos):
                 if i < len(deck):
-                    deck.pop(i)
+                    left, right = self._deck_arrow_rects(r)
+                    if button == 1 and left.collidepoint(pos) and i > 0:
+                        deck[i - 1], deck[i] = deck[i], deck[i - 1]
+                    elif button == 1 and right.collidepoint(pos) and i < len(deck) - 1:
+                        deck[i + 1], deck[i] = deck[i], deck[i + 1]
+                    else:
+                        deck.pop(i)
                     self.deck_msg = ""
                 return
         # card collection (only within the scrollable viewport)
@@ -1701,15 +1777,30 @@ class Game(ScreensMixin):
         cx = cfg.WINDOW_W // 2
         deck = self._active_deck()
         mouse = pygame.mouse.get_pos()
-        title = {"ai": "Edit AI Deck", "level": "Edit Level Deck"}.get(
-            self.deck_mode, "Edit Your Deck")
-        self._text(title, self.font_l, center=(cx, 22))
+        title = {"ai": "AI Deck", "level": "Level Deck"}.get(
+            self.deck_mode, "Deck %d" % (self.profile.active_slot + 1))
+        tabs = self._deck_tab_rects()
+        if tabs:
+            self._text(title, self.font_l, topleft=(14, 4))
+            for r, i in tabs:
+                sel = i == self.profile.active_slot
+                bg = (70, 110, 170) if sel else (44, 50, 64)
+                if r.collidepoint(mouse):
+                    bg = lt_c(bg, 14)
+                pygame.draw.rect(self.screen, bg, r, border_radius=8)
+                pygame.draw.rect(self.screen, (250, 222, 110) if sel else (80, 88, 110), r,
+                                 2 if sel else 1, border_radius=8)
+                self._text(str(i + 1), self.font_m, center=r.center)
+        else:
+            self._text(title, self.font_l, center=(cx, 22))
         avg = (sum(cards.CARDS[k].elixir for k in deck) / len(deck) if deck else 0)
+        cyc = sum(sorted(cards.CARDS[k].elixir for k in deck)[:4]) if len(deck) >= 4 else 0
         full = len(deck) == cfg.DECK_SIZE
-        self._text("%d/8 cards   |   avg elixir %.1f   |   %d available"
-                   % (len(deck), avg, len(cards.DEPLOYABLE_CARDS)),
+        lvl = (sum(self.profile.level(k) for k in deck) / len(deck)) if deck else 11
+        self._text("%d/8   |   avg elixir %.1f   |   4-card cycle %d   |   avg Lv %.1f"
+                   % (len(deck), avg, cyc, lvl),
                    self.font_s, (150, 230, 150) if full else (170, 178, 195),
-                   center=(cx, 45))
+                   center=(cx, 55))
 
         # ---- your 8 cards: 2 rows x 4 big slots ----
         for i, r in enumerate(self._deck_slot_rects()):
@@ -1735,8 +1826,25 @@ class Game(ScreensMixin):
             self.screen.blit(sprites.get_sprite(card.key, sz),
                              (r.centerx - sz // 2, r.y + 3))
             self._elixir_badge(r.x + 11, r.y + 11, card.elixir)
-            self._text(self._fit(card.name, self.font_s, r.w - 6), self.font_s,
+            self._text(self._fit("%s  Lv%d" % (card.name, self._deck_card_level(card.key, deck))
+                                 if self.deck_mode != "ai" else card.name,
+                                 self.font_s, r.w - 6), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 10))
+            tag = self._slot_tag(i, card.key)
+            if tag:
+                txt, col = tag
+                tw = self.font_s.size(txt)[0] + 8
+                tr = pygame.Rect(r.right - tw - 3, r.y + 3, tw, 15)
+                pygame.draw.rect(self.screen, (20, 16, 30), tr, border_radius=5)
+                pygame.draw.rect(self.screen, col, tr, 1, border_radius=5)
+                self._text(txt, self.font_s, col, center=tr.center)
+                pygame.draw.rect(self.screen, col, r, 2, border_radius=9)
+            if hover:
+                for k_, ar in enumerate(self._deck_arrow_rects(r)):
+                    if (k_ == 0 and i == 0) or (k_ == 1 and i == len(deck) - 1):
+                        continue
+                    pygame.draw.rect(self.screen, (20, 24, 34), ar, border_radius=4)
+                    self._text("<" if k_ == 0 else ">", self.font_sb, WHITE, center=ar.center)
             if hover:   # "click to remove" mark
                 xr = (r.right - 11, r.y + 11)
                 pygame.draw.circle(self.screen, (200, 70, 70), xr, 8)
@@ -1745,6 +1853,12 @@ class Game(ScreensMixin):
                 pygame.draw.line(self.screen, (255, 255, 255), (xr[0] - 3, xr[1] + 3),
                                  (xr[0] + 3, xr[1] - 3), 2)
 
+        # empty-slot labels for the special slots
+        for i, r in enumerate(self._deck_slot_rects()):
+            if i >= len(deck) and i < 3:
+                self._text("EVO" if i < 2 else "HERO", self.font_s,
+                           (150, 110, 200) if i < 2 else (200, 160, 80),
+                           center=(r.centerx, r.bottom - 12))
         # ---- info line: message > hovered card > controls hint ----
         top, bottom = self._deck_viewport()
         info_y = top - 17
@@ -1767,7 +1881,7 @@ class Game(ScreensMixin):
             self._text(self._fit(line, self.font_s, cfg.WINDOW_W - 20), self.font_s,
                        (225, 225, 200), center=(cx, info_y))
         else:
-            self._text("Click: add / remove    Right-click: remove    Wheel: scroll",
+            self._text("Slots 1-2: EVO   Slot 3: HERO   < > move   click: remove",
                        self.font_s, (150, 158, 178), center=(cx, info_y))
         pygame.draw.line(self.screen, (60, 66, 88), (12, top - 4),
                          (cfg.WINDOW_W - 12, top - 4), 1)
@@ -2658,6 +2772,11 @@ class Game(ScreensMixin):
         if self.selected is None:
             return
         key = self.match.hands[PLAYER][self.selected]
+        if self.drag_card is not None and pygame.mouse.get_pressed()[0]:
+            mx, my = pygame.mouse.get_pos()
+            ghost = sprites.get_sprite(key, 44).copy()
+            ghost.set_alpha(170)
+            self.screen.blit(ghost, (mx - 22, my - 50))
         card = cards.CARDS[key]
         mx, my = pygame.mouse.get_pos()
         if my > cfg.ARENA_Y0 + cfg.ARENA_PX_H:

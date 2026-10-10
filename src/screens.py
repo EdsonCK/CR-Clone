@@ -77,11 +77,77 @@ class ScreensMixin:
     def _draft_click(self, pos):
         pass
 
-    def _draw_stats(self):
-        self._screen_title("Match Stats", 30)
+    def _stats_buttons(self):
+        return [Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
+                       lambda: self._goto("result"), "dark")]
 
     def _stats_click(self, pos):
-        self.state = "result"
+        for b in self._stats_buttons():
+            if b.click(pos):
+                return
+
+    def _stat_bars(self, y, title, dmg, col, n, kills):
+        self._text(title, self.font_m, col, topleft=(16, y))
+        y += 26
+        items = sorted(dmg.items(), key=lambda kv: -kv[1])[:n]
+        if not items:
+            self._text("(nothing)", self.font_s, (150, 156, 175), topleft=(24, y))
+            return y + 20
+        top = max(v for _, v in items) or 1
+        for key, v in items:
+            sk = key if key in cards.CARDS else None
+            if sk:
+                self.screen.blit(sprites.get_sprite(sk, 26), (16, y - 2))
+            name = cards.CARDS[key].name if key in cards.CARDS else key.replace("_", " ").title()
+            bw = int((cfg.WINDOW_W - 200) * v / top)
+            pygame.draw.rect(self.screen, (30, 34, 46), (48, y + 12, cfg.WINDOW_W - 200, 8),
+                             border_radius=4)
+            pygame.draw.rect(self.screen, col, (48, y + 12, max(2, bw), 8), border_radius=4)
+            self._text(self._fit(name, self.font_s, 150), self.font_s, (225, 228, 238),
+                       topleft=(48, y - 3))
+            k = kills.get(key, 0)
+            self._text("%d dmg%s" % (round(v), ("  %d KO" % k) if k else ""), self.font_s,
+                       (220, 220, 200), topleft=(cfg.WINDOW_W - 146, y + 4))
+            y += 28
+        return y
+
+    def _draw_stats(self):
+        m = self.match
+        st = m.stats
+        self._screen_title("Match Stats", 28)
+        y = self._stat_bars(62, "Your damage", st["dmg"][0], cfg.COLOR_TEAM_PLAYER, 7,
+                            st["kills"][0])
+        y = self._stat_bars(y + 6, "Enemy damage", st["dmg"][1], cfg.COLOR_TEAM_ENEMY, 4,
+                            st["kills"][1])
+        y += 8
+        panel = self._panel((12, y, cfg.WINDOW_W - 24, 112), border=(150, 130, 80))
+        yy = y + 10
+        rows = [("Elixir spent", "%d" % st["spent"][0], "%d" % st["spent"][1]),
+                ("Elixir wasted (full bar)", "%.1f" % st["leaked"][0], "%.1f" % st["leaked"][1]),
+                ("Tower damage", "%d" % st["tower_dmg"][0], "%d" % st["tower_dmg"][1]),
+                ("Cards played", "%d" % sum(st["played"][0].values()),
+                 "%d" % sum(st["played"][1].values()))]
+        self._text("You", self.font_sb, cfg.COLOR_TEAM_PLAYER, topleft=(panel.right - 130, yy - 4))
+        self._text("Enemy", self.font_sb, cfg.COLOR_TEAM_ENEMY, topleft=(panel.right - 66, yy - 4))
+        yy += 16
+        for lbl, a, b in rows:
+            self._text(lbl, self.font_s, (220, 224, 236), topleft=(panel.x + 12, yy))
+            self._text(a, self.font_sb, topleft=(panel.right - 130, yy - 1))
+            self._text(b, self.font_sb, topleft=(panel.right - 66, yy - 1))
+            yy += 21
+        run = self.level_run
+        if run is not None and getattr(run, "tower_log", None) is not None:
+            y = panel.bottom + 10
+            if run.tower_log:
+                txt = "Towers lost: " + ", ".join("wave %d (%s)" % (w, sd)
+                                                  for w, sd in run.tower_log)
+            else:
+                txt = "No towers lost!"
+            for ln in self._wrap(txt, self.font_sb, cfg.WINDOW_W - 32):
+                self._text(ln, self.font_sb, (240, 210, 150), topleft=(16, y))
+                y += 18
+        for b in self._stats_buttons():
+            b.draw(self.screen, self.font_m)
 
     # ================================================================ icons
     def _coin(self, x, y, r=8):

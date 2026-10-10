@@ -803,11 +803,11 @@ LEVELS = [
             ]),
             Wave("Hall of Champions", level=12, boss=True, bonus_elixir=8, timeout=120,
                  spawns=[
-                     S("boss_bandit", 0, "left", mult=1.45),
-                     S("monk", 2, "right", mult=1.45),
-                     S("golden_knight", 12, "mid", mult=1.45),
-                     S("archer_queen", 14, "mid", "back", mult=1.45),
-                     S("skeleton_king", 20, "left", mult=1.45),
+                     S("boss_bandit", 0, "left", mult=1.38),
+                     S("monk", 2, "right", mult=1.38),
+                     S("golden_knight", 12, "mid", mult=1.38),
+                     S("archer_queen", 14, "mid", "back", mult=1.38),
+                     S("skeleton_king", 20, "left", mult=1.38),
                  ]),
         ]),
     # ------------------------------------------------------------------ 20
@@ -930,6 +930,8 @@ class LevelRun:
         self.pending = []
         self.banner = None          # (title, subtitle, time_shown)
         self.towers_lost = 0
+        self.tower_log = []         # [(wave number, "left"|"right"|"king")]
+        self._alive = {s: True for s in ("left", "right", "king")}
         match.elixir[PLAYER] = level.start_elixir
         self._show("Defend your towers!", "%d waves" % len(level.waves))
 
@@ -966,6 +968,10 @@ class LevelRun:
         if self.banner:
             t, s, age = self.banner
             self.banner = (t, s, age + dt) if age < 3.0 else None
+        for side, was in self._alive.items():
+            if was and not m.towers[(PLAYER, side)].alive:
+                self._alive[side] = False
+                self.tower_log.append((self.wave_number, side))
         if self.state == "prep":
             self.timer -= dt
             if self.timer <= 0:
