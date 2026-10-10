@@ -149,6 +149,9 @@ class FX:
                     n = 9 if ev.get("big") else 5
                     self.burst(x, y, n, 40, 0.55, 5 if ev.get("big") else 3.5,
                                (215, 215, 220), "smoke", grow=10)
+                    # a little ghost floats up from every fallen troop
+                    self.add(P(x, y - 4, 0, -28, 0.9, 6 if ev.get("big") else 4.5,
+                               TEAM_COL.get(ev.get("team"), (220, 220, 230)), "ghost"))
             elif k == "land" and ev.get("slam"):
                 self.burst(x, y + 4, 22, 120, 0.6, 5, (190, 160, 110), "dust", grow=8)
             elif k == "miasma":
@@ -156,6 +159,14 @@ class FX:
             elif k == "portal":
                 self.burst(x, y, 22, 70, 0.9, 7, (110, 60, 150), "smoke", grow=10)
                 self.burst(x, y, 16, 120, 0.6, 2.5, (200, 150, 255), "spark", up=20)
+            elif k == "dmg":
+                amt = ev.get("amount", 0)
+                col = (255, 120, 110) if ev.get("tower") else (255, 255, 255)
+                if amt >= 300:
+                    col = (255, 210, 90)
+                self.popups.append({"x": x + self.rng.uniform(-6, 6), "y": y - TS * 0.8,
+                                    "text": "%d" % round(amt), "col": col, "age": 0.0,
+                                    "life": 0.7, "small": True})
             elif k == "elixir_made":
                 amt = ev.get("amount", 1)
                 txt = "+%d" % amt if float(amt).is_integer() else "+%.1f" % amt
@@ -369,6 +380,18 @@ class FX:
                 pygame.draw.line(surf, p.col, (p.x - dx, p.y - dy), (p.x + dx, p.y + dy), 2)
             elif k == "bubble":
                 pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(1, int(p.size)), 1)
+            elif k == "ghost":
+                a = int(170 * f)
+                gx, gy, r = int(p.x + math.sin((1 - f) * 9) * 3), int(p.y), int(p.size)
+                g = self._circle(r, (240, 244, 255), a)
+                surf.blit(g, (gx - g.get_width() // 2, gy - g.get_height() // 2))
+                body = pygame.Surface((r * 2 + 2, r + 3), pygame.SRCALPHA)
+                pygame.draw.rect(body, (240, 244, 255, a), (1, 0, r * 2, r))
+                for i in range(3):                      # wavy hem
+                    pygame.draw.circle(body, (0, 0, 0, 0), (1 + r // 3 + i * (2 * r // 3), r + 1), max(1, r // 3))
+                surf.blit(body, (gx - r - 1, gy))
+                pygame.draw.circle(surf, p.col, (gx - r // 3, gy - 1), 1)
+                pygame.draw.circle(surf, p.col, (gx + r // 3, gy - 1), 1)
             else:
                 pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(1, int(p.size)))
 

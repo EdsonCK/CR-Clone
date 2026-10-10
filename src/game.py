@@ -667,6 +667,7 @@ class Game(ModesMixin, ScreensMixin):
             dt = min(dt, 0.05)
             self._events(dt)
             mdt = dt * self.opt_speed           # Settings > Game speed
+            self.shake = max(0.0, getattr(self, "shake", 0.0) - dt * 14)
             if self.state == "match" and self.match and not self.match.finished:
                 self.match.update(mdt)
                 if self.ai is not None:
@@ -773,14 +774,19 @@ class Game(ModesMixin, ScreensMixin):
                     self.sfx.play("evo_deploy", 0.8, pan, min_gap=0.0)
             elif kind == "impact":
                 self.sfx.play(key + "_impact", 0.95, pan, min_gap=0.02)
+                amt = {"rocket": 6, "fireball": 3.5, "lightning": 4, "earthquake": 3,
+                       "goblin_barrel": 1.5, "graveyard": 1.5}.get(key, 1.0)
+                self.shake = max(getattr(self, "shake", 0.0), amt)
             elif kind == "death":
                 if ev.get("tower"):
+                    self.shake = 9.0
                     self.sfx.play("tower_down", 1.0, pan, min_gap=0.0)
                     self.sfx.play("crown", 0.8, 0.5, min_gap=0.0)
                 elif ev.get("building"):
                     self.sfx.play("death_building", 0.7, pan)
                 elif ev.get("big"):
                     self.sfx.play("death_big", 0.7, pan)
+                    self.shake = max(getattr(self, "shake", 0.0), 3.0)
                 else:
                     self.sfx.play("death_small", 0.35, pan, min_gap=0.09)
             elif kind == "ability":
@@ -795,6 +801,7 @@ class Game(ModesMixin, ScreensMixin):
                 self.sfx.play("portal", 0.6, pan, min_gap=0.15)
             elif kind == "land" and ev.get("slam"):
                 self.sfx.play("slam", 0.85, pan)
+                self.shake = max(getattr(self, "shake", 0.0), 4.0)
             elif kind == "elixir_made":
                 if mine:
                     self.sfx.play("elixir_pop", 0.6, pan, min_gap=0.1)
@@ -1991,9 +1998,24 @@ class Game(ModesMixin, ScreensMixin):
             b.draw(self.screen, self.font_sb)
 
     # --------------------------------------------------------- match screen
+    def _shake_offset(self):
+        sh = getattr(self, "shake", 0.0)
+        if sh <= 0.05 or not self.opt_shake:
+            return 0, 0
+        t = self._now()
+        return int(math.sin(t * 61) * sh), int(math.cos(t * 47) * sh)
+
     def _draw_match(self):
+        self._draw_match_inner()
+        dx, dy = self._shake_offset()
+        if dx or dy:
+            area = pygame.Rect(0, cfg.TOP_BAR, cfg.WINDOW_W, cfg.HUD_Y - cfg.TOP_BAR)
+            self.screen.subsurface(area).scroll(dx, dy)
+
+    def _draw_match_inner(self):
         self._draw_arena()
         m = self.match
+        m.dmg_numbers = self.opt_dmg_numbers
         if m.miasma:
             self._draw_miasma()
         self._draw_no_deploy_zone()
@@ -2374,6 +2396,39 @@ class Game(ModesMixin, ScreensMixin):
             cache[key] = surf
         return surf
 
+    # Motion style per card (anything not listed: "walk" / "fly" / "ranged").
+    ANIM_STYLE = {}
+    for _k in ("giant", "golem", "golemite", "pekka", "mega_knight", "giant_skeleton",
+               "royal_giant", "electro_giant", "goblin_giant", "ice_golem", "elixir_golem",
+               "elixir_golemite", "goblin_monster", "boss_bandit", "monk", "bowler",
+               "skeleton_king"):
+        ANIM_STYLE[_k] = "stomp"
+    for _k in ("skeletons", "skeleton", "skeleton_army", "goblins", "goblin",
+               "spear_goblins", "spear_goblin", "guards", "wall_breakers", "dart_goblin",
+               "bomber", "elixir_blob", "zappies", "rascals"):
+        ANIM_STYLE[_k] = "scurry"
+    for _k in ("fire_spirit", "ice_spirit", "electro_spirit", "heal_spirit"):
+        ANIM_STYLE[_k] = "hop"
+    for _k in ("hog_rider", "prince", "dark_prince", "battle_ram", "cannon_cart",
+               "ram_rider", "royal_hogs"):
+        ANIM_STYLE[_k] = "gallop"
+    for _k in ("wizard", "witch", "night_witch", "electro_wizard", "ice_wizard",
+               "magic_archer", "goblinstein", "mother_witch", "battle_healer"):
+        ANIM_STYLE[_k] = "caster"
+    for _k in ("valkyrie",):
+        ANIM_STYLE[_k] = "spinner"
+    for _k in ("bandit", "golden_knight", "lumberjack", "mini_pekka", "royal_guardian",
+               "mighty_miner"):
+        ANIM_STYLE[_k] = "dasher"
+    for _k in ("balloon",):
+        ANIM_STYLE[_k] = "balloon"
+    for _k in ("lava_hound", "lava_pup", "baby_dragon", "inferno_dragon",
+               "electro_dragon"):
+        ANIM_STYLE[_k] = "bigwing"
+    for _k in ("miner",):
+        ANIM_STYLE[_k] = "burrow"
+    del _k
+
     def _anim_pose(self, e, size):
         """-> (dx, dy, angle_deg, scale_x, scale_y) for this frame."""
         m = self.match
@@ -2382,48 +2437,134 @@ class Game(ModesMixin, ScreensMixin):
         ang = 0.0
         sx = sy = 1.0
         if e.freeze_timer > 0 or e.stun_timer > 0:
+            if e.stun_timer > 0:                 # dizzy wobble
+                return 0, 0, math.sin(now * 18) * 3.0, 1.0, 1.0
             return 0, 0, 0, 1.0, 1.0
         ph = e.anim_seed * math.tau
-        # pop-in when a unit appears (drops in, settles)
+        style = self.ANIM_STYLE.get(e.key)
+        # pop-in when a unit appears (drops in, settles) / burrows up
         age = now - e.born
-        if 0 <= age < 0.2 and not e.is_tower:
+        if 0 <= age < 0.2 and not e.is_tower and style != "burrow":
             k = 1.0 - age / 0.2
             oy -= k * size * 0.25
             sy *= 1.0 + 0.12 * k
             sx *= 1.0 - 0.08 * k
+        if style == "burrow" and 0 <= age < 0.6:
+            k = age / 0.6                        # rises out of the ground
+            sy *= max(0.1, k)
+            sx *= 1.0 + 0.2 * (1 - k)
+            ang += math.sin(now * 40) * 6 * (1 - k)
         since = now - e.atk_t
         if e.is_building:
             if since < 0.18:                     # firing recoil pulse
                 k = 1.0 - since / 0.18
-                sx *= 1.0 + 0.06 * k
-                sy *= 1.0 - 0.05 * k
-                ox -= e.atk_dir[0] * k * size * 0.05
-                oy -= e.atk_dir[1] * k * size * 0.05
-            elif e.card.spawner or e.card.generates_elixir:
+                big = 2.0 if e.key in ("mortar", "xbow") else 1.0
+                sx *= 1.0 + 0.06 * k * big
+                sy *= 1.0 - 0.05 * k * big
+                ox -= e.atk_dir[0] * k * size * 0.05 * big
+                oy -= e.atk_dir[1] * k * size * 0.05 * big
+            elif e.card.spawner:
+                # huts/tombstones rattle as the next spawn is due
+                left = e.spawn_timer
+                if left < 0.5:
+                    ang += math.sin(now * 50) * 4 * (1 - left / 0.5)
                 sy *= 1.0 + 0.015 * math.sin(now * 2.2 + ph)
-            return int(ox), int(oy), 0, sx, sy
+            elif e.card.generates_elixir:
+                sy *= 1.0 + 0.015 * math.sin(now * 2.2 + ph)
+            elif e.key == "tesla" and (e.target is None):
+                sy *= 0.92 + 0.02 * math.sin(now * 3 + ph)     # tucked in, idle
+            return int(ox), int(oy), ang, sx, sy
         moving = now - e.move_t < 0.12
         if e.flying:
-            oy -= 2.5 + 2.5 * math.sin(now * 4.0 + ph)          # hover
-            sx *= 1.0 + 0.045 * math.sin(now * 15.0 + ph)       # wing beat
-            if moving:
-                ang -= e.mvx * 5.0
+            if style == "balloon":
+                oy -= 3.0 + 2.0 * math.sin(now * 2.0 + ph)
+                ang += math.sin(now * 1.6 + ph) * 5.0       # pendulum sway
+            elif style == "bigwing":
+                oy -= 3.0 + 3.5 * math.sin(now * 2.6 + ph)
+                sx *= 1.0 + 0.07 * math.sin(now * 7.0 + ph)  # slow heavy flaps
+                if moving:
+                    ang -= e.mvx * 6.0
+            else:
+                oy -= 2.5 + 2.5 * math.sin(now * 4.0 + ph)          # hover
+                sx *= 1.0 + 0.045 * math.sin(now * 15.0 + ph)       # wing beat
+                if moving:
+                    ang -= e.mvx * 5.0
         elif moving:
-            # step cycle: one bob per step, waddle side to side, lean forward
-            p = e.walk / 0.42 * math.pi + ph
-            b = abs(math.sin(p))
-            oy -= b * size * 0.07
-            ang += math.sin(p) * 5.0 - e.mvx * 4.0
-            sy *= 0.96 + 0.04 * b
-            sx *= 1.03 - 0.03 * b
+            if style == "stomp":
+                # heavy, slow steps: big dip and squash on each footfall
+                p = e.walk / 0.7 * math.pi + ph
+                b = abs(math.sin(p))
+                oy -= b * size * 0.05
+                sy *= 0.93 + 0.07 * b
+                sx *= 1.05 - 0.05 * b
+                ang += math.sin(p) * 2.0
+                step = int((e.walk + ph) / 0.7)
+                if step != getattr(e, "_step", step) and self.match.record_events:
+                    fx, fy = tile_to_px(e.x, e.y)
+                    self.fx.burst(fx, fy + size * 0.4, 4, 26, 0.45, 3.5,
+                                  (196, 170, 120), "dust", grow=8)
+                e._step = step
+            elif style == "scurry":
+                p = e.walk / 0.24 * math.pi + ph
+                b = abs(math.sin(p))
+                oy -= b * size * 0.09
+                ang += math.sin(p) * 8.0 - e.mvx * 6.0
+            elif style == "hop":
+                p = (e.walk / 0.9) % 1.0
+                oy -= math.sin(p * math.pi) * size * 0.35
+                sy *= 0.9 + 0.2 * math.sin(p * math.pi)
+            elif style == "gallop":
+                p = e.walk / 0.55 * math.pi + ph
+                b = abs(math.sin(p)) ** 0.6
+                oy -= b * size * 0.08
+                ang += math.cos(p) * 4.0 - e.mvx * 8.0
+                sx *= 1.03 - 0.03 * b
+            elif style == "caster":
+                p = e.walk / 0.5 * math.pi + ph
+                oy -= abs(math.sin(p)) * size * 0.035     # robes glide
+                ang += math.sin(p) * 3.0 - e.mvx * 3.0
+            elif style == "dasher":
+                p = e.walk / 0.36 * math.pi + ph
+                b = abs(math.sin(p))
+                oy -= b * size * 0.07
+                ang += math.sin(p) * 4.0 - e.mvx * 10.0  # leans into the run
+            else:
+                # step cycle: one bob per step, waddle side to side, lean forward
+                p = e.walk / 0.42 * math.pi + ph
+                b = abs(math.sin(p))
+                oy -= b * size * 0.07
+                ang += math.sin(p) * 5.0 - e.mvx * 4.0
+                sy *= 0.96 + 0.04 * b
+                sx *= 1.03 - 0.03 * b
         else:
-            # idle: slow breathing
+            # idle: slow breathing (casters float a little)
             br = math.sin(now * 2.6 + ph)
             sy *= 1.0 + 0.025 * br
             sx *= 1.0 - 0.012 * br
+            if style == "caster":
+                oy -= 1.5 + 1.5 * math.sin(now * 2.0 + ph)
+            elif style == "hop":
+                oy -= abs(math.sin(now * 5 + ph)) * size * 0.12
         dx, dy = e.atk_dir
         melee = e.is_melee() and not e.card.kamikaze
-        if melee:
+        if style == "spinner" and since < 0.32:
+            # Valkyrie: a full spin with every swing
+            ang += 360.0 * (since / 0.32)
+            sx *= 1.06
+        elif style == "stomp" and melee and since < 0.4:
+            # heavy overhead smash: rise, then slam down with a squash
+            if since < 0.1:
+                k = since / 0.1
+                oy -= k * size * 0.12
+                sy *= 1.0 + 0.06 * k
+            else:
+                k = max(0.0, 1.0 - (since - 0.1) / 0.3)
+                oy += k * size * 0.03
+                sy *= 1.0 - 0.12 * k
+                sx *= 1.0 + 0.1 * k
+                ox += dx * k * size * 0.1
+                oy += dy * k * size * 0.1
+        elif melee:
             # wind-up: lean back just before the blow lands...
             t = e.target
             if (t is not None and t.alive and 0 < e.attack_cd < 0.2
@@ -2435,16 +2576,29 @@ class Game(ModesMixin, ScreensMixin):
             # ...then lunge into it and recover
             if since < 0.3:
                 k = since / 0.06 if since < 0.06 else max(0.0, 1.0 - (since - 0.06) / 0.24)
-                ox += dx * k * size * 0.2
-                oy += dy * k * size * 0.2
+                lunge = 0.28 if style == "dasher" else 0.2
+                ox += dx * k * size * lunge
+                oy += dy * k * size * lunge
                 ang -= (12.0 if dx >= 0 else -12.0) * k
                 sx *= 1.0 + 0.05 * k
+        elif style == "caster" and since < 0.3:
+            # spellcasting: stretch up as the spell leaves the hands
+            k = 1.0 - since / 0.3
+            sy *= 1.0 + 0.1 * k
+            sx *= 1.0 - 0.05 * k
+            oy -= k * size * 0.05
         elif since < 0.2:
-            # ranged: kick back from the shot
+            # ranged: kick back from the shot (draw back just before it)
             k = 1.0 - since / 0.2
             ox -= dx * k * size * 0.08
             oy -= dy * k * size * 0.08
             sy *= 1.0 - 0.04 * k
+        elif (not melee and e.target is not None and 0 < e.attack_cd < 0.18
+              and not moving):
+            w = 1.0 - e.attack_cd / 0.18             # drawing the bow / aiming
+            sx *= 1.0 + 0.04 * w
+            ox -= dx * w * size * 0.03
+            oy -= dy * w * size * 0.03
         return int(ox), int(oy), ang, sx, sy
 
     def _posed_sprite(self, skey, size, ang, sx, sy):
@@ -2452,6 +2606,8 @@ class Game(ModesMixin, ScreensMixin):
         w = max(4, int(round(size * sx / 2.0)) * 2)
         h = max(4, int(round(size * sy / 2.0)) * 2)
         a = int(round(ang))
+        if abs(a) > 20:
+            a = int(round(a / 10.0)) * 10 % 360       # spins: coarser steps
         if w == size and h == size and a == 0:
             return sprites.get_sprite(skey, size)
         cache = self.__dict__.setdefault("_pose_cache", {})
@@ -2534,7 +2690,8 @@ class Game(ModesMixin, ScreensMixin):
         for pp in self.fx.popups:
             f = pp["age"] / pp["life"]
             a = int(255 * min(1.0, (1.0 - f) * 3.0))
-            img = render_text(self.font_m, pp["text"], pp["col"]).copy()
+            font = self.font_sb if pp.get("small") else self.font_m
+            img = render_text(font, pp["text"], pp["col"]).copy()
             img.set_alpha(a)
             sc = 0.7 + 0.3 * min(1.0, pp["age"] / 0.12)
             if sc < 0.999:

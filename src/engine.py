@@ -347,6 +347,8 @@ class Entity:
                     m.stats["tower_dmg"][st] += dealt
                 self.last_hit = m._src
                 self.last_hitter = m._src_ent
+            if m is not None and m.dmg_numbers:
+                self._dmg_acc = getattr(self, "_dmg_acc", 0.0) + dealt
         if self.evo and m is not None and self.hp > 0:
             evo_engine.after_damaged(self, m, shield_before)
         if self.hp <= 0:
@@ -1235,6 +1237,7 @@ class Match:
         self._src_ent = None       # ...and the entity, if a unit
         self.later = []            # [(time, kind, data)] delayed actions
         # special modes (modes.py)
+        self.dmg_numbers = False   # emit "dmg" events for floating numbers
         self.elixir_rate = None    # fixed elixir multiplier (Triple Elixir...)
         self.always_rage = False   # Rage Battle: everyone is permanently raged
         # Evolutions: per team the card keys that evolve, and their charge
@@ -2071,6 +2074,14 @@ class Match:
         self._src = None
         self._src_ent = None
 
+        if self.dmg_numbers and self.record_events:
+            for e in self.entities:
+                acc = getattr(e, "_dmg_acc", 0.0)
+                if acc >= 1 and self.elapsed - getattr(e, "_dmg_t", -9) >= 0.3:
+                    self.emit("dmg", e.key, e.x, e.y, e.team, amount=acc,
+                              tower=e.is_tower)
+                    e._dmg_acc = 0.0
+                    e._dmg_t = self.elapsed
         self.entities = [e for e in self.entities if e.alive]
         self.projectiles = [p for p in self.projectiles if p.alive]
         self.effects = [fx for fx in self.effects if fx.alive]
