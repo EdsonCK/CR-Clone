@@ -405,7 +405,26 @@ class AIController:
             return card.tower_damage * card.hits
         return card.spell_damage * card.hits
 
+    def _void_value(self, card, x, y, units):
+        """Void hits harder the fewer targets are inside: value = tier damage
+        x 3 strikes on whatever stands in it (towers count as targets)."""
+        inside = [e for e in units if dist(x, y, e.x, e.y) <= card.spell_radius + e.radius * 0.5]
+        towers = [t for t in self._towers(self.opp)
+                  if dist(x, y, t.x, t.y) <= card.spell_radius + t.radius * 0.5]
+        n = len(inside) + len(towers)
+        if not n:
+            return 0.0, 0
+        dmg = next(d for cap, d, _ in card.void_tiers if n <= cap) * card.hits
+        v = 0.0
+        for e in inside:
+            ehp = e.hp + e.shield
+            share = _share(e.card) * (ehp / max(e.max_hp + e.card.shield_hp, 1))
+            v += share if ehp <= dmg else share * dmg / ehp * 0.8
+        return v + 0.3 * len(towers), len(inside)
+
     def _spell_value(self, card, x, y, units):
+        if card.spell_kind == "void":
+            return self._void_value(card, x, y, units)
         v, n = 0.0, 0
         rolling = card.rolling
         for e in units:
@@ -428,6 +447,8 @@ class AIController:
                 v += share * dmg / ehp * 0.7
             if card.stun and e.card.ramp:
                 v += 1.0
+            if card.spell_kind == "vines" and e.flying and e.card.attacks == "buildings":
+                v += 2.0                  # pulls a Balloon / Lava Hound down
             n += 1
         # chip damage on towers is worth something too
         for tw in self._towers(self.opp):
@@ -451,6 +472,8 @@ class AIController:
             for e in units:
                 lead = (self.match.spell_delay(self.me, c, e.x, e.y)
                         if self.lv(3) else 0.0)
+                if c.spell_kind == "void" and self.lv(3):
+                    lead += 1.5           # strikes land over 4s: aim ahead
                 x, y = self._predict(e, lead)
                 if c.rolling:
                     y = self.W(self.L(y) - 0.6)
@@ -497,6 +520,9 @@ class AIController:
                                               or c.spell_damage >= e.hp):
                     return self._place(i, e.x, self.L(e.y), c, exact=True)
         return False
+
+    def _has_buff_spell(self):
+        return any(c.rage or c.spell_kind == "clone" for _, _, c in self._affordable())
 
     def _try_freeze_rage(self):
         """Master: Freeze defenders / Rage a big push at the enemy tower."""
@@ -615,7 +641,8 @@ class AIController:
         supports = [t for t in aff if t[2].category == "troop"
                     and t[2].attacks != "buildings" and t[2].range >= 3.0
                     and not self._is_wincon(t[2])]
-        tanks = [t for t in aff if t[2].category == "troop" and t[2].hp >= 1500]
+        tanks = [t for t in aff if t[2].category == "troop"
+                 and (t[2].hp >= 1500 or (t[2].enchant and t[2].hp >= 1200))]
 
         def ok(c):
             return el - c.elixir >= reserve
@@ -654,8 +681,24 @@ class AIController:
                         if self._place(i, lead.x + spread, ly, c):
                             return True
 
-        # 3) freeze / rage combos
-        if self.lv(5) and self._try_freeze_rage():
+        # 2b) a Rune Giant on the field wants fast hitters to enchant
+        self._why = "enchant"
+        if self.lv(2):
+            rgs = [u for u in self._my_units() if u.card.enchant
+                   and len([e for e in getattr(u, "_enchanted", []) if e.alive]) < 2]
+            if rgs:
+                rg = rgs[0]
+                hitters = [t for t in aff if t[2].category == "troop"
+                           and t[2].attacks != "buildings" and not self._is_wincon(t[2])
+                           and not t[2].kamikaze and t[2].hit_speed <= 1.4]
+                if hitters and (ok(min(hitters, key=lambda t: t[2].elixir)[2]) or el >= 7):
+                    i, k, c = max(hitters, key=lambda t: _dps(t[2]) / max(t[2].elixir, 1))
+                    ly = min(self.L(rg.y) - 1.5, RIVER_TOP - 0.9)
+                    if self._place(i, rg.x, ly, c):
+                        return True
+
+        # 3) freeze / rage / clone combos
+        if (self.lv(5) or (self.lv(3) and self._has_buff_spell())) and self._try_freeze_rage():
             return True
 
         # 4) start a push
@@ -670,7 +713,7 @@ class AIController:
         if self.lv(3) and tanks and el >= 8.0 and mult <= 2.0:
             # beatdown: heavy tank from the back, support it at the bridge
             i, k, c = max(tanks, key=lambda t: t[2].hp)
-            if self._is_wincon(c) or c.elixir >= 6:
+            if self._is_wincon(c) or c.elixir >= 6 or c.enchant:
                 return self._play_wincon(i, c, lane, from_back=True) \
                     if self._is_wincon(c) else self._place(
                         i, self.match.towers[(self.me, "left" if lane == 0 else "right")].x,

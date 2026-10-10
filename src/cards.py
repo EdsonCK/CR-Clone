@@ -981,8 +981,28 @@ AI_DECK_PRESETS = {
     "Drill Cycle":    ["goblin_drill", "berserker", "firecracker", "skeletons",
                        "ice_spirit", "tesla", "void", "the_log"],
     "Rune Giant Rush": ["rune_giant", "ram_rider", "phoenix", "mother_witch",
-                        "ronin", "heal_spirit", "vines", "goblin_curse"],
+                        "royal_ghost", "electro_wizard", "vines", "goblin_curse"],
 }
+
+
+def _arrange_specials(deck):
+    """Order a deck so Evolution-capable cards sit in slots 1-2 and a
+    Hero-capable card in slot 3 (the AI brings whatever is there)."""
+    import evos
+    d = list(deck)
+    ev = [k for k in d if k in evos.EVOS][:2]
+    rest = [k for k in d if k not in ev]
+    he = next((k for k in rest if k in evos.HEROES), None)
+    if he:
+        rest.remove(he)
+    front = ev + ([he] if he else [])
+    while len(ev) < 2 and rest:            # keep the hero exactly in slot 3
+        front.insert(len(ev), rest.pop(0))
+        ev.append(None)
+    return front + rest
+
+
+AI_DECK_PRESETS = {k: _arrange_specials(v) for k, v in AI_DECK_PRESETS.items()}
 
 
 def random_deck():
