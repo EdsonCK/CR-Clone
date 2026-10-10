@@ -227,6 +227,9 @@ class Entity:
         self.parry_cd = 0.0        # Ronin
         self.hook_cd = 0.0         # Fisherman
         self.clone = False         # made by the Clone spell (1 hp)
+        # the lane it marches down when nothing is in sight: the side of the
+        # arena's centre line it was placed on (0 = left, 1 = right)
+        self.lane = 0 if x < cfg.GRID_COLS / 2 else 1
         # evolution / hero state (see evo_engine.py)
         self.untargetable = card.untargetable  # troops & buildings can't target
         self.immortal = False      # takes no damage (Skeleton shadows, ghosts)
@@ -816,7 +819,12 @@ class Entity:
         if not self.flying and not self.card.river_jump:
             me_top, t_top = self.y < RIVER_CENTER, ty < RIVER_CENTER
             if me_top != t_top:
-                bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
+                if getattr(target, "is_tower", False):
+                    # marching on a tower: cross on our own lane's bridge
+                    bx = (BRIDGE_X[self.lane] if target.is_king else
+                          min(BRIDGE_X, key=lambda b: abs(tx - b)))
+                else:
+                    bx = min(BRIDGE_X, key=lambda b: abs(self.x - b))
                 if (RIVER_TOP - 0.05 <= self.y <= RIVER_BOTTOM + 0.05
                         and abs(self.x - bx) <= BRIDGE_HALF):
                     # on the bridge: walk off its far end first
@@ -1867,6 +1875,9 @@ class Match:
                                      level=level)
         if not units:
             return
+        lane = 0 if x < cfg.GRID_COLS / 2 else 1
+        for u in units:
+            u.lane = lane                 # the whole squad keeps to its lane
         if evo or hero:
             evo_engine.on_spawn_group(self, units, cards.CARDS[lkey], evo=evo,
                                       hero=hero)
@@ -1877,6 +1888,8 @@ class Match:
                                     power=(card.sub_hp_mult * units[0].power[0],
                                            card.sub_dmg_mult * units[0].power[1]),
                                     level=units[0].level)
+            for u in comp:
+                u.lane = lane
             if comp:      # remember each other (Lightning Link)
                 units[0].partner = comp[0]
                 comp[0].partner = units[0]
@@ -2447,7 +2460,7 @@ class Match:
         to - the spot the enemy Princess Tower of its lane would stand on."""
         if self.enemy_towers or ent.team != PLAYER or ent.is_building:
             return None
-        side = "left" if ent.x < cfg.GRID_COLS / 2 else "right"
+        side = "left" if ent.lane == 0 else "right"
         tw = self.towers[(ENEMY, side)]
         return tw.x, tw.y
 
@@ -2475,7 +2488,12 @@ class Match:
         # no one in sight: buildings/towers just wait
         if ent.is_tower or ent.is_building:
             return None
-        # march toward nearest enemy tower (win-condition & normal troops)
+        # nothing in sight: march down OUR lane to its Princess Tower (the
+        # side of the centre line we were placed on); once that one is down,
+        # head for the nearest tower still standing
+        lane_tw = self.towers.get((1 - ent.team, "left" if ent.lane == 0 else "right"))
+        if lane_tw is not None and lane_tw.alive:
+            return lane_tw
         for key, tw in self.towers.items():
             if tw.team == ent.team or not tw.alive:
                 continue

@@ -129,8 +129,8 @@ EVOS = {
     "mortar": Evo("Evolved Mortar", 2,
                   "Fires 1s faster and every shell drops a Goblin."),
     "musketeer": Evo("Evolved Musketeer", 2,
-                     "3 sniper shots that reach anywhere ahead (6-30 tiles) for 1.8x "
-                     "damage."),
+                     "3 sniper shots at troops or buildings anywhere ahead (6-30 "
+                     "tiles, never Crown Towers) for 1.8x damage."),
     "princess": Evo("Evolved Princess", 2,
                     "Her first shot (then every 2nd) chills a big area 30% slower; "
                     "leaves a freezing patch when she falls."),

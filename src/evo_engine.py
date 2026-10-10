@@ -814,7 +814,7 @@ def _snipe(e, match):
     f = _fwd(e.team)
     best, bd = None, 30.0
     for o in match.entities:
-        if not e.can_attack(o) or (o.is_king and not o.active):
+        if not e.can_attack(o) or o.is_tower:      # snipes never hit Crown Towers
             continue
         ahead = (o.y - e.y) * f
         d = _d(e, o)
