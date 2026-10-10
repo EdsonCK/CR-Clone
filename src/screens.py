@@ -1,0 +1,586 @@
+"""
+============================================================================
+  SCREENS.PY  --  Progression-era screens (mixed into game.Game)
+============================================================================
+
+  * CARDS    -- your collection: card levels, upgrades (gold), Evolutions
+                and Heroes (shards), stats at this level and the next
+  * SETTINGS -- volumes, game speed, colour-blind teams, drag to deploy,
+                damage numbers, screen shake, sandbox, reset progress
+  * DECKS    -- saved deck slots (see game.py deck editor)
+  * MODES    -- Special Battles + Endless Survival (see modes.py)
+
+Everything here draws with the same helpers as game.py (self._text,
+self._panel, Button ...).
+============================================================================
+"""
+
+import math
+import pygame
+
+import config as cfg
+import cards
+import sprites
+import evos
+import profile_data
+from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE
+
+GOLD_COL = (250, 206, 92)
+SHARD_COL = (196, 120, 255)
+EVO_COL = (190, 110, 255)
+HERO_COL = (255, 196, 80)
+
+
+class ScreensMixin:
+    # screens drawn/handled by this mixin: _draw_<name>, _<name>_click
+    EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats")
+
+    def _extra_escape(self):
+        back = {"cards": getattr(self, "cards_return", "menu"),
+                "draft": "modes"}.get(self.state, "menu")
+        if self.state == "stats":
+            back = "result"
+        self.state = back
+
+    def _extra_wheel(self, dy):
+        if self.state == "cards":
+            self._cards_set_scroll(self.cards_scroll - dy * 60)
+        elif self.state == "modes":
+            pass
+
+    def _extra_mouseup(self, pos):
+        self.cards_drag = False
+        self.settings_drag = None
+
+    def _extra_motion(self, pos):
+        if self.state == "cards" and getattr(self, "cards_drag", False):
+            self._cards_drag_to(pos[1])
+        elif self.state == "settings" and getattr(self, "settings_drag", None):
+            self._settings_drag_to(pos[0])
+
+    # placeholders (filled in by later sections)
+    def _open_modes(self):
+        self.state = "modes"
+
+    def _mode_again(self):
+        self._open_modes()
+
+    def _draw_modes(self):
+        self._screen_title("Special Modes", 30)
+
+    def _modes_click(self, pos):
+        self.state = "menu"
+
+    def _draw_draft(self):
+        pass
+
+    def _draft_click(self, pos):
+        pass
+
+    def _draw_stats(self):
+        self._screen_title("Match Stats", 30)
+
+    def _stats_click(self, pos):
+        self.state = "result"
+
+    # ================================================================ icons
+    def _coin(self, x, y, r=8):
+        pygame.draw.circle(self.screen, (120, 80, 10), (x + 1, y + 2), r)
+        pygame.draw.circle(self.screen, GOLD_COL, (x, y), r)
+        pygame.draw.circle(self.screen, (255, 236, 160), (x - r // 3, y - r // 3), max(1, r // 3))
+        pygame.draw.circle(self.screen, (150, 100, 20), (x, y), r, 1)
+
+    def _shard(self, x, y, r=8):
+        pts = [(x, y - r), (x + r * 0.7, y), (x, y + r), (x - r * 0.7, y)]
+        pygame.draw.polygon(self.screen, (40, 10, 60), [(px + 1, py + 2) for px, py in pts])
+        pygame.draw.polygon(self.screen, SHARD_COL, pts)
+        pygame.draw.polygon(self.screen, (240, 210, 255),
+                            [(x, y - r), (x + r * 0.35, y - r * 0.2), (x, y)], 0)
+        pygame.draw.polygon(self.screen, (90, 40, 140), pts, 1)
+
+    def _wallet(self, cx, y):
+        """Gold + shards readout centred on cx."""
+        g = "%d" % self.profile.gold
+        sh = "%d" % self.profile.shards
+        w1 = self.font_m.size(g)[0]
+        w2 = self.font_m.size(sh)[0]
+        total = 20 + w1 + 28 + 20 + w2
+        x = cx - total // 2
+        self._coin(x + 8, y, 9)
+        self._text(g, self.font_m, GOLD_COL, topleft=(x + 20, y - 12))
+        x += 20 + w1 + 28
+        self._shard(x + 8, y, 10)
+        self._text(sh, self.font_m, SHARD_COL, topleft=(x + 20, y - 12))
+
+    # ================================================================ CARDS
+    CARD_COLS = 5
+    CARD_CELL_H = 92
+    CARD_FILTERS = [("all", "All"), ("troop", "Troops"), ("spell", "Spells"),
+                    ("building", "Bldgs"), ("evo", "Evos"), ("hero", "Heroes")]
+
+    def _cards_init(self):
+        if not hasattr(self, "cards_sel"):
+            self.cards_sel = cards.DEPLOYABLE_CARDS[0].key
+            self.cards_scroll = 0
+            self.cards_filter = "all"
+            self.cards_drag = False
+            self.cards_msg = ""
+
+    def _open_cards(self, return_to="menu"):
+        self._cards_init()
+        self.cards_return = return_to
+        self.cards_msg = ""
+        self.state = "cards"
+
+    def _cards_list(self):
+        f = self.cards_filter
+        out = []
+        for c in cards.DEPLOYABLE_CARDS:
+            if f in ("troop", "spell", "building") and c.category != f:
+                continue
+            if f == "evo" and c.key not in evos.EVOS:
+                continue
+            if f == "hero" and c.key not in evos.HEROES:
+                continue
+            out.append(c)
+        return sorted(out, key=lambda c: (c.elixir, c.name))
+
+    def _cards_view(self):
+        return pygame.Rect(0, 108, cfg.WINDOW_W, cfg.WINDOW_H - 266 - 108)
+
+    def _cards_max_scroll(self):
+        rows = (len(self._cards_list()) + self.CARD_COLS - 1) // self.CARD_COLS
+        return max(0, rows * self.CARD_CELL_H + 6 - self._cards_view().h)
+
+    def _cards_set_scroll(self, v):
+        self.cards_scroll = int(max(0, min(self._cards_max_scroll(), v)))
+
+    def _cards_grid(self):
+        v = self._cards_view()
+        m = 10
+        cw = (cfg.WINDOW_W - m * 2 - 10) // self.CARD_COLS
+        out = []
+        for i, c in enumerate(self._cards_list()):
+            r, col = divmod(i, self.CARD_COLS)
+            out.append((pygame.Rect(m + col * cw, v.y + 4 + r * self.CARD_CELL_H - self.cards_scroll,
+                                    cw - 4, self.CARD_CELL_H - 4), c))
+        return out
+
+    def _cards_tab_rects(self):
+        n = len(self.CARD_FILTERS)
+        gap = 4
+        w = (cfg.WINDOW_W - 20 - gap * (n - 1)) // n
+        return [(pygame.Rect(10 + i * (w + gap), 74, w, 28), k)
+                for i, (k, _) in enumerate(self.CARD_FILTERS)]
+
+    def _evo_owned(self, key):
+        return self.sandbox or key in self.profile.evos
+
+    def _hero_owned(self, key):
+        return self.sandbox or key in self.profile.heroes
+
+    def _cards_buttons(self):
+        key = self.cards_sel
+        p = self.profile
+        y = cfg.WINDOW_H - 266 + 102
+        out = []
+        cost = p.upgrade_cost(key)
+        if cost is None:
+            b = Button((16, y, 124, 36), "Max level", lambda: None, "dark")
+            b.enabled = False
+        else:
+            b = Button((16, y, 124, 36), "Upgrade %d" % cost, self._cards_upgrade, "gold")
+            b.enabled = p.gold >= cost
+        out.append(b)
+        if key in evos.EVOS:
+            if self._evo_owned(key):
+                b = Button((148, y, 124, 36), "Evo unlocked", lambda: None, "dark")
+                b.enabled = False
+            else:
+                b = Button((148, y, 124, 36), "Evo  %d" % profile_data.EVO_COST,
+                           self._cards_unlock_evo, "primary")
+                b.enabled = p.shards >= profile_data.EVO_COST
+            b.kind = "evo"
+            out.append(b)
+        if key in evos.HEROES:
+            if self._hero_owned(key):
+                b = Button((280, y, 124, 36), "Hero unlocked", lambda: None, "dark")
+                b.enabled = False
+            else:
+                b = Button((280, y, 124, 36), "Hero  %d" % profile_data.HERO_COST,
+                           self._cards_unlock_hero, "primary")
+                b.enabled = p.shards >= profile_data.HERO_COST
+            b.kind = "hero"
+            out.append(b)
+        out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 42, 140, 34), "Back",
+                          lambda: self._goto(getattr(self, "cards_return", "menu")), "dark"))
+        return out
+
+    def _cards_upgrade(self):
+        if self.profile.upgrade(self.cards_sel):
+            self.sfx.play("crown", 0.7, min_gap=0.0)
+            self.cards_msg = "%s is now level %d!" % (cards.CARDS[self.cards_sel].name,
+                                                      self.profile.level(self.cards_sel))
+        else:
+            self.cards_msg = "Not enough gold."
+
+    def _cards_unlock_evo(self):
+        if self.profile.unlock_evo(self.cards_sel):
+            self.sfx.play("ability", 0.8, min_gap=0.0)
+            self.cards_msg = "Evolution unlocked! Put it in an EVO slot (deck slots 1-2)."
+        else:
+            self.cards_msg = "Not enough shards."
+
+    def _cards_unlock_hero(self):
+        if self.profile.unlock_hero(self.cards_sel):
+            self.sfx.play("ability", 0.8, min_gap=0.0)
+            self.cards_msg = "Hero unlocked! Put it in the HERO slot (deck slot 3)."
+        else:
+            self.cards_msg = "Not enough shards."
+
+    def _cards_click(self, pos):
+        for r, k in self._cards_tab_rects():
+            if r.collidepoint(pos):
+                self.cards_filter = k
+                self.cards_scroll = 0
+                return
+        for b in self._cards_buttons():
+            if b.click(pos):
+                return
+        v = self._cards_view()
+        track = pygame.Rect(cfg.WINDOW_W - 12, v.y, 10, v.h)
+        if track.collidepoint(pos):
+            self.cards_drag = True
+            self._cards_drag_to(pos[1])
+            return
+        if v.collidepoint(pos):
+            for r, c in self._cards_grid():
+                if r.collidepoint(pos):
+                    self.cards_sel = c.key
+                    self.cards_msg = ""
+                    self.sfx.play("ui_select", 0.5, min_gap=0.0)
+                    return
+
+    def _cards_drag_to(self, y):
+        v = self._cards_view()
+        self._cards_set_scroll((y - v.y) / max(1, v.h) * self._cards_max_scroll())
+
+    def _card_stat_lines(self, c, lv):
+        m = cards.level_mult(lv)
+        if c.category == "spell":
+            out = []
+            if c.spell_damage:
+                out.append(("Damage", c.spell_damage * m))
+            if c.spawn_troops:
+                sub = cards.CARDS[c.spawn_troops[0]]
+                out.append(("%s HP" % sub.name, sub.hp * c.sub_hp_mult * m))
+            return out
+        out = [("HP", c.hp * m)]
+        if c.damage:
+            out.append(("Damage", c.damage * m))
+            if c.hit_speed:
+                out.append(("DPS", c.damage * m / c.hit_speed))
+        if c.spawner:
+            sub = cards.CARDS[c.spawner[0]]
+            out.append(("%s HP" % sub.name, sub.hp * c.sub_hp_mult * m))
+        return out
+
+    def _draw_cards(self):
+        self._cards_init()
+        cx = cfg.WINDOW_W // 2
+        mouse = pygame.mouse.get_pos()
+        p = self.profile
+        self._screen_title("Cards", 26)
+        self._wallet(cx, 60)
+        # tabs
+        for r, k in self._cards_tab_rects():
+            sel = k == self.cards_filter
+            bg = (70, 90, 130) if sel else (40, 46, 60)
+            if r.collidepoint(mouse):
+                bg = lt_c(bg, 14)
+            pygame.draw.rect(self.screen, bg, r, border_radius=7)
+            pygame.draw.rect(self.screen, (250, 222, 110) if sel else (70, 78, 98), r,
+                             2 if sel else 1, border_radius=7)
+            lbl = dict(self.CARD_FILTERS)[k]
+            self._text(lbl, self.font_s, WHITE, center=r.center)
+        # grid
+        v = self._cards_view()
+        self.screen.set_clip(v)
+        for r, c in self._cards_grid():
+            if r.bottom < v.top or r.top > v.bottom:
+                continue
+            lv = p.level(c.key)
+            sel = c.key == self.cards_sel
+            bg = (58, 78, 118) if sel else (44, 50, 62)
+            if r.collidepoint(mouse):
+                bg = lt_c(bg, 14)
+            pygame.draw.rect(self.screen, (14, 16, 22), r.move(0, 2), border_radius=8)
+            pygame.draw.rect(self.screen, bg, r, border_radius=8)
+            border = (90, 100, 128)
+            if c.key in evos.EVOS and self._evo_owned(c.key):
+                border = EVO_COL
+            if c.key in evos.HEROES and self._hero_owned(c.key):
+                border = HERO_COL
+            if sel:
+                border = (250, 240, 140)
+            pygame.draw.rect(self.screen, border, r, 2, border_radius=8)
+            self.screen.blit(sprites.get_sprite(c.key, 46), (r.centerx - 23, r.y + 8))
+            self._elixir_badge(r.x + 9, r.y + 9, c.elixir, r=8)
+            # level pill
+            pill = pygame.Rect(0, 0, 40, 16)
+            pill.midbottom = (r.centerx, r.bottom - 3)
+            lvcol = (80, 140, 220) if lv < profile_data.MAX_LEVEL else (220, 160, 40)
+            pygame.draw.rect(self.screen, dk_c(lvcol, 50), pill, border_radius=8)
+            pygame.draw.rect(self.screen, lvcol, pill, 1, border_radius=8)
+            self._text("Lv %d" % lv, self.font_s, WHITE, center=pill.center)
+            if p.can_upgrade(c.key):          # upgrade available: green arrow
+                ax, ay = r.right - 10, r.y + 12
+                pygame.draw.polygon(self.screen, (60, 200, 90),
+                                    [(ax, ay - 7), (ax + 6, ay), (ax + 2, ay), (ax + 2, ay + 6),
+                                     (ax - 2, ay + 6), (ax - 2, ay), (ax - 6, ay)])
+            tags = []
+            if c.key in evos.EVOS:
+                tags.append(("EVO", EVO_COL if self._evo_owned(c.key) else (90, 80, 110)))
+            if c.key in evos.HEROES:
+                tags.append(("HERO", HERO_COL if self._hero_owned(c.key) else (110, 100, 80)))
+            ty = r.bottom - 34
+            for t, col in tags:
+                tw = self.font_s.size(t)[0] + 6
+                tr = pygame.Rect(r.x + 3, ty, tw, 13)
+                pygame.draw.rect(self.screen, (20, 18, 28), tr, border_radius=4)
+                self._text(t, self.font_s, col, center=tr.center)
+                ty -= 14
+        self.screen.set_clip(None)
+        # scrollbar
+        mx = self._cards_max_scroll()
+        if mx:
+            track = pygame.Rect(cfg.WINDOW_W - 10, v.y, 6, v.h)
+            pygame.draw.rect(self.screen, (34, 38, 52), track, border_radius=3)
+            th = max(30, int(track.h * v.h / (v.h + mx)))
+            ty = track.y + int((track.h - th) * self.cards_scroll / mx)
+            pygame.draw.rect(self.screen, (214, 176, 84), (track.x, ty, track.w, th),
+                             border_radius=3)
+        # detail panel
+        c = cards.CARDS[self.cards_sel]
+        lv = p.level(c.key)
+        top = cfg.WINDOW_H - 266 + 4
+        panel = self._panel((8, top, cfg.WINDOW_W - 16, 214), border=(150, 130, 80))
+        self.screen.blit(sprites.get_sprite(c.key, 70), (panel.x + 8, top + 8))
+        self._text(c.name, self.font_m, topleft=(panel.x + 86, top + 6))
+        kind = "Champion" if c.is_champion else c.category.title()
+        self._text("%s  -  %d elixir  -  Level %d / %d" % (kind, c.elixir, lv,
+                                                           profile_data.MAX_LEVEL),
+                   self.font_s, (250, 206, 92), topleft=(panel.x + 86, top + 30))
+        stats = self._card_stat_lines(c, lv)
+        nxt = self._card_stat_lines(c, lv + 1) if lv < profile_data.MAX_LEVEL else None
+        yy = top + 48
+        for i, (lbl, val) in enumerate(stats[:3]):
+            s = "%s %d" % (lbl, round(val))
+            if nxt:
+                s += "  ->  %d" % round(nxt[i][1])
+            self._text(s, self.font_s, (220, 224, 236), topleft=(panel.x + 86, yy))
+            yy += 15
+        for b in self._cards_buttons():
+            b.draw(self.screen, self.font_sb)
+        # descriptions
+        yy = top + 144
+        lines = []
+        if c.key in evos.EVOS:
+            e = evos.EVOS[c.key]
+            lines.append(("EVO (%d-cycle): " % e.cycles + e.desc, EVO_COL))
+        if c.key in evos.HEROES:
+            h = evos.HEROES[c.key]
+            lines.append(("HERO - %s (%d elixir): " % (h.ability, h.cost) + h.desc, HERO_COL))
+        if c.is_champion:
+            lines.append(("Champion ability: " + c.ability_name, HERO_COL))
+        if not lines:
+            lines.append(("No Evolution or Hero for this card yet.", (150, 156, 175)))
+        for text, col in lines:
+            for ln in self._wrap(text, self.font_s, panel.w - 20):
+                if yy > panel.bottom - 16:
+                    break
+                self._text(ln, self.font_s, col, topleft=(panel.x + 10, yy))
+                yy += 15
+            yy += 3
+        if self.cards_msg:
+            self._text(self.cards_msg, self.font_sb, (150, 240, 160), center=(cx, top - 8))
+        for b in self._cards_buttons()[-1:]:
+            b.draw(self.screen, self.font_m)
+
+    def _wrap(self, text, font, maxw):
+        words, line, out = text.split(), "", []
+        for w in words:
+            t = (line + " " + w).strip()
+            if font.size(t)[0] > maxw and line:
+                out.append(line)
+                line = w
+            else:
+                line = t
+        if line:
+            out.append(line)
+        return out
+
+    # ============================================================ SETTINGS
+    SETTING_DEFAULTS = {"music_vol": 0.45, "sfx_vol": 0.7, "speed": 1.0,
+                        "colorblind": False, "drag_deploy": True,
+                        "dmg_numbers": False, "shake": True}
+
+    def _load_extra_settings(self, d):
+        for k, v in self.SETTING_DEFAULTS.items():
+            setattr(self, "opt_" + k, type(v)(d.get(k, v)))
+
+    def _extra_settings(self):
+        return {k: getattr(self, "opt_" + k, v) for k, v in self.SETTING_DEFAULTS.items()}
+
+    def _apply_settings(self):
+        """Push the options into the sound manager / colours."""
+        self.sfx.music_volume = self.opt_music_vol
+        self.sfx.sfx_volume = self.opt_sfx_vol
+        try:
+            if self.sfx.ok:
+                self.sfx.pg.mixer.music.set_volume(self.opt_music_vol)
+        except Exception:
+            pass
+        import fx as fxmod
+        if self.opt_colorblind:
+            cfg.COLOR_TEAM_PLAYER, cfg.COLOR_TEAM_ENEMY = (60, 140, 255), (245, 150, 30)
+        else:
+            cfg.COLOR_TEAM_PLAYER, cfg.COLOR_TEAM_ENEMY = (70, 130, 220), (220, 80, 80)
+        fxmod.TEAM_COL[0], fxmod.TEAM_COL[1] = cfg.COLOR_TEAM_PLAYER, cfg.COLOR_TEAM_ENEMY
+        self._arena_surf = None
+        cache = getattr(self, "_arena_bg_cache", None)
+        if isinstance(cache, dict):
+            cache.clear()
+
+    def _open_settings(self):
+        self.settings_confirm = False
+        self.settings_drag = None
+        self.state = "settings"
+
+    SETTINGS_ROWS = [
+        ("music_vol", "Music volume", "slider"),
+        ("sfx_vol", "Sound volume", "slider"),
+        ("speed", "Game speed", "speed"),
+        ("colorblind", "Colour-blind team colours", "toggle"),
+        ("drag_deploy", "Drag cards to deploy", "toggle"),
+        ("dmg_numbers", "Floating damage numbers", "toggle"),
+        ("shake", "Screen shake", "toggle"),
+        ("sandbox", "Sandbox: unlock all Levels, Evos, Heroes", "toggle"),
+    ]
+
+    def _settings_row_rect(self, i):
+        return pygame.Rect(14, 78 + i * 62, cfg.WINDOW_W - 28, 54)
+
+    def _settings_control(self, i):
+        r = self._settings_row_rect(i)
+        key, _, kind = self.SETTINGS_ROWS[i]
+        if kind == "slider":
+            return pygame.Rect(r.x + 16, r.y + 34, r.w - 90, 10)
+        if kind == "toggle":
+            return pygame.Rect(r.right - 70, r.y + 12, 58, 30)
+        if kind == "speed":
+            return [(pygame.Rect(r.right - 196 + j * 64, r.y + 12, 58, 30), v)
+                    for j, v in enumerate((1.0, 1.5, 2.0))]
+
+    def _settings_buttons(self):
+        cx = cfg.WINDOW_W // 2
+        y = 78 + len(self.SETTINGS_ROWS) * 62 + 6
+        lbl = "Really reset? Click again" if self.settings_confirm else "Reset progress"
+        return [Button((cx - 130, y, 260, 40), lbl, self._settings_reset, "danger"),
+                Button((cx - 70, cfg.WINDOW_H - 54, 140, 40), "Back",
+                       lambda: self._goto("menu"), "dark")]
+
+    def _settings_reset(self):
+        if not self.settings_confirm:
+            self.settings_confirm = True
+            return
+        self.settings_confirm = False
+        self.profile.reset()
+        self.progress = {}
+        self._save_progress()
+        self.sfx.play("defeat", 0.6, min_gap=0.0)
+
+    def _get_opt(self, key):
+        return self.sandbox if key == "sandbox" else getattr(self, "opt_" + key)
+
+    def _set_opt(self, key, v):
+        if key == "sandbox":
+            self.sandbox = v
+        else:
+            setattr(self, "opt_" + key, v)
+        self._apply_settings()
+        self._save_settings()
+
+    def _settings_click(self, pos):
+        for b in self._settings_buttons():
+            if b.click(pos):
+                return
+        self.settings_confirm = False
+        for i, (key, _, kind) in enumerate(self.SETTINGS_ROWS):
+            ctl = self._settings_control(i)
+            if kind == "slider":
+                if ctl.inflate(24, 24).collidepoint(pos):
+                    self.settings_drag = key
+                    self._settings_drag_to(pos[0])
+                    return
+            elif kind == "toggle":
+                if self._settings_row_rect(i).collidepoint(pos):
+                    self._set_opt(key, not self._get_opt(key))
+                    self.sfx.play("ui_toggle", 0.6, min_gap=0.0)
+                    return
+            elif kind == "speed":
+                for r, v in ctl:
+                    if r.collidepoint(pos):
+                        self._set_opt(key, v)
+                        return
+
+    def _settings_drag_to(self, x):
+        key = self.settings_drag
+        i = [k for k, _, _ in self.SETTINGS_ROWS].index(key)
+        t = self._settings_control(i)
+        v = min(1.0, max(0.0, (x - t.x) / t.w))
+        setattr(self, "opt_" + key, round(v, 2))
+        self._apply_settings()
+        self._save_settings()
+
+    def _draw_settings(self):
+        mouse = pygame.mouse.get_pos()
+        self._screen_title("Settings", 30)
+        for i, (key, label, kind) in enumerate(self.SETTINGS_ROWS):
+            r = self._settings_row_rect(i)
+            self._panel(r, border=(80, 88, 112))
+            self._text(label, self.font_sb, topleft=(r.x + 14, r.y + 8))
+            ctl = self._settings_control(i)
+            v = self._get_opt(key)
+            if kind == "slider":
+                pygame.draw.rect(self.screen, (30, 34, 46), ctl, border_radius=5)
+                pygame.draw.rect(self.screen, (120, 170, 250),
+                                 (ctl.x, ctl.y, int(ctl.w * v), ctl.h), border_radius=5)
+                kx = ctl.x + int(ctl.w * v)
+                pygame.draw.circle(self.screen, (240, 240, 250), (kx, ctl.centery), 9)
+                pygame.draw.circle(self.screen, (60, 80, 120), (kx, ctl.centery), 9, 2)
+                self._text("%d%%" % round(v * 100), self.font_sb,
+                           topleft=(ctl.right + 14, ctl.y - 6))
+            elif kind == "toggle":
+                on = bool(v)
+                col = (70, 170, 90) if on else (70, 74, 90)
+                pygame.draw.rect(self.screen, col, ctl, border_radius=15)
+                kx = ctl.right - 15 if on else ctl.x + 15
+                pygame.draw.circle(self.screen, (240, 240, 245), (kx, ctl.centery), 12)
+                self._text("ON" if on else "OFF", self.font_s, WHITE,
+                           center=(ctl.x + 20 if on else ctl.right - 20, ctl.centery))
+            elif kind == "speed":
+                for rr, sv in ctl:
+                    sel = abs(sv - v) < 1e-6
+                    bg = (70, 110, 170) if sel else (44, 50, 64)
+                    if rr.collidepoint(mouse):
+                        bg = lt_c(bg, 14)
+                    pygame.draw.rect(self.screen, bg, rr, border_radius=8)
+                    pygame.draw.rect(self.screen, (250, 222, 110) if sel else (80, 88, 110),
+                                     rr, 2 if sel else 1, border_radius=8)
+                    self._text("%gx" % sv, self.font_sb, WHITE, center=rr.center)
+        for b in self._settings_buttons():
+            b.draw(self.screen, self.font_m)
+        self._text("Sandbox never changes your saved progress or rewards.",
+                   self.font_s, (160, 166, 186),
+                   center=(cfg.WINDOW_W // 2, cfg.WINDOW_H - 70))

@@ -76,6 +76,19 @@ from config import (SPEED_SLOW, SPEED_MEDIUM, SPEED_FAST, SPEED_VERY_FAST,
                     DECK_SIZE)
 
 
+# ---- card levels ---------------------------------------------------------
+# The stats below are LEVEL 11 (tournament standard). Every level above adds
+# +10% hp and damage (compounding); every level below takes 10% off.
+LEVEL_BASE = 11
+LEVEL_STEP = 0.10
+LEVEL_MIN = 11          # your cards start here...
+LEVEL_MAX = 16          # ...and can be upgraded to here
+
+
+def level_mult(level):
+    return (1.0 + LEVEL_STEP) ** (level - LEVEL_BASE)
+
+
 @dataclass
 class CardDef:
     key: str

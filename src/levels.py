@@ -48,12 +48,8 @@ from typing import List, Optional
 import cards
 from engine import PLAYER, ENEMY, RIVER_TOP
 
-LEVEL_BASE = 11          # the level the stats in cards.py represent
-LEVEL_STEP = 0.10        # +10% hp & damage per level
-
-
-def level_mult(level):
-    return (1.0 + LEVEL_STEP) ** (level - LEVEL_BASE)
+LEVEL_BASE = cards.LEVEL_BASE      # the level the stats in cards.py represent
+level_mult = cards.level_mult
 
 
 LANE_X = {"left": 3.5, "right": 14.5, "mid": 9.0}
@@ -95,6 +91,7 @@ class Level:
     prep_first: float = 8.0         # seconds before wave 1
     prep: float = 7.0               # seconds between waves
     locked: bool = False
+    shift: int = 0                  # added to every enemy level (set below)
 
 
 def S(key, at=0.0, lane="left", place="field", level=None, mult=1.0):
@@ -854,6 +851,35 @@ LEVELS = [
         ]),
 ]
 
+# ---------------------------------------------------------------------------
+# Level progression: the tables above are tuned as if your cards were level
+# 11. Later levels add `shift` to every enemy level, so enemies go from level
+# 11 on Level 1 to level 16 on Level 20 - you upgrade your cards to keep up.
+# recommended_level() is the card level the level was balanced for.
+# ---------------------------------------------------------------------------
+LEVEL_SHIFTS = [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3]
+for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
+    _lv.shift = _sh
+
+
+def recommended_level(level):
+    return LEVEL_BASE + level.shift
+
+
+def enemy_level_range(level):
+    """(lowest, highest) enemy unit level in the level's normal waves."""
+    lv = [w.level + level.shift for w in level.waves if not w.boss]
+    lv += [sp.level + level.shift for w in level.waves for sp in w.spawns
+           if sp.level is not None]
+    return min(lv), max(lv)
+
+
+def stars_needed(index):
+    """Total stars needed to open the level at 0-based `index`."""
+    import profile_data
+    return profile_data.STARS_PER_UNLOCK * index
+
+
 # Win conditions only hit buildings - with no enemy towers they'd do
 # nothing, so they can't be used in Levels.
 BANNED = frozenset(c.key for c in cards.DEPLOYABLE_CARDS if c.attacks == "buildings")
@@ -993,7 +1019,7 @@ class LevelRun:
             sub = ("double health & damage" if top >= 2.0 else
                    "x%g health & damage" % top if top > 1.0 else "final wave")
         else:
-            sub = "units level %d" % wave.level
+            sub = "units level %d" % (wave.level + self.level.shift)
         if wave.bonus_elixir:
             sub += "   +%d elixir" % wave.bonus_elixir
         self._show(title, sub)
@@ -1023,7 +1049,7 @@ class LevelRun:
         """Deploy one scripted spawn. Returns False to retry it later."""
         m = self.m
         wave = self.current_wave()
-        lv = sp.level if sp.level is not None else wave.level
+        lv = (sp.level if sp.level is not None else wave.level) + self.level.shift
         mult = level_mult(lv) * sp.mult
         x = LANE_X.get(sp.lane, 9.0)
         c = cards.CARDS[sp.key]
@@ -1060,15 +1086,19 @@ class LevelRun:
             if id(e) not in before and e.team == ENEMY:
                 e.boss = sp.mult > 1.0 or wave.boss
         # spells keep the wave's power for anything they raise later
-        m.team_power[ENEMY] = (level_mult(wave.level), level_mult(wave.level))
-        m.team_level[ENEMY] = wave.level
+        wl = wave.level + self.level.shift
+        m.team_power[ENEMY] = (level_mult(wl), level_mult(wl))
+        m.team_level[ENEMY] = wl
         return True
 
 
-def new_level_match(level, player_deck):
-    """A Match set up for a level: no enemy towers, no clock."""
+def new_level_match(level, player_deck, card_levels=None, tower_level=None):
+    """A Match set up for a level: no enemy towers, no clock. card_levels is
+    your {card: level} (or one level for all); tower_level your towers'."""
     from engine import Match
-    m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False)
+    m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False,
+              card_levels={PLAYER: card_levels} if card_levels is not None else None,
+              tower_levels={PLAYER: tower_level} if tower_level is not None else None)
     m.banned = set(BANNED)
     m.miasma = (miasma_damage(), MIASMA_TICK)
     return m, LevelRun(m, level)

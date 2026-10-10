@@ -31,9 +31,13 @@ import sprites
 import sounds
 import fx as fxmod
 import levels
+import profile_data
 from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
 from ai import AIController
+from screens import ScreensMixin
+from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
+                grad_rect, BUTTON_STYLES, Button)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DECK_FILE = os.path.join(_ROOT, "player_deck.json")
@@ -101,125 +105,7 @@ CHAIN_COLORS = {
 }
 
 
-def dk_c(c, n=40):
-    return tuple(max(0, v - n) for v in c)
-
-
-def lt_c(c, n=40):
-    return tuple(min(255, v + n) for v in c)
-
-
-def tile_to_px(x, y):
-    return (cfg.ARENA_X0 + x * cfg.TILE_SIZE, cfg.ARENA_Y0 + y * cfg.TILE_SIZE)
-
-
-def px_to_tile(px, py):
-    return ((px - cfg.ARENA_X0) / cfg.TILE_SIZE, (py - cfg.ARENA_Y0) / cfg.TILE_SIZE)
-
-
-WHITE = (255, 255, 255)
-_TEXT_CACHE = {}
-
-
-def render_text(font, text, color=WHITE, outline=True, outline_col=(0, 0, 0)):
-    """Text surface; big text gets a thin black outline (cached)."""
-    key = (id(font), text, color, outline, outline_col)
-    surf = _TEXT_CACHE.get(key)
-    if surf is not None:
-        return surf
-    base = font.render(text, True, color)
-    if not outline:
-        surf = base
-    else:
-        edge = font.render(text, True, outline_col)
-        w, h = base.get_width() + 2, base.get_height() + 2
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        for dx, dy in ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0),
-                       (-1, 1), (0, 1), (1, 1)):
-            surf.blit(edge, (1 + dx, 1 + dy))
-        surf.blit(base, (1, 1))
-    if len(_TEXT_CACHE) > 4000:
-        _TEXT_CACHE.clear()
-    _TEXT_CACHE[key] = surf
-    return surf
-
-
-_GRAD_CACHE = {}
-
-
-def grad_rect(w, h, top, bottom, radius=10):
-    """Rounded rectangle with a vertical gradient (cached surface)."""
-    key = (w, h, top, bottom, radius)
-    surf = _GRAD_CACHE.get(key)
-    if surf is None:
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        for y in range(h):
-            t = y / max(1, h - 1)
-            c = tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3))
-            pygame.draw.line(surf, c, (0, y), (w, y))
-        mask = pygame.Surface((w, h), pygame.SRCALPHA)
-        pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, w, h), border_radius=radius)
-        surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-        if len(_GRAD_CACHE) > 400:
-            _GRAD_CACHE.clear()
-        _GRAD_CACHE[key] = surf
-    return surf
-
-
-BUTTON_STYLES = {
-    #           top              bottom           border
-    "primary": ((88, 132, 214), (46, 78, 150), (24, 34, 66)),
-    "go":      ((108, 200, 96), (52, 138, 58), (22, 60, 26)),
-    "gold":    ((250, 206, 92), (196, 140, 40), (90, 60, 14)),
-    "dark":    ((70, 78, 100), (42, 48, 64), (16, 18, 26)),
-    "danger":  ((226, 98, 88), (160, 52, 48), (70, 20, 18)),
-}
-
-
-class Button:
-    def __init__(self, rect, label, cb, style="primary"):
-        self.rect = pygame.Rect(rect)
-        self.label = label
-        self.cb = cb
-        self.style = style
-        self.enabled = True
-
-    def draw(self, surf, font):
-        mouse = pygame.mouse.get_pos()
-        hover = self.rect.collidepoint(mouse) and self.enabled
-        pressed = hover and pygame.mouse.get_pressed()[0]
-        top, bot, border = BUTTON_STYLES.get(self.style, BUTTON_STYLES["primary"])
-        if not self.enabled:
-            top, bot = (80, 82, 90), (56, 58, 66)
-        elif hover:
-            top, bot = lt_c(top, 18), lt_c(bot, 14)
-        r = self.rect.move(0, 2 if pressed else 0)
-        # drop shadow (shorter when pressed)
-        pygame.draw.rect(surf, (10, 12, 18), self.rect.move(0, 4), border_radius=11)
-        surf.blit(grad_rect(r.w, r.h, top, bot, 11), r.topleft)
-        # glossy top highlight
-        hl = pygame.Rect(r.x + 4, r.y + 3, r.w - 8, max(2, r.h // 3))
-        gl = pygame.Surface(hl.size, pygame.SRCALPHA)
-        pygame.draw.rect(gl, (255, 255, 255, 38), gl.get_rect(), border_radius=8)
-        surf.blit(gl, hl.topleft)
-        pygame.draw.rect(surf, (255, 222, 110) if hover else border, r,
-                         2, border_radius=11)
-        txt = render_text(font, self.label, WHITE if self.enabled else (190, 190, 190))
-        surf.blit(txt, (r.centerx - txt.get_width() // 2,
-                        r.centery - txt.get_height() // 2))
-
-    click_sound = None      # set by Game: plays the UI click
-
-    def click(self, pos):
-        if self.enabled and self.rect.collidepoint(pos):
-            if Button.click_sound:
-                Button.click_sound()
-            self.cb()
-            return True
-        return False
-
-
-class Game:
+class Game(ScreensMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -258,6 +144,10 @@ class Game:
         self.levels_scroll = 0         # Levels screen list scroll (pixels)
         self.levels_drag = None        # (mouse_y, scroll) while dragging the list
         self.progress = self._load_progress()
+        self.profile = profile_data.Profile()
+        self.sandbox = False           # Settings: unlock everything (free play)
+        self.ai_card_mode = "ladder"   # Battles: AI card level "ladder" | "match"
+        self.last_rewards = []         # [(label, gold, shards)] for the result screen
 
         self.state = "menu"
         self.running = True
@@ -274,9 +164,12 @@ class Game:
         self.ai_elixir = cfg.AI_DEFAULT_ELIXIR     # AI elixir boost 0.5-2.0
         self.slider_drag = False
         self.ai_deck_choice = "Classic"
+        self._load_extra_settings({})
         self._load_settings()
+        self._apply_settings()
         self.sfx.set_music_on(self.music_on)
         self.sfx.set_sfx_on(self.sfx_on)
+        self.mode = None               # special mode key (modes.py) or None
         self.ai_custom_deck = self._load_deck(AI_DECK_FILE, cards.DEFAULT_AI_DECK)
         self.level_deck = self._load_deck(LEVEL_DECK_FILE,
                                           levels.default_level_deck(self.player_deck))
@@ -358,15 +251,22 @@ class Game:
                 self.ai_deck_choice = d["ai_deck"]
             self.music_on = bool(d.get("music", True))
             self.sfx_on = bool(d.get("sfx", True))
+            self.sandbox = bool(d.get("sandbox", False))
+            if d.get("ai_card_mode") in ("ladder", "match"):
+                self.ai_card_mode = d["ai_card_mode"]
+            self._load_extra_settings(d)
         except Exception:
             pass
 
     def _save_settings(self):
         try:
             with open(SETTINGS_FILE, "w") as f:
-                json.dump({"ai_level": self.ai_level, "ai_elixir": self.ai_elixir,
-                           "ai_deck": self.ai_deck_choice,
-                           "music": self.music_on, "sfx": self.sfx_on}, f)
+                d = {"ai_level": self.ai_level, "ai_elixir": self.ai_elixir,
+                     "ai_deck": self.ai_deck_choice,
+                     "music": self.music_on, "sfx": self.sfx_on,
+                     "sandbox": self.sandbox, "ai_card_mode": self.ai_card_mode}
+                d.update(self._extra_settings())
+                json.dump(d, f)
         except Exception:
             pass
 
@@ -453,22 +353,31 @@ class Game:
     # -------------------------------------------------------------- menu
     def _build_menu_buttons(self):
         cx = cfg.WINDOW_W // 2
-        w, h = 270, 50
-        y0 = 232
-        gap = 60
-        labels = [
+        w, h = 300, 46
+        big = [
             ("Battle", self._open_prematch, "go"),
             ("Levels", lambda: self._goto("levels"), "gold"),
-            ("Edit Deck", lambda: self._open_player_deck("menu"), "primary"),
-            ("AI Deck", lambda: self._open_aideck("menu"), "primary"),
-            ("Records", lambda: self._goto("records"), "primary"),
-            ("How To Play", lambda: self._goto("help"), "primary"),
-            ("Quit", self._quit, "danger"),
+            ("Special Modes", lambda: self._open_modes(), "gold"),
         ]
         self.menu_buttons = [
-            Button((cx - w // 2, y0 + i * gap, w, h), lbl, cb, style)
-            for i, (lbl, cb, style) in enumerate(labels)
+            Button((cx - w // 2, 244 + i * 54, w, h), lbl, cb, style)
+            for i, (lbl, cb, style) in enumerate(big)
         ]
+        small = [
+            ("Cards", lambda: self._open_cards("menu")),
+            ("Decks", lambda: self._open_player_deck("menu")),
+            ("AI Deck", lambda: self._open_aideck("menu")),
+            ("Records", lambda: self._goto("records")),
+            ("Settings", lambda: self._open_settings()),
+            ("How To Play", lambda: self._goto("help")),
+        ]
+        hw = (w - 8) // 2
+        for i, (lbl, cb) in enumerate(small):
+            r, c = divmod(i, 2)
+            self.menu_buttons.append(Button((cx - w // 2 + c * (hw + 8), 412 + r * 48, hw, 40),
+                                            lbl, cb, "primary"))
+        self.menu_buttons.append(Button((cx - w // 2, 560, w, 40), "Quit", self._quit,
+                                        "danger"))
         # sound toggles (top corners); labels refreshed every frame
         self.music_btn = Button((10, 10, 118, 30), "Music", lambda: self._toggle_music(),
                                 "dark")
@@ -501,7 +410,8 @@ class Game:
         if state == "levels" and self.state != "levels":
             # open the list at the first level you haven't cleared yet
             first = next((i for i, lv in enumerate(levels.LEVELS)
-                          if not self.progress.get(lv.key, {}).get("stars")), 0)
+                          if not self.progress.get(lv.key, {}).get("stars")
+                          and self._level_unlocked(i)), 0)
             self._set_levels_scroll(first * self.LEVEL_ROW - self.LEVEL_ROW // 2)
         self.state = state
 
@@ -524,7 +434,13 @@ class Game:
         self._save_settings()
         self._arena_surf = None
         self.level_run = None
-        self.match = Match(self.player_deck, self._resolve_ai_deck())
+        self.mode = None
+        ai_lv = self._ai_card_level()
+        self.match = Match(self.player_deck, self._resolve_ai_deck(),
+                           card_levels={PLAYER: self.profile.deck_levels(self.player_deck),
+                                        ENEMY: ai_lv},
+                           tower_levels={PLAYER: self.profile.tower_level(self.player_deck),
+                                         ENEMY: ai_lv})
         self.match.record_events = True
         self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
         self._audio = {}
@@ -533,7 +449,20 @@ class Game:
         self.selected = None
         self.state = "match"
 
+    def _ai_card_level(self):
+        """AI card level in Battles: its ladder level vs this intelligence,
+        or (Battle Setup option) the same level as your towers."""
+        if self.ai_card_mode == "match":
+            return self.profile.tower_level(self.player_deck)
+        return self.profile.ladder_level(self.ai_level)
+
     # ---- Levels ----
+    def _total_stars(self):
+        return sum(self.progress.get(lv.key, {}).get("stars", 0) for lv in levels.LEVELS)
+
+    def _level_unlocked(self, i):
+        return self.sandbox or self._total_stars() >= levels.stars_needed(i)
+
     def _load_progress(self):
         try:
             with open(PROGRESS_FILE) as f:
@@ -551,7 +480,7 @@ class Game:
 
     def _begin_level(self, key):
         lv = levels.LEVELS_BY_KEY.get(key)
-        if lv is None or lv.locked:
+        if lv is None or lv.locked or not self._level_unlocked(levels.LEVELS.index(lv)):
             return
         if len(self.level_deck) != cfg.DECK_SIZE or levels.banned_in(self.level_deck):
             self._open_deck_editor("level", "levels")
@@ -559,7 +488,10 @@ class Game:
             return
         self._arena_surf = None
         self.level_key = key
-        self.match, self.level_run = levels.new_level_match(lv, self.level_deck)
+        self.mode = None
+        self.match, self.level_run = levels.new_level_match(
+            lv, self.level_deck, self.profile.deck_levels(self.level_deck),
+            self.profile.tower_level(self.level_deck))
         self.match.record_events = True
         self.ai = None
         self.selected = None
@@ -591,11 +523,12 @@ class Game:
         view = self._levels_view()
         for i, lv in enumerate(levels.LEVELS):
             r = self._level_card_rect(i)
+            open_ = not lv.locked and self._level_unlocked(i)
             b = Button((r.right - 96, r.bottom - 42, 86, 34),
-                       "Play" if not lv.locked else "Locked",
+                       "Play" if open_ else "Locked",
                        (lambda k=lv.key: self._begin_level(k)), "go")
             # only clickable while (fully) scrolled into view
-            b.enabled = not lv.locked and view.contains(b.rect)
+            b.enabled = open_ and view.contains(b.rect)
             b.level_index = i
             out.append(b)
         y = cfg.WINDOW_H - 60
@@ -670,17 +603,18 @@ class Game:
             dt = self.clock.tick(cfg.FPS) / 1000.0
             dt = min(dt, 0.05)
             self._events(dt)
+            mdt = dt * self.opt_speed           # Settings > Game speed
             if self.state == "match" and self.match and not self.match.finished:
-                self.match.update(dt)
+                self.match.update(mdt)
                 if self.ai is not None:
-                    self.ai.update(dt)
+                    self.ai.update(mdt)
                 if self.level_run is not None:
-                    self.level_run.update(dt)
+                    self.level_run.update(mdt)
                 if self.match.finished:
                     self._on_match_end()
             self._update_audio(dt)
             if self.state in ("match", "result") and self.match is not None:
-                self.fx.update(dt, self.match)
+                self.fx.update(mdt, self.match)
             self._draw()
             pygame.display.flip()
         pygame.quit()
@@ -811,10 +745,29 @@ class Game:
             rec = self.progress.setdefault(self.level_key, {"stars": 0, "wins": 0,
                                                             "plays": 0})
             rec["plays"] = rec.get("plays", 0) + 1
+            before = self._total_stars()
+            old_stars = rec.get("stars", 0)
+            self.last_rewards = []
             if w == PLAYER:
                 rec["wins"] = rec.get("wins", 0) + 1
-                rec["stars"] = max(rec.get("stars", 0), run.stars())
+                rec["stars"] = max(old_stars, run.stars())
+                n = levels.LEVELS.index(run.level) + 1
+                new_stars = rec["stars"] - old_stars
+                self._reward("Victory", profile_data.level_win_gold(n))
+                if new_stars:
+                    self._reward("%d new star%s" % (new_stars, "s" * (new_stars > 1)),
+                                 new_stars * profile_data.level_star_gold(n))
+                if old_stars == 0:
+                    self._reward("First clear", 0, 1)
+                if rec["stars"] == 3 and old_stars < 3:
+                    self._reward("3 stars", 0, 1)
+                opened = [lv.name for i, lv in enumerate(levels.LEVELS)
+                          if levels.stars_needed(i) > before
+                          and levels.stars_needed(i) <= self._total_stars()]
+                for nm in opened:
+                    self.last_rewards.append(("Unlocked: " + nm, 0, 0))
             self._save_progress()
+            self.profile.save()
             self._handle_events(self.match.take_events())
             self.sfx.music(None)
             self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
@@ -826,11 +779,37 @@ class Game:
             self.result_text = "DEFEAT"
         else:
             self.result_text = "DRAW"
+        self.last_rewards = []
+        if self.mode is not None:
+            self._mode_rewards(w)
+        else:
+            m = self.match
+            self._reward("Victory" if w == PLAYER else "Played",
+                         profile_data.battle_gold(w == PLAYER, self.ai_level,
+                                                  self.ai_elixir, m.crowns[PLAYER]))
+            if w == PLAYER:
+                before = self.profile.ladder_level(self.ai_level)
+                self.profile.add_ladder_win(self.ai_level)
+                got = self.profile.add_shard_points(self.ai_level)
+                if got:
+                    self.last_rewards.append(("Shard from wins", 0, got))
+                if self.profile.ladder_level(self.ai_level) > before:
+                    self.last_rewards.append(("AI %s is now Lv %d" % (
+                        cfg.AI_LEVELS[self.ai_level]["name"],
+                        self.profile.ladder_level(self.ai_level)), 0, 0))
+        self.profile.save()
         self._handle_events(self.match.take_events())
         self.sfx.music(None)
         self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
         self._record_result()
         self.state = "result"
+
+    def _reward(self, label, gold=0, shards=0):
+        self.profile.add(gold, shards)
+        self.last_rewards.append((label, gold, shards))
+
+    def _mode_rewards(self, w):
+        """Special battles / Endless: overridden in screens.py."""
 
     # ================================================================= EVENTS
     def _events(self, dt):
@@ -866,12 +845,16 @@ class Game:
                     elif self.state in ("help", "result", "prematch", "records",
                                         "levels"):
                         self.state = "menu"
+                    elif self.state in self.EXTRA_SCREENS:
+                        self._extra_escape()
             elif e.type == pygame.MOUSEWHEEL:
                 # the wheel ONLY scrolls - it never selects anything
                 if self.state == "deck":
                     self._deck_set_scroll(self.deck_scroll - e.y * 48)
                 elif self.state == "levels":
                     self._set_levels_scroll(self.levels_scroll - e.y * 60)
+                elif self.state in self.EXTRA_SCREENS:
+                    self._extra_wheel(e.y)
                 elif self.state == "prematch":
                     mpos = pygame.mouse.get_pos()
                     if self._slider_zone().collidepoint(mpos):
@@ -881,6 +864,7 @@ class Game:
                 if e.button == 1:
                     self.deck_drag = False
                     self.levels_drag = None
+                    self._extra_mouseup(e.pos)
                     if self.slider_drag:
                         self.slider_drag = False
                         self._save_settings()
@@ -889,6 +873,8 @@ class Game:
                     self._deck_drag_to(e.pos[1])
                 elif self.state == "levels" and self.levels_drag:
                     self._levels_drag_to(e.pos[1])
+                elif self.state in self.EXTRA_SCREENS:
+                    self._extra_motion(e.pos)
                 elif self.state == "prematch" and self.slider_drag:
                     self._slider_set_from_x(e.pos[0], save=False)
             elif e.type == pygame.MOUSEBUTTONDOWN:
@@ -910,6 +896,8 @@ class Game:
                     self._aideck_click(e.pos)
                 elif self.state == "levels":
                     self._levels_click(e.pos)
+                elif self.state in self.EXTRA_SCREENS:
+                    getattr(self, "_" + self.state + "_click")(e.pos)
                 elif self.state == "help":
                     self.state = "menu"
                 elif self.state == "records":
@@ -1030,6 +1018,11 @@ class Game:
                    lambda: self._goto("menu"), "dark"),
         ]
 
+    def _deck_card_level(self, k, deck):
+        if deck is self.player_deck or deck is self.level_deck:
+            return self.profile.level(k)
+        return self._ai_card_level()
+
     def _prematch_click(self, pos):
         for r, lv in self._prematch_level_rects():
             if r.collidepoint(pos):
@@ -1045,6 +1038,11 @@ class Game:
         for r, v in self._slider_presets():
             if r.collidepoint(pos):
                 self._set_ai_elixir(v)
+                return
+        for r, mode, _ in self._prematch_cardlv_rects():
+            if r.collidepoint(pos):
+                self.ai_card_mode = mode
+                self._save_settings()
                 return
         if self._slider_zone().collidepoint(pos):
             self.slider_drag = True
@@ -1298,16 +1296,30 @@ class Game:
         return None
 
     # ================================================================= RESULT
-    def _result_buttons(self):
+    def _result_panel(self):
         cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
-        if self.level_run is not None:
-            return [Button((cx - 140, cy + 52, 132, 42), "Retry", self._retry, "go"),
-                    Button((cx + 8, cy + 52, 132, 42), "Levels",
-                           lambda: self._goto("levels"))]
-        return [Button((cx - 140, cy + 52, 132, 42), "Play Again",
-                       self._begin_battle, "go"),
-                Button((cx + 8, cy + 52, 132, 42), "Main Menu",
-                       lambda: self._goto("menu"))]
+        h = 250 + 22 * len(self.last_rewards)
+        return pygame.Rect(cx - 175, cy - h // 2 - 20, 350, h)
+
+    def _result_buttons(self):
+        cx = cfg.WINDOW_W // 2
+        p = self._result_panel()
+        y = p.bottom - 96
+        out = []
+        if self.level_run is not None and self.mode is None:
+            out += [Button((cx - 150, y, 145, 40), "Retry", self._retry, "go"),
+                    Button((cx + 5, y, 145, 40), "Levels", lambda: self._goto("levels"))]
+        elif self.mode is not None:
+            out += [Button((cx - 150, y, 145, 40), "Play Again", self._mode_again, "go"),
+                    Button((cx + 5, y, 145, 40), "Modes", lambda: self._open_modes())]
+        else:
+            out += [Button((cx - 150, y, 145, 40), "Play Again", self._begin_battle, "go"),
+                    Button((cx + 5, y, 145, 40), "Main Menu", lambda: self._goto("menu"))]
+        out += [Button((cx - 150, y + 48, 145, 36), "Match Stats",
+                       lambda: self._goto("stats"), "dark"),
+                Button((cx + 5, y + 48, 145, 36), "Cards",
+                       lambda: self._open_cards("result"), "dark")]
+        return out
 
     def _result_click(self, pos):
         for b in self._result_buttons():
@@ -1332,6 +1344,8 @@ class Game:
             self._draw_records()
         elif self.state == "levels":
             self._draw_levels()
+        elif self.state in self.EXTRA_SCREENS:
+            getattr(self, "_draw_" + self.state)()
         elif self.state in ("match", "result"):
             self._draw_match()
             if self.state == "result":
@@ -1410,7 +1424,8 @@ class Game:
                                (x, crown_y - (14 if x == cx else 4)), 4)
         self._text("CLASH CLONE", self.font_title, center=(cx, 142 + bob))
         self._text("Singleplayer  v" + cfg.GAME_VERSION, self.font_m, (226, 230, 240),
-                   center=(cx, 190 + bob))
+                   center=(cx, 186 + bob))
+        self._wallet(cx, 220)
         self.music_btn.label = "Music: %s (M)" % ("On" if self.music_on else "Off")
         self.sfx_btn.label = "Sound: %s (N)" % ("On" if self.sfx_on else "Off")
         for b in self.menu_buttons:
@@ -1527,21 +1542,48 @@ class Game:
             pygame.draw.rect(self.screen, self._elixir_color(pv) if sel else (70, 78, 98),
                              r, 2 if sel else 1, border_radius=7)
             self._text("%gx" % pv, self.font_s, cfg.COLOR_TEXT, center=r.center)
-        self._text("drag / click  |  -/+ or arrow keys / wheel = 0.05 steps",
-                   self.font_s, (130, 138, 158), center=(cx, self.PM_SLIDER_Y + 74))
+
+
+        # ---- AI card level: ladder or match mine ----
+        for r, mode, lbl in self._prematch_cardlv_rects():
+            sel = mode == self.ai_card_mode
+            bg = (70, 110, 170) if sel else (44, 50, 64)
+            if r.collidepoint(mouse):
+                bg = lt_c(bg, 14)
+            pygame.draw.rect(self.screen, bg, r, border_radius=8)
+            pygame.draw.rect(self.screen, (250, 222, 110) if sel else (80, 88, 110), r,
+                             2 if sel else 1, border_radius=8)
+            self._text(lbl, self.font_s, WHITE, center=r.center)
+        wins = self.profile.ladder_wins(self.ai_level)
+        nxt = profile_data.LADDER_WINS_PER_LEVEL - wins % profile_data.LADDER_WINS_PER_LEVEL
+        tip = ("AI cards Lv %d  (%d wins vs %s; next level in %d)" % (
+            self.profile.ladder_level(self.ai_level), wins, info["name"], nxt)
+            if self.ai_card_mode == "ladder" and self.profile.ladder_level(self.ai_level)
+            < profile_data.MAX_LEVEL else
+            "AI cards Lv %d   -   your towers Lv %d" % (
+                self._ai_card_level(), self.profile.tower_level(self.player_deck)))
+        self._text(tip, self.font_s, (200, 204, 220), center=(cx, self.PM_SLIDER_Y + 128))
 
         # ---- decks ----
-        self._deck_preview_panel(self.PM_SLIDER_Y + 100, "AI Deck:  " + self.ai_deck_choice,
+        self._deck_preview_panel(self.PM_SLIDER_Y + 140, "AI Deck:  " + self.ai_deck_choice,
                                  (240, 150, 150), self._ai_deck_preview_cards())
-        self._deck_preview_panel(self.PM_SLIDER_Y + 232, "Your Deck", (150, 200, 240),
+        self._deck_preview_panel(self.PM_SLIDER_Y + 244, "Your Deck", (150, 200, 240),
                                  self.player_deck)
 
         for b in self._prematch_buttons():
             b.draw(self.screen, self.font_m)
 
+    def _prematch_cardlv_rects(self):
+        y = self.PM_SLIDER_Y + 88
+        w = (cfg.WINDOW_W - 24 - 8) // 2
+        lad = "Ladder: AI Lv %d" % self.profile.ladder_level(self.ai_level)
+        mat = "Match my level: Lv %d" % self.profile.tower_level(self.player_deck)
+        return [(pygame.Rect(12, y, w, 28), "ladder", lad),
+                (pygame.Rect(20 + w, y, w, 28), "match", mat)]
+
     def _deck_preview_panel(self, y, label, col, deck):
         """Framed strip showing an 8-card deck (None = random deck)."""
-        panel = self._panel((12, y, cfg.WINDOW_W - 24, 108), border=dk_c(col, 50))
+        panel = self._panel((12, y, cfg.WINDOW_W - 24, 98), border=dk_c(col, 50))
         self._text(label, self.font_m, col, topleft=(panel.x + 10, y + 6))
         if deck is None:
             self._text("A different random 8-card deck each match.",
@@ -1560,8 +1602,8 @@ class Game:
         for i, k in enumerate(deck):
             x = panel.x + 10 + i * (sz + gap)
             self.screen.blit(sprites.get_sprite(k, sz), (x, y + 32))
-            self._text(str(cards.CARDS[k].elixir), self.font_sb, lt_c(cfg.COLOR_ELIXIR, 40),
-                       center=(x + sz // 2, y + 88), outline=True)
+            self._text("Lv%d" % self._deck_card_level(k, deck), self.font_s,
+                       (230, 230, 240), center=(x + sz // 2, y + 84))
 
     def _draw_records(self):
         cx = cfg.WINDOW_W // 2
@@ -2822,27 +2864,53 @@ class Game:
         overlay = pygame.Surface((cfg.WINDOW_W, cfg.WINDOW_H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 170))
         self.screen.blit(overlay, (0, 0))
-        cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
+        cx = cfg.WINDOW_W // 2
         win = self.result_text == "VICTORY!"
         color = (120, 240, 120) if win else \
                 (240, 120, 120) if self.result_text == "DEFEAT" else (230, 230, 230)
-        panel = self._panel((cx - 165, cy - 112, 330, 224), border=color, radius=16)
-        self._text(self.result_text, self.font_xl, color, center=(cx, cy - 64))
+        panel = self._panel(self._result_panel(), border=color, radius=16)
+        top = panel.y
+        self._text(self.result_text, self.font_xl, color, center=(cx, top + 38))
+        mid = top + 96
         if self.level_run is not None:
             run = self.level_run
-            stars = run.stars() if win else 0
-            for i in range(3):
-                self._star(cx - 54 + i * 54, cy - 2 - (8 if i == 1 else 0), 22, i < stars)
-            msg = ("All %d waves survived" % run.total_waves if win
-                   else "Fell on wave %d of %d" % (run.wave_number, run.total_waves))
-            self._text(msg, self.font_sb, (220, 224, 236), center=(cx, cy + 32))
+            if self.mode == "endless":
+                self._text("Survived %d waves" % max(0, run.wave_number - 1 if not win
+                                                     else run.wave_number),
+                           self.font_m, center=(cx, mid - 6))
+                self._text("Best: wave %d" % self.profile.endless_best, self.font_sb,
+                           (220, 224, 236), center=(cx, mid + 22))
+            else:
+                stars = run.stars() if win else 0
+                for i in range(3):
+                    self._star(cx - 54 + i * 54, mid - 10 - (8 if i == 1 else 0), 22, i < stars)
+                msg = ("All %d waves survived" % run.total_waves if win
+                       else "Fell on wave %d of %d" % (run.wave_number, run.total_waves))
+                self._text(msg, self.font_sb, (220, 224, 236), center=(cx, mid + 24))
         else:
-            self._crown_icon(cx - 62, cy - 6, cfg.COLOR_TEAM_PLAYER)
-            self._crown_icon(cx + 62, cy - 6, cfg.COLOR_TEAM_ENEMY)
+            self._crown_icon(cx - 62, mid - 6, cfg.COLOR_TEAM_PLAYER)
+            self._crown_icon(cx + 62, mid - 6, cfg.COLOR_TEAM_ENEMY)
             self._text("%d  -  %d" % (self.match.crowns[PLAYER], self.match.crowns[ENEMY]),
-                       self.font_l, center=(cx, cy - 6))
+                       self.font_l, center=(cx, mid - 6))
+        # rewards
+        y = mid + 46
+        for label, gold, shards in self.last_rewards:
+            self._text(label, self.font_sb, (230, 232, 240), topleft=(panel.x + 24, y))
+            x = panel.right - 24
+            if shards:
+                t = "+%d" % shards
+                w = self.font_sb.size(t)[0]
+                self._text(t, self.font_sb, (196, 120, 255), topleft=(x - w, y))
+                self._shard(x - w - 12, y + 9, 7)
+                x -= w + 30
+            if gold:
+                t = "+%d" % gold
+                w = self.font_sb.size(t)[0]
+                self._text(t, self.font_sb, (250, 206, 92), topleft=(x - w, y))
+                self._coin(x - w - 12, y + 9, 7)
+            y += 22
         for b in self._result_buttons():
-            b.draw(self.screen, self.font_m)
+            b.draw(self.screen, self.font_m if b.rect.h > 38 else self.font_sb)
 
     # --------------------------------------------------------- levels screen
     def _draw_levels(self):
@@ -2877,8 +2945,9 @@ class Game:
             for k in range(3):
                 self._star(pic.x + 12 + k * 24, r.bottom - 14, 9, k < stars)
             tx = pic.right + 12
-            lvls = [w.level for w in lv.waves if not w.boss]
-            info = "%d waves  -  enemy Lv %d-%d" % (len(lv.waves), min(lvls), max(lvls))
+            lo, hi = levels.enemy_level_range(lv)
+            info = "%d waves  -  enemy Lv %d-%d  -  rec. Lv %d" % (
+                len(lv.waves), lo, hi, levels.recommended_level(lv))
             self._text(lv.name, self.font_m, topleft=(tx, r.y + 8))
             self._text(info, self.font_s, (250, 206, 92), topleft=(tx, r.y + 32))
             # description, wrapped to 2 lines (clear of the Play button)
@@ -2899,14 +2968,21 @@ class Game:
                     line = test
             if line:
                 self._text(line, self.font_s, (206, 210, 224), topleft=(tx, yy))
-            if rec.get("plays"):
+            if not self._level_unlocked(i):
+                shade = pygame.Surface(r.size, pygame.SRCALPHA)
+                pygame.draw.rect(shade, (10, 10, 16, 150), shade.get_rect(), border_radius=14)
+                self.screen.blit(shade, r.topleft)
+                need = levels.stars_needed(i)
+                self._text("Needs %d stars (have %d)" % (need, self._total_stars()),
+                           self.font_sb, (240, 200, 120), topleft=(tx, r.bottom - 26))
+            elif rec.get("plays"):
                 self._text("won %d / played %d" % (rec.get("wins", 0), rec["plays"]),
                            self.font_s, (170, 176, 196), topleft=(tx, r.bottom - 22))
         for b in btns[:len(levels.LEVELS)]:
             r = b.rect
             if r.bottom >= view.top and r.top <= view.bottom:
                 was = b.enabled
-                b.enabled = not levels.LEVELS[b.level_index].locked
+                b.enabled = self._level_unlocked(b.level_index)
                 b.draw(self.screen, self.font_m)
                 b.enabled = was
         self.screen.set_clip(None)

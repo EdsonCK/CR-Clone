@@ -209,11 +209,11 @@ class Entity:
         # tower combat stats override
         if is_tower:
             if is_king:
-                self.dmg = cfg.KING_TOWER_DMG
+                self.dmg = cfg.KING_TOWER_DMG * self.power[1]
                 self.hit_speed = cfg.KING_TOWER_HITSPD
                 self.range = cfg.KING_TOWER_RANGE
             else:
-                self.dmg = cfg.PRINCESS_TOWER_DMG
+                self.dmg = cfg.PRINCESS_TOWER_DMG * self.power[1]
                 self.hit_speed = cfg.PRINCESS_TOWER_HITSPD
                 self.range = cfg.PRINCESS_TOWER_RANGE
             self.attacks = "air_ground"
@@ -1068,7 +1068,7 @@ class Effect:
                 ang = random.uniform(0, 2 * math.pi)
                 rr = random.uniform(0, self.radius)
                 gc = cards.CARDS.get(self.card_key or "graveyard")
-                tp = match.team_power.get(self.team, (1.0, 1.0))
+                tp = match.level_power(self.team, self.card_key or "graveyard")
                 match.spawn_units(self.team, "skeleton", 1,
                                   self.x + math.cos(ang) * rr,
                                   self.y + math.sin(ang) * rr, deploy=0.0,
@@ -1097,7 +1097,8 @@ class Effect:
 #  MATCH
 # ===========================================================================
 class Match:
-    def __init__(self, player_deck, ai_deck, enemy_towers=True, timed=True):
+    def __init__(self, player_deck, ai_deck, enemy_towers=True, timed=True,
+                 card_levels=None, tower_levels=None):
         # sound / visual-effect events for the game layer (off in simulations)
         self.record_events = False
         self.events = []
@@ -1107,6 +1108,16 @@ class Match:
         self.elapsed = 0.0
         self.team_power = {}       # team -> (hp, dmg) multiplier for its spawns
         self.team_level = {}       # team -> unit level shown on its spawns
+        # card levels: per team either one level for every card or a
+        # {card_key: level} dict (missing cards = LEVEL_BASE). Played cards
+        # get +10% hp/damage per level above 11 (see cards.level_mult).
+        self.card_levels = {PLAYER: cards.LEVEL_BASE, ENEMY: cards.LEVEL_BASE}
+        if card_levels:
+            self.card_levels.update(card_levels)
+        # crown tower levels (hp and damage scale the same way)
+        self.tower_levels = {PLAYER: cards.LEVEL_BASE, ENEMY: cards.LEVEL_BASE}
+        if tower_levels:
+            self.tower_levels.update(tower_levels)
         self.banned = set()        # cards that can't be played (Levels: win
                                    #   conditions - there are no towers)
         # Levels: a weak permanent poison over the enemy half, so you can't
@@ -1158,19 +1169,40 @@ class Match:
 
         pdef = CardDef("princess_tower", "Princess Tower", 0, hp=cfg.PRINCESS_TOWER_HP)
         kdef = CardDef("king_tower", "King Tower", 0, hp=cfg.KING_TOWER_HP)
+        tp = {t: (cards.level_mult(self.tower_levels[t]),) * 2 for t in (PLAYER, ENEMY)}
 
         # enemy (top)
         self.towers = {
-            (ENEMY, "left"): Entity(pdef, ENEMY, px_l, py, is_tower=True),
-            (ENEMY, "right"): Entity(pdef, ENEMY, px_r, py, is_tower=True),
-            (ENEMY, "king"): Entity(kdef, ENEMY, kx, ky, is_tower=True, is_king=True),
+            (ENEMY, "left"): Entity(pdef, ENEMY, px_l, py, is_tower=True, power=tp[ENEMY]),
+            (ENEMY, "right"): Entity(pdef, ENEMY, px_r, py, is_tower=True, power=tp[ENEMY]),
+            (ENEMY, "king"): Entity(kdef, ENEMY, kx, ky, is_tower=True, is_king=True,
+                                    power=tp[ENEMY]),
             # player (bottom)
-            (PLAYER, "left"): Entity(pdef, PLAYER, px_l, rows - py, is_tower=True),
-            (PLAYER, "right"): Entity(pdef, PLAYER, px_r, rows - py, is_tower=True),
-            (PLAYER, "king"): Entity(kdef, PLAYER, kx, rows - ky, is_tower=True, is_king=True),
+            (PLAYER, "left"): Entity(pdef, PLAYER, px_l, rows - py, is_tower=True,
+                                     power=tp[PLAYER]),
+            (PLAYER, "right"): Entity(pdef, PLAYER, px_r, rows - py, is_tower=True,
+                                      power=tp[PLAYER]),
+            (PLAYER, "king"): Entity(kdef, PLAYER, kx, rows - ky, is_tower=True, is_king=True,
+                                     power=tp[PLAYER]),
         }
         for tw in self.towers.values():
+            tw.level = self.tower_levels[tw.team]
+            tw._match_ref = self
             self.entities.append(tw)
+
+    # ---- card levels -------------------------------------------------------
+    def card_level(self, team, key):
+        lv = self.card_levels.get(team, cards.LEVEL_BASE)
+        if isinstance(lv, dict):
+            return lv.get(key, cards.LEVEL_BASE)
+        return lv
+
+    def level_power(self, team, key):
+        """(hp, dmg) multiplier for a card this team plays."""
+        if team in self.team_power:            # Levels waves: set per spawn
+            return self.team_power[team]
+        m = cards.level_mult(self.card_level(team, key))
+        return (m, m)
 
     def emit(self, kind, key=None, x=0.0, y=0.0, team=None, **extra):
         """Queue a presentation event (sound / particles). Pure no-op unless
@@ -1264,7 +1296,9 @@ class Match:
                 ck, cc = card.companion
                 cx = x + 1.2 if x + 1.2 < cfg.GRID_COLS - 0.5 else x - 1.2
                 comp = self.spawn_units(team, ck, cc, cx, y,
-                                        power=(card.sub_hp_mult, card.sub_dmg_mult))
+                                        power=(card.sub_hp_mult * units[0].power[0],
+                                               card.sub_dmg_mult * units[0].power[1])
+                                        if units else None, level=units[0].level if units else None)
                 if units and comp:      # remember each other (Lightning Link)
                     units[0].partner = comp[0]
                     comp[0].partner = units[0]
@@ -1275,6 +1309,10 @@ class Match:
         made = []
         if power is None and team in self.team_power:
             power = self.team_power[team]          # Levels: wave unit level
+        elif power is None:
+            power = self.level_power(team, key)    # the played card's level
+            if level is None:
+                level = self.card_level(team, key)
         if level is None:
             level = self.team_level.get(team)
         if count <= 1:
@@ -1327,13 +1365,17 @@ class Match:
 
     def _resolve_spell(self, team, card, x, y):
         fwd = -1 if team == PLAYER else 1
-        # Levels: spells cast by the waves hit as hard as the wave's level
-        pw = self.team_power.get(team, (1.0, 1.0))[1]
+        # spells hit harder at higher card levels (Levels waves: wave level)
+        lp = self.level_power(team, card.key)
+        pw = lp[1]
+        lvl = self.team_level.get(team) if team in self.team_power else \
+            self.card_level(team, card.key)
         # troop-dropping spell (Goblin Barrel)
         if card.spawn_troops and not card.rolling:
             self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
                              x, y, deploy=0.0,
-                             power=(card.sub_hp_mult, card.sub_dmg_mult))
+                             power=(card.sub_hp_mult * lp[0], card.sub_dmg_mult * lp[1]),
+                             level=lvl)
             return
         # graveyard: keeps spawning skeletons in the area over its duration
         if card.graveyard:
@@ -1356,7 +1398,8 @@ class Match:
             if card.spawn_troops:   # Barbarian Barrel drops a barbarian
                 self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
                                  x, y, deploy=0.0,
-                                 power=(card.sub_hp_mult, card.sub_dmg_mult))
+                                 power=(card.sub_hp_mult * lp[0], card.sub_dmg_mult * lp[1]),
+                                 level=lvl)
             return
         if card.rage:
             self.effects.append(Effect("rage", team, x, y, card.spell_radius, card.duration))
