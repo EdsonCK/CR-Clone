@@ -203,7 +203,7 @@ class ScreensMixin:
         return sorted(out, key=lambda c: (c.elixir, c.name))
 
     def _cards_view(self):
-        return pygame.Rect(0, 108, cfg.WINDOW_W, cfg.WINDOW_H - 266 - 108)
+        return pygame.Rect(0, 108, cfg.WINDOW_W, cfg.WINDOW_H - 306 - 108)
 
     def _cards_max_scroll(self):
         rows = (len(self._cards_list()) + self.CARD_COLS - 1) // self.CARD_COLS
@@ -239,7 +239,7 @@ class ScreensMixin:
     def _cards_buttons(self):
         key = self.cards_sel
         p = self.profile
-        y = cfg.WINDOW_H - 266 + 102
+        y = cfg.WINDOW_H - 306 + 102
         out = []
         cost = p.upgrade_cost(key)
         if cost is None:
@@ -420,8 +420,8 @@ class ScreensMixin:
         # detail panel
         c = cards.CARDS[self.cards_sel]
         lv = p.level(c.key)
-        top = cfg.WINDOW_H - 266 + 4
-        panel = self._panel((8, top, cfg.WINDOW_W - 16, 214), border=(150, 130, 80))
+        top = cfg.WINDOW_H - 306 + 4
+        panel = self._panel((8, top, cfg.WINDOW_W - 16, 254), border=(150, 130, 80))
         self.screen.blit(sprites.get_sprite(c.key, 70), (panel.x + 8, top + 8))
         self._text(c.name, self.font_m, topleft=(panel.x + 86, top + 6))
         kind = "Champion" if c.is_champion else c.category.title()
@@ -441,7 +441,8 @@ class ScreensMixin:
             b.draw(self.screen, self.font_sb)
         # descriptions
         yy = top + 144
-        lines = []
+        import carddesc
+        lines = [(carddesc.describe(c.key), (232, 232, 240))]
         if c.key in evos.EVOS:
             e = evos.EVOS[c.key]
             lines.append(("EVO (%d-cycle): " % e.cycles + e.desc, EVO_COL))
@@ -450,8 +451,7 @@ class ScreensMixin:
             lines.append(("HERO - %s (%d elixir): " % (h.ability, h.cost) + h.desc, HERO_COL))
         if c.is_champion:
             lines.append(("Champion ability: " + c.ability_name, HERO_COL))
-        if not lines:
-            lines.append(("No Evolution or Hero for this card yet.", (150, 156, 175)))
+
         for text, col in lines:
             for ln in self._wrap(text, self.font_s, panel.w - 20):
                 if yy > panel.bottom - 16:

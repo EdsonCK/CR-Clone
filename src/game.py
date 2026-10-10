@@ -826,8 +826,28 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                 else:
                     self.sfx.play("death_small", 0.35, pan, min_gap=0.09)
             elif kind == "ability":
-                hero = any(e.hero and e.key == key for e in self.match.entities)
+                hero = None
+                for e in self.match.entities:
+                    if e.hero and e.key == key and e.hero_def is not None:
+                        hero = e
+                        break
                 self.sfx.play("hero_ability" if hero else "ability", 1.0, pan, min_gap=0.0)
+                # name the ability over the unit, so you see what just happened
+                c = cards.CARDS.get(key)
+                name = None
+                if key == "royal_chef":
+                    name, col = "Pancake! +1 Lv", (255, 214, 120)
+                elif hero is not None:
+                    name, col = hero.hero_def.ability, (255, 210, 90)
+                elif c is not None and c.is_champion:
+                    name, col = c.ability_name, (255, 226, 130)
+                if name:
+                    px_, py_ = tile_to_px(ev["x"], ev["y"])
+                    if not mine:
+                        col = (255, 150, 140)
+                    self.fx.popups.append({"x": px_, "y": py_ - cfg.TILE_SIZE * 1.6,
+                                           "text": name, "col": col, "age": 0.0,
+                                           "life": 1.6})
             elif kind == "dash":
                 self.sfx.play("dash", 0.6, pan)
             elif kind == "wave":
@@ -2463,20 +2483,44 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                 lit = i <= stage
                 col = (255, 150, 50) if lit else (60, 60, 70)
                 pygame.draw.circle(self.screen, col, (xx, y0), 3)
-        # status tint markers
-        if e.root_timer > 0:                      # Vines
-            pygame.draw.circle(self.screen, (90, 170, 60), (int(px), int(py)), size // 2 + 2, 3)
-        if e.curse_t > 0:                          # cursed: little purple wisps
+        # status markers (kept bold so they read at a glance)
+        if e.root_timer > 0:                      # Vines / nets: rooted in place
+            for k in range(4):
+                a0 = k * 1.57 + self._now() * 1.5
+                pygame.draw.arc(self.screen, (70, 150, 50),
+                                (px - size // 2 - 3, py - size // 4, size + 6, size // 2 + 8),
+                                a0, a0 + 1.0, 4)
+            pygame.draw.circle(self.screen, (120, 200, 80), (int(px), int(py)), size // 2 + 2, 2)
+        if e.curse_t > 0:                          # cursed: a purple skull + wisps
             t = self._now() * 4 + e.anim_seed * 5
             for k in range(3):
                 a = t + k * 2.09
                 pygame.draw.circle(self.screen, (190, 110, 240),
                                    (int(px + math.cos(a) * size * 0.42),
-                                    int(py + math.sin(a) * size * 0.2 - size * 0.1)), 2)
+                                    int(py + math.sin(a) * size * 0.2 - size * 0.1)), 3)
+            sx_, sy_ = int(px - size // 2 + 2), int(py - size // 2 + 6)
+            pygame.draw.circle(self.screen, (60, 20, 80), (sx_, sy_), 7)
+            pygame.draw.circle(self.screen, (200, 130, 255), (sx_, sy_), 6)
+            for d in (-2, 2):
+                pygame.draw.circle(self.screen, (40, 10, 50), (sx_ + d, sy_ - 1), 1)
         if e.rune_t > 0:                           # Rune Giant enchantment
-            nxt = (e.rune_n % getattr(e, "rune_every", 3)) == getattr(e, "rune_every", 3) - 1
-            col = (255, 220, 90) if nxt else (230, 150, 50)
-            pygame.draw.circle(self.screen, col, (int(px + size * 0.38), int(py - size * 0.3)), 3)
+            every = getattr(e, "rune_every", 3)
+            for k in range(every):                 # pips: lit = hits banked
+                lit = k < e.rune_n % every
+                col = (255, 220, 90) if lit else (120, 80, 30)
+                pygame.draw.circle(self.screen, col,
+                                   (int(px - (every - 1) * 4 + k * 8), int(py - size // 2 - 12)), 3)
+            pygame.draw.circle(self.screen, (240, 170, 60), (int(px), int(py)), size // 2 + 4, 1)
+        if e.hero and e.key == "mini_pekka" and e.ability_uses > 0:
+            pc = getattr(e, "pancakes", 0.0)     # Hero Mini P.E.K.K.A pancake meters
+            for k in range(3):
+                bx = int(px - 16 + k * 11)
+                by = int(py + size // 2 + 4)
+                pygame.draw.rect(self.screen, (60, 40, 24), (bx, by, 9, 4), border_radius=2)
+                fill = max(0.0, min(1.0, pc - k))
+                if fill > 0:
+                    pygame.draw.rect(self.screen, (250, 196, 90),
+                                     (bx, by, int(9 * fill), 4), border_radius=2)
         if e.freeze_timer > 0:
             pygame.draw.circle(self.screen, (150, 220, 255), (int(px), int(py)), size // 2 + 2, 2)
         elif e.stun_timer > 0:
