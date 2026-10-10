@@ -811,6 +811,15 @@ def _spirit(p, col, kind):
         for a in (40, 75, 105, 140):
             q = pol(cx, cy, a, 18)
             p.bolt([q, pol(*q, a + 25, 8), pol(*q, a - 15, 18)], FIRE_Y, 2.6)
+    elif kind == "heal":
+        p.glow(cx, cy - 6, 42, (255, 240, 140), 130)
+        for i, a in enumerate((50, 90, 130)):              # little wings of light
+            q = pol(cx, cy - 4, a, 26)
+            p.shape([pol(*q, a - 70, 6), pol(*q, a, 12), pol(*q, a + 70, 6)],
+                    (255, 250, 200), w=2)
+        for x, y in ((cx - 26, cy - 26), (cx + 28, cy - 18)):   # + sparkles
+            p.line((x - 5, y), (x + 5, y), 3, (250, 255, 200), ol=None)
+            p.line((x, y - 5), (x, y + 5), 3, (250, 255, 200), ol=None)
     p.ball(cx, cy + 2, 22, col)
     f = Fig("small")
     f.hx, f.hy, f.hr = cx, cy + 2, 22
@@ -1542,6 +1551,9 @@ def _dragon(p, body, belly, wing_m, horn=(250, 240, 210), kind="baby"):
             p._ellipse(cx + s * 8, f.hy + 1, 4, 3, FIRE_Y)
         p.glow(cx, f.hy + 18, 12, FIRE, 160)
         p.ball(cx, f.hy + 17, 4.5, FIRE_Y, w=1.6, hl=False)
+    elif kind == "skel":
+        face(p, f, "socket", None, eyecol=(120, 255, 150), dy=-3)
+        p.glow(cx, f.hy + 18, 10, (120, 255, 150), 140)
     else:
         face(p, f, "big", None, eyecol=(40, 30, 50), dy=-3)
         if kind == "electro":
@@ -2583,6 +2595,679 @@ def _graveyard(p):
     for i in range(4):                                                       # bony hand
         p.line((50 + i * 5, 112), (47 + i * 6, 96 - (i % 2) * 4), 3, BONE)
     p.oval(56, 114, 10, 5, BONE)
+
+
+
+# ===========================================================================
+#  v1.1 CARDS
+# ===========================================================================
+@art("berserker")
+def _berserker(p):
+    f = Fig("slim")
+    fur = (130, 88, 56)
+    p.shadow()
+    legs(p, f, (90, 70, 60), boot=(70, 50, 36))
+    torso(p, f, (200, 80, 60))
+    p.shape([(f.tx - 18, f.ty - 12), (f.tx + 18, f.ty - 12), (f.tx + 12, f.ty + 4),
+             (f.tx - 12, f.ty + 4)], fur)                                     # fur collar
+    belt(p, f, LEATHER, DSTEEL, dy=0.45)
+    axe(p, f.hand[0][0], f.hand[0][1], a=112, L=34, size=0.8)
+    arm(p, f, 0, SKIN_TAN, SKIN_TAN)
+    hood_back(p, f, fur, extra=6)
+    head(p, f, SKIN_TAN)
+    face(p, f, "dot", "grin", brows="angry")
+    for s_ in (-1, 1):                                                       # war paint
+        p.line((f.hx + s_ * 12, f.hy + 2), (f.hx + s_ * 6, f.hy + 8), 2.6, (220, 60, 60), ol=None)
+    hood_front(p, f, fur, extra=6, depth=0.34)                               # bear hood
+    for s_ in (-1, 1):
+        p.ball(f.hx + s_ * 20, f.hy - f.hr - 2, 7, fur)
+        p._circle(f.hx + s_ * 20, f.hy - f.hr - 2, 3, (200, 140, 120))
+    axe(p, f.hand[1][0], f.hand[1][1], a=66, L=34, size=0.8)
+    arm(p, f, 1, SKIN_TAN, SKIN_TAN)
+
+
+@art("firecracker")
+def _firecracker(p):
+    f = Fig("slim")
+    suit = (230, 96, 70)
+    hair = (255, 150, 60)
+    p.shadow()
+    p.stroke([(f.hx + 14, f.hy - 14), (f.hx + 30, f.hy + 2), (f.hx + 26, f.hy + 28)], 9, hair)
+    legs(p, f, (70, 70, 90), boot=(50, 50, 60))
+    torso(p, f, suit)
+    belt(p, f, LEATHER, GOLD)
+    arm(p, f, 0, suit, SKIN, to=(46, 72))
+    head(p, f, SKIN)
+    face(p, f, "dot", "grin", blush=True)
+    hair_cap(p, f, hair, depth=0.36, bangs=3)
+    for s_ in (-1, 1):                                                       # goggles
+        p.oval(f.hx + s_ * 9, f.hy - f.hr * 0.55, 6.5, 5.5, (170, 220, 255), w=2)
+    p.line((f.hx - f.hr, f.hy - f.hr * 0.55), (f.hx + f.hr, f.hy - f.hr * 0.55), 3, LEATHER,
+           ol=None)
+    # the firework launcher across her shoulder
+    a, b = (34, 82), (108, 44)
+    p.line(a, b, 15, (190, 60, 50))
+    for t in (0.25, 0.55, 0.85):
+        ring_on(p, a, b, t, 18, GOLD, thick=3.5)
+    p.oval(b[0], b[1], 6, 9, (120, 40, 36), w=2)
+    p.glow(b[0] + 6, b[1] - 4, 10, FIRE, 140)
+    p.spark(b[0] + 6, b[1] - 4, 6, FIRE_Y)
+    arm(p, f, 1, suit, SKIN, to=(78, 66))
+
+
+@art("goblin_gang")
+def _goblin_gang(p):
+    for x, y, k, fn in ((30, 46, 0.5, _spear_goblin), (98, 46, 0.5, _spear_goblin),
+                        (64, 40, 0.5, _spear_goblin), (36, 84, 0.54, _goblin),
+                        (92, 84, 0.54, _goblin), (64, 92, 0.56, _goblin)):
+        with p.at(x, y, k):
+            fn(p)
+
+
+@art("skeleton_dragons")
+def _skeleton_dragon(p):
+    _dragon(p, (226, 222, 206), (190, 186, 170), (120, 120, 140), horn=(200, 196, 180),
+            kind="skel")
+    for i in range(3):                                                       # ribs
+        p.line((50, 82 + i * 5), (78, 82 + i * 5), 2.2, (150, 146, 136), ol=None)
+
+
+@art("rascal_boy")
+def _rascal_boy(p):
+    f = Fig("bulky")
+    shirt = (80, 120, 210)
+    p.shadow(rx=34)
+    legs(p, f, (90, 80, 70), boot=(70, 50, 40))
+    torso(p, f, shirt)
+    for y in (-8, 4):
+        p.line((f.tx - 22, f.ty + y), (f.tx + 22, f.ty + y), 3, WHITE, ol=None)
+    belt(p, f, LEATHER, DSTEEL, dy=0.5)
+    arm(p, f, 0, SKIN, SKIN)
+    head(p, f, SKIN)
+    face(p, f, "dot", "grin", brows="angry")
+    hair_cap(p, f, (110, 70, 40), depth=0.3, extra=1.0)
+    p.shape(cap_pts(f, 0.28, 2.5), (220, 60, 60))                            # cap
+    p.shape([(f.hx + 8, f.hy - f.hr * 0.6), (f.hx + 30, f.hy - f.hr * 0.5),
+             (f.hx + 24, f.hy - f.hr * 0.3)], (190, 50, 50), w=2)          # backwards brim
+    mace(p, f.hand[1][0], f.hand[1][1], a=70, L=28, head=WOOD, spikes=DWOOD, size=0.8)
+    arm(p, f, 1, SKIN, SKIN)
+
+
+@art("rascal_girl")
+def _rascal_girl(p):
+    f = Fig("small")
+    top = (240, 120, 180)
+    hair = (120, 70, 40)
+    p.shadow(rx=24)
+    for s_ in (-1, 1):                                                       # pigtails
+        p.ball(f.hx + s_ * 28, f.hy + 6, 9, hair)
+    legs(p, f, (90, 80, 120), boot=(60, 50, 60))
+    torso(p, f, top)
+    arm(p, f, 0, top, SKIN, to=(42, 80))
+    head(p, f, SKIN)
+    face(p, f, "big", "smile", blush=True, eyecol=(80, 50, 30))
+    hair_cap(p, f, hair, depth=0.36, bangs=3)
+    # slingshot
+    p.line((88, 96), (88, 74), 4, DWOOD)
+    p.stroke([(80, 62), (88, 74), (96, 62)], 4, DWOOD)
+    p.line((80, 62), (70, 72), 1.4, (180, 140, 100), ol=None)
+    p.line((96, 62), (70, 72), 1.4, (180, 140, 100), ol=None)
+    arm(p, f, 1, top, SKIN, to=(88, 92))
+
+
+@art("rascals")
+def _rascals(p):
+    with p.at(32, 50, 0.52):
+        _rascal_girl(p)
+    with p.at(96, 50, 0.52):
+        _rascal_girl(p)
+    with p.at(64, 72, 0.72):
+        _rascal_boy(p)
+
+
+@art("royal_recruits")
+def _royal_recruit(p):
+    f = Fig("normal")
+    tunic = (66, 104, 196)
+    p.shadow()
+    spear(p, f.hand[1][0], f.hand[1][1], a=84, L=64)
+    legs(p, f, (80, 76, 90))
+    torso(p, f, tunic)
+    p.line((f.tx, f.ty - 14), (f.tx, f.ty + 14), 4, GOLD, ol=None)
+    belt(p, f, LEATHER, GOLD)
+    head(p, f, SKIN)
+    face(p, f, "dot", "flat", brows="flat")
+    helmet(p, f, STEEL, depth=0.52, nose=True, band=GOLD)
+    p.stroke([(f.hx, f.hy - f.hr - 2), (f.hx + 8, f.hy - f.hr - 16),
+              (f.hx + 20, f.hy - f.hr - 14)], 7, (220, 60, 60))            # plume
+    arm(p, f, 1, tunic, SKIN)
+    arm(p, f, 0, tunic, SKIN, to=(42, 96))
+    shield(p, 40, 94, 18, tunic, rim=GOLD, boss=GOLD)
+
+
+@art("royal_delivery")
+def _royal_delivery(p):
+    spell_bg(p, (255, 220, 140))
+    for s_ in (-1, 1):                                                       # chute lines
+        p.line((64 + s_ * 28, 40), (64 + s_ * 16, 70), 1.8, (240, 240, 240), ol=None)
+    p.shape(arcpts(64, 40, 34, 26, 180, 360, 14), (220, 60, 60))           # parachute
+    for x in (46, 64, 82):
+        p.line((x, 16), (x, 40), 2, (180, 40, 40), ol=None)
+    p.line((30, 40), (98, 40), 3, (180, 40, 40))
+    p.shape([(42, 70), (86, 70), (86, 108), (42, 108)], WOOD)                # crate
+    p.line((42, 70), (86, 108), 3.2, DWOOD, ol=None)
+    p.line((86, 70), (42, 108), 3.2, DWOOD, ol=None)
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 64, 98, 16
+    crown(p, f, GOLD, w=0.62, h=0.55)
+
+
+@art("heal_spirit")
+def _heal_spirit(p):
+    _spirit(p, (255, 236, 130), "heal")
+
+
+@art("suspicious_bush")
+def _suspicious_bush(p):
+    p.shadow(64, 116, 34, 7)
+    leaf = (90, 170, 70)
+    for x, y, r in ((40, 84, 22), (88, 84, 22), (64, 66, 28), (50, 98, 18), (78, 98, 18),
+                    (64, 92, 24)):
+        p.ball(x, y, r, leaf)
+    for x, y in ((44, 70), (80, 62), (60, 54), (86, 92), (40, 98)):
+        p.shape([(x - 5, y + 3), (x, y - 6), (x + 5, y + 3)], lt(leaf, 0.25), w=1.6)
+    goblin_ears_f = Fig("small")
+    goblin_ears_f.hx, goblin_ears_f.hy, goblin_ears_f.hr = 64, 82, 16
+    goblin_ears(p, goblin_ears_f, length=0.9)
+    p.oval(64, 81, 17, 9, (40, 70, 30), ol=None, shade=False)             # dark gap
+    for s_ in (-1, 1):                                                       # peeking eyes
+        p.oval(64 + s_ * 8, 81, 5, 6, (250, 250, 220), w=1.6, shade=False)
+        p._circle(64 + s_ * 8 + s_, 82, 2.4, OUT)
+
+
+@art("goblin_cage")
+def _goblin_cage(p):
+    plinth(p, (150, 130, 100))
+    f = Fig("bulky")
+    with p.at(64, 70, 0.62):                                                 # brawler inside
+        _goblin_brawler_body(p, f)
+    p.oval(64, 40, 34, 9, DWOOD)
+    for x in (32, 52, 76, 96):
+        p.line((x, 42), (x, 104), 3.2, WOOD, w=1.8)
+    p.oval(64, 104, 34, 9, DWOOD)
+    p.ball(64, 30, 6, DSTEEL, w=2)
+    p.shape([(58, 34), (64, 22), (70, 34)], DSTEEL, w=2)
+
+
+def _goblin_brawler_body(p, f):
+    legs(p, f, (110, 76, 46), boot=(80, 56, 36))
+    torso(p, f, GOB)
+    p.line((f.tx - 12, f.ty - 4), (f.tx + 12, f.ty - 4), 2, dk(GOB, 0.3), ol=None)   # abs
+    belt(p, f, (140, 50, 50), GOLD, dy=0.45)
+    for i in (0, 1):
+        arm(p, f, i, GOB, None)
+        hx, hy = f.hand[i]
+        p.ball(hx, hy - 4, f.handr + 3, (220, 60, 60))                     # gloves
+    goblin_ears(p, f)
+    head(p, f, GOB)
+    face(p, f, "dot", "grin", brows="angry")
+    nose(p, f, dk(GOB, 0.15), 1.4)
+    p.line((f.hx - f.hr, f.hy - f.hr * 0.5), (f.hx + f.hr, f.hy - f.hr * 0.5), 6,
+           (220, 60, 60))                                                  # headband
+
+
+@art("goblin_brawler")
+def _goblin_brawler(p):
+    f = Fig("bulky")
+    p.shadow(rx=34)
+    _goblin_brawler_body(p, f)
+
+
+def _demolisher(p, lit):
+    f = Fig("small")
+    p.shadow(rx=26)
+    # barrel of explosives on his back
+    p.oval(64, 70, 24, 26, (180, 60, 50))
+    for y in (56, 84):
+        p.line((42, y), (86, y), 3, DSTEEL, ol=None)
+    p.line((76, 46), (88, 30), 2.6, (210, 180, 130), w=1.8)
+    if lit:
+        p.glow(88, 30, 16, FIRE, 180)
+        p.spark(88, 30, 9, FIRE_Y)
+    legs(p, f, (110, 76, 46), boot=(80, 56, 36))
+    torso(p, f, (120, 100, 70))
+    belt(p, f, LEATHER, DSTEEL)
+    arm(p, f, 0, GOB, GOB)
+    goblin_ears(p, f)
+    head(p, f, GOB)
+    face(p, f, "dot", "grin" if not lit else "open", brows="angry")
+    nose(p, f, dk(GOB, 0.15), 1.4)
+    for s_ in (-1, 1):                                                       # goggles
+        p.oval(f.hx + s_ * 10, f.hy - f.hr * 0.45, 7, 6, (240, 200, 100), w=2)
+    p.line((f.hx - f.hr, f.hy - f.hr * 0.45), (f.hx + f.hr, f.hy - f.hr * 0.45), 3,
+           LEATHER, ol=None)
+    if not lit:
+        bomb(p, f.hand[1][0] + 2, f.hand[1][1] - 8, 9)
+    arm(p, f, 1, GOB, GOB)
+
+
+@art("goblin_demolisher")
+def _goblin_demolisher(p):
+    _demolisher(p, False)
+
+
+@art("demolisher_charge")
+def _demolisher_charge(p):
+    _demolisher(p, True)
+
+
+@art("minion_giant")
+def _minion_giant(p):
+    _imp(p, (80, 120, 220), size=1.2, helmet_c=(90, 96, 110), armored=True)
+    p.glow(64, 70, 12, (150, 230, 80), 160)                                   # toxic drool
+    p.ball(64, 72, 5, (150, 230, 80), w=1.6, hl=False)
+    p.ball(60, 80, 3, (150, 230, 80), w=1.4, hl=False)
+
+
+def _pig(p, body, saddle=None, crown_c=None, eye=OUT):
+    cx = 64
+    p.shadow(66, 118, 40, 7)
+    for x in (cx - 22, cx - 6, cx + 12, cx + 26):
+        p.line((x, 98), (x, 112), 7, dk(body, 0.1))
+        p.oval(x, 113, 5, 3, (90, 60, 50), w=1.8, shade=False)
+    p.stroke([(cx + 36, 90), (cx + 44, 86), (cx + 42, 94), (cx + 48, 92)], 3, body)
+    p.oval(cx + 4, 90, 36, 21, body)
+    if saddle:
+        p.shape([(cx - 12, 72), (cx + 22, 72), (cx + 26, 96), (cx - 16, 96)], saddle)
+        p.line((cx - 16, 95), (cx + 26, 95), 3.4, GOLD, ol=None)
+    p.oval(cx - 30, 86, 18, 16, body)
+    for s_ in (-1, 1):
+        p.shape([(cx - 30 + s_ * 10, 74), (cx - 30 + s_ * 17, 66), (cx - 30 + s_ * 15, 78)],
+                body, w=2)
+    p.oval(cx - 38, 94, 9.5, 7, lt(body, 0.15), w=2.2)
+    for s_ in (-1, 1):
+        p._circle(cx - 38 + s_ * 3, 94, 1.8, (110, 50, 50))
+    p._circle(cx - 35, 82, 2.4, eye)
+    p._circle(cx - 25, 82, 2.4, eye)
+    if crown_c:
+        f = Fig("small")
+        f.hx, f.hy, f.hr = cx - 30, 80, 13
+        crown(p, f, crown_c, w=0.6, h=0.6, dy=-2)
+
+
+@art("royal_hogs")
+def _royal_hog(p):
+    _pig(p, (232, 156, 132), saddle=(66, 104, 196), crown_c=GOLD)
+
+
+@art("cursed_hog")
+def _cursed_hog(p):
+    _pig(p, (176, 120, 196), eye=(200, 255, 140))
+    p.glow(34, 82, 12, (180, 120, 255), 120)
+
+
+@art("mirror")
+def _mirror(p):
+    spell_bg(p, (200, 230, 255))
+    p.line((64, 92), (64, 118), 9, GOLD)                                     # handle
+    p.ball(64, 118, 6, GOLD, hl=False)
+    p.ball(64, 54, 38, GOLD)                                                 # frame
+    p.ball(64, 54, 30, (190, 226, 250), ol=None)
+    p._poly([(44, 40), (56, 30), (78, 70), (68, 78)], (240, 250, 255))       # glare
+    for a in (0, 90, 180, 270):
+        q = pol(64, 54, a, 38)
+        p.ball(q[0], q[1], 5, (120, 200, 255), w=1.6)
+
+
+@art("goblin_curse")
+def _goblin_curse(p):
+    spell_bg(p, (150, 220, 90))
+    for x, y, r in ((40, 84, 18), (88, 84, 18), (64, 96, 22)):
+        p.ball(x, y, r, (110, 80, 140), hl=False)                           # cursed smoke
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 64, 56, 26
+    goblin_ears(p, f, skin=(150, 210, 90))
+    head(p, f, (150, 210, 90))
+    face(p, f, "glow", "grin", brows="angry", eyecol=(200, 120, 255))
+    for x, y in ((28, 34), (100, 30), (98, 104)):
+        p.spark(x, y, 6, (200, 140, 255))
+
+
+@art("clone")
+def _clone(p):
+    spell_bg(p, (140, 210, 255))
+    f = Fig("normal")
+    for dx, a in ((-12, 120), (12, 255)):
+        with p.layer(a):
+            with p.at(64 + dx, 66, 0.72):
+                legs(p, f, (70, 140, 220), boot=None)
+                torso(p, f, (110, 190, 255))
+                head(p, f, (170, 225, 255))
+                face(p, f, "dot", "smile")
+    for x, y in ((30, 28), (98, 36), (104, 96)):
+        p.spark(x, y, 7, WHITE)
+
+
+@art("vines")
+def _vines(p):
+    spell_bg(p, (120, 200, 90))
+    p.oval(64, 104, 44, 10, (110, 80, 50))
+    for x0, bend in ((40, -1), (64, 1), (88, -1)):
+        pts = [(x0, 104)]
+        for i in range(1, 7):
+            pts.append((x0 + bend * math.sin(i * 1.1) * 12, 104 - i * 13))
+        p.stroke(pts, 7, (70, 140, 50))
+        for q in pts[1:-1:2]:
+            p.shape([(q[0] + 3, q[1]), (q[0] + 12, q[1] - 6), (q[0] + 6, q[1] + 4)],
+                    (110, 190, 70), w=1.6)
+            p.shape([(q[0] - 2, q[1] + 2), (q[0] - 7, q[1] - 2), (q[0] - 3, q[1] - 5)],
+                    (230, 220, 200), w=1.2)                                 # thorns
+
+
+@art("goblin_drill")
+def _goblin_drill(p):
+    p.shadow(64, 116, 40, 8)
+    p.oval(64, 106, 42, 12, (130, 96, 60))                                   # dirt mound
+    for x, y in ((30, 100), (98, 102), (50, 112), (82, 112)):
+        p.ball(x, y, 6, (150, 110, 70), hl=False, w=2)
+    p.shape([(36, 104), (40, 60), (88, 60), (92, 104)], (110, 116, 130))     # drill housing
+    for y in (72, 88):
+        p.line((38, y), (90, y), 3, GOLD, ol=None)
+    p.shape([(44, 62), (84, 62), (64, 10)], STEEL)                           # drill bit
+    for i in range(4):
+        y = 54 - i * 11
+        w = 18 - i * 4
+        p.line((64 - w, y + 4), (64 + w, y - 2), 2.6, DSTEEL, ol=None)
+    f = Fig("small")
+    with p.at(96, 66, 0.4):                                                  # goblin operator
+        goblin_ears(p, f)
+        head(p, f, GOB)
+        face(p, f, "dot", "grin")
+
+
+@art("rune_giant")
+def _rune_giant(p):
+    f = Fig("big")
+    p.shadow(rx=40)
+    legs(p, f, (60, 56, 70), boot=(40, 36, 48))
+    torso(p, f, (60, 56, 70))
+    p.shape([(f.tx - 22, f.ty - 18), (f.tx + 22, f.ty - 18), (f.tx + 26, f.ty + 24),
+             (f.tx - 26, f.ty + 24)], (150, 100, 60))                         # apron
+    belt(p, f, (200, 60, 60), GOLD, dy=0.2)
+    for i in (0, 1):
+        hx, hy = arm(p, f, i, (60, 56, 70), (110, 80, 60))
+        hammer(p, hx, hy, a=(108 if i == 0 else 72), L=26, head=(90, 90, 110), size=0.9)
+        p.glow(hx, hy - 26, 10, (255, 200, 80), 140)
+    hair_back(p, f, (230, 110, 50), length=1.3, width=1.25)
+    head(p, f, SKIN)
+    hair_cap(p, f, (230, 110, 50), depth=0.62, extra=3, bangs=4, bang_len=0.25)   # covers eyes
+    p.ball(f.hx, f.hy + f.hr * 0.38, f.hr * 0.24, (220, 90, 80))             # big red nose
+    p.stroke(arcpts(f.hx, f.hy + f.hr * 0.55, f.hr * 0.3, f.hr * 0.15, 200, 340, 8), 2.4, OUT,
+             ol=None)
+    for x, y in ((f.tx - 12, f.ty + 6), (f.tx + 10, f.ty + 12)):            # runes on apron
+        p.line((x - 3, y - 4), (x + 3, y + 4), 2, (255, 210, 90), ol=None)
+        p.line((x + 3, y - 4), (x - 3, y + 4), 2, (255, 210, 90), ol=None)
+
+
+@art("void")
+def _void(p):
+    spell_bg(p, (150, 80, 220))
+    p.ball(64, 64, 34, (40, 16, 60))
+    for i in range(3):
+        p.stroke(arcpts(64, 64, 28 - i * 8, 28 - i * 8, i * 60, i * 60 + 230, 12), 3.2,
+                 (180, 120, 255), ol=None)
+    p.ball(64, 64, 8, (230, 200, 255), ol=None, hl=False)
+    for a in (30, 150, 270):
+        q = pol(64, 64, a, 42)
+        p.bolt([q, pol(*q, a + 160, 10), pol(*q, a + 200, 18)], (220, 180, 255), 2.4)
+
+
+@art("fisherman")
+def _fisherman(p):
+    f = Fig("bulky")
+    coat = (240, 196, 60)
+    p.shadow(rx=36)
+    # anchor on his back
+    p.line((96, 30), (96, 92), 5, IRON)
+    p.stroke(arcpts(96, 84, 14, 12, 200, 340, 10), 5, IRON)
+    p.line((88, 40), (104, 40), 4, IRON)
+    p.ball(96, 26, 5, IRON, hl=False)
+    legs(p, f, (80, 70, 90), boot=(60, 50, 50))
+    torso(p, f, coat)
+    for x in (-6, 6):
+        p.ball(f.tx + x, f.ty - 6, 2.4, (190, 150, 40), w=1.2, hl=False)
+    arm(p, f, 0, coat, SKIN_TAN, to=(36, 96))
+    head(p, f, SKIN_TAN)
+    face(p, f, "dot", None, brows="flat")
+    beard(p, f, (200, 200, 206), length=1.1, width=0.9)
+    mustache(p, f, (220, 220, 226), size=1.1)
+    p.oval(f.hx, f.hy - f.hr * 0.4, f.hr * 1.35, f.hr * 0.3, coat, w=2.4)   # sou'wester brim
+    hair_cap(p, f, coat, depth=0.42, extra=2)
+    # a big fish, wielded like a club
+    hx, hy = f.hand[1]
+    fish = (120, 170, 210)
+    p.oval(hx + 2, hy - 26, 9, 24, fish)
+    p.shape([(hx - 8, hy - 50), (hx + 12, hy - 50), (hx + 2, hy - 40)], fish, w=2)
+    p._circle(hx - 1, hy - 8, 2, OUT)
+    arm(p, f, 1, coat, SKIN_TAN)
+
+
+@art("royal_ghost")
+def _royal_ghost(p):
+    f = Fig("normal")
+    body = (226, 236, 250)
+    p.shadow(rx=24, a=40)
+    p.glow(64, 70, 44, (200, 220, 255), 90)
+    p.shape([(42, 70), (86, 70), (92, 104), (82, 96), (72, 108), (64, 98), (56, 108),
+             (46, 96), (36, 104)], body)                                    # wispy robe
+    torso(p, f, body)
+    head(p, f, body)
+    face(p, f, "glow", None, eyecol=(110, 150, 255))
+    crown(p, f, GOLD, w=0.55, h=0.5, dy=-3, gem=(120, 180, 255))
+    sword(p, f.hand[1][0], f.hand[1][1], a=64, L=50, blade=(210, 225, 255), guard=GOLD)
+    arm(p, f, 1, body, body)
+    arm(p, f, 0, body, body)
+
+
+@art("mother_witch")
+def _mother_witch(p):
+    f = Fig("slim")
+    robe_c = (120, 60, 140)
+    skin = (190, 220, 170)
+    p.shadow()
+    robe(p, f, robe_c, trim=(170, 240, 120), flare=1.4)
+    torso(p, f, robe_c)
+    arm(p, f, 0, robe_c, skin)
+    hood_back(p, f, (90, 44, 110), extra=5)
+    head(p, f, skin)
+    face(p, f, "glow", "smile", eyecol=(170, 255, 120))
+    nose(p, f, dk(skin, 0.15), 1.6)
+    hood_front(p, f, (90, 44, 110), extra=5, depth=0.34)
+    hx, hy = f.hand[1]
+    p.line((hx + 2, hy + 14), (hx + 2, 34), 4.4, DWOOD)                       # wand
+    p.glow(hx + 2, 28, 16, (170, 255, 120), 140)
+    p.ball(hx + 2, 28, 7, BONE, w=2)
+    for s_ in (-1, 1):
+        p._circle(hx + 2 + s_ * 2.6, 28, 1.6, (90, 200, 90))
+    arm(p, f, 1, robe_c, skin)
+
+
+def _bird(p, body=(240, 110, 50), flame=(255, 190, 70)):
+    cx, cy = 64, 64
+    p.shadow(64, 120, 22, 6, 50)
+    p.glow(cx, cy, 52, FIRE, 110)
+    for s_ in (-1, 1):                                                       # flame wings
+        pts = [(cx + s_ * 10, cy), (cx + s_ * 30, cy - 30), (cx + s_ * 48, cy - 26),
+               (cx + s_ * 40, cy - 14), (cx + s_ * 54, cy - 6), (cx + s_ * 38, cy + 2),
+               (cx + s_ * 46, cy + 14), (cx + s_ * 22, cy + 12)]
+        p.shape(pts, body)
+        p._poly([(cx + s_ * 14, cy), (cx + s_ * 30, cy - 22), (cx + s_ * 36, cy - 8),
+                 (cx + s_ * 22, cy + 6)], flame)
+    for i, dx in enumerate((-8, 0, 8)):                                      # tail flames
+        p.shape([(cx + dx - 5, cy + 26), (cx + dx * 1.6, cy + 52 - abs(dx)), (cx + dx + 5, cy + 26)],
+                flame if i == 1 else body, w=2)
+    p.oval(cx, cy + 14, 16, 18, body)
+    p.oval(cx, cy + 18, 9, 11, flame, ol=None)
+    f = Fig("small")
+    f.hx, f.hy, f.hr = cx, cy - 12, 16
+    for k, dx in enumerate((-6, 0, 6)):                                      # crest
+        p.shape([(cx + dx - 3, f.hy - 12), (cx + dx * 1.8, f.hy - 30 + abs(dx)),
+                 (cx + dx + 3, f.hy - 12)], flame, w=1.8)
+    head(p, f, body)
+    face(p, f, "big", None, eyecol=(80, 30, 20), dy=-2)
+    p.shape([(cx - 5, f.hy + 6), (cx + 5, f.hy + 6), (cx, f.hy + 16)], GOLD, w=1.8)   # beak
+
+
+@art("phoenix", "phoenix_reborn")
+def _phoenix(p):
+    _bird(p)
+
+
+@art("phoenix_egg")
+def _phoenix_egg(p):
+    p.shadow(64, 114, 30, 7)
+    for x in range(30, 100, 8):                                              # nest twigs
+        p.line((x, 104), (x + 12, 92), 3.4, DWOOD)
+    p.glow(64, 70, 40, FIRE, 140)
+    p.oval(64, 70, 24, 32, (255, 150, 60))
+    p._ellipse(56, 58, 6, 10, (255, 230, 170))
+    for x, y in ((58, 82), (72, 66), (64, 92)):
+        p.spark(x, y, 5, FIRE_Y)
+    p.oval(64, 100, 34, 9, WOOD)
+
+
+@art("goblin_machine")
+def _goblin_machine(p):
+    p.shadow(rx=42)
+    metal = (110, 118, 136)
+    for x in (44, 84):                                                       # stompy legs
+        p.line((x, 84), (x - 4, 106), 10, dk(metal, 0.15))
+        p.oval(x - 4, 110, 12, 6, IRON)
+    p.shape([(30, 90), (34, 46), (94, 46), (98, 90)], metal)                 # hull
+    for x in (44, 64, 84):
+        p.ball(x, 86, 3, DSTEEL, w=1.4, hl=False)
+    p.line((32, 64), (96, 64), 3, GOLD, ol=None)
+    # rocket launcher on the left shoulder
+    p.shape([(14, 30), (40, 30), (40, 52), (14, 52)], (180, 60, 50))
+    for y in (36, 46):
+        p.ball(14, y, 4, (230, 230, 240), w=1.6, hl=False)
+    # big iron fist on the right
+    p.line((94, 60), (110, 84), 10, metal)
+    p.ball(110, 90, 12, IRON)
+    f = Fig("small")
+    with p.at(64, 38, 0.6):                                                  # goblin pilot
+        goblin_ears(p, f)
+        head(p, f, GOB)
+        face(p, f, "dot", "grin", brows="angry")
+        for s_ in (-1, 1):
+            p.oval(f.hx + s_ * 10, f.hy - f.hr * 0.45, 7, 6, (240, 200, 100), w=2)
+
+
+@art("ram_rider")
+def _ram_rider(p):
+    cx = 64
+    p.shadow(66, 118, 40, 7)
+    wool = (240, 236, 226)
+    for x in (cx - 20, cx - 4, cx + 12, cx + 26):
+        p.line((x, 98), (x, 112), 7, (120, 100, 90))
+        p.oval(x, 113, 5, 3, (70, 60, 56), w=1.8, shade=False)
+    p.oval(cx + 4, 90, 36, 20, wool)
+    for x, y in ((cx - 16, 80), (cx + 4, 78), (cx + 24, 82), (cx + 12, 98), (cx - 8, 98)):
+        p._circle(x, y, 7, lt(wool, 0.3))
+    p.oval(cx - 30, 88, 15, 15, (120, 100, 90))                              # head
+    p.stroke(arcpts(cx - 22, 82, 12, 12, 200, 520, 14), 6, (210, 180, 120))  # curled horn
+    p._circle(cx - 34, 84, 2.2, OUT)
+    f = Fig("slim")
+    with p.at(cx + 8, 50, 0.72):
+        hair_back(p, f, (120, 70, 40), length=1.2)
+        torso(p, f, (110, 160, 90))
+        belt(p, f, LEATHER, GOLD)
+        arm(p, f, 0, (110, 160, 90), SKIN_TAN, to=(36, 96))
+        head(p, f, SKIN_TAN)
+        face(p, f, "dot", "grin", brows="angry")
+        hair_cap(p, f, (120, 70, 40), depth=0.36, bangs=2)
+        hx, hy = arm(p, f, 1, (110, 160, 90), SKIN_TAN, to=(96, 40))
+        p.stroke(arcpts(hx, hy - 8, 10, 10, 0, 300, 10), 1.6, (180, 150, 110), ol=None)
+        p.ball(hx + 10, hy - 8, 4, IRON, hl=False, w=1.6)                    # bola
+        p.ball(hx - 6, hy - 16, 4, IRON, hl=False, w=1.6)
+
+
+@art("ronin")
+def _ronin(p):
+    f = Fig("normal")
+    robe_c = (40, 130, 110)
+    p.shadow()
+    robe(p, f, robe_c, trim=(230, 214, 170), flare=1.35)
+    torso(p, f, robe_c)
+    p.line((f.tx - 16, f.ty - 14), (f.tx + 14, f.ty + 12), 4, (230, 214, 170), ol=None)
+    belt(p, f, (60, 60, 80), None, dy=0.3)
+    arm(p, f, 0, robe_c, SKIN)
+    head(p, f, SKIN)
+    face(p, f, "dot", "flat")
+    # wide straw hat that hides his eyes
+    p.shape([(f.hx - f.hr * 1.7, f.hy - f.hr * 0.05), (f.hx, f.hy - f.hr * 1.25),
+             (f.hx + f.hr * 1.7, f.hy - f.hr * 0.05)], (220, 190, 120))
+    p.line((f.hx - f.hr * 1.5, f.hy - f.hr * 0.1), (f.hx + f.hr * 1.5, f.hy - f.hr * 0.1), 2,
+           dk((220, 190, 120), 0.3), ol=None)
+    p.ball(f.hx + f.hr * 0.9, f.hy - f.hr * 0.35, 3.4, GOLD, w=1.4, hl=False)
+    sword(p, f.hand[1][0], f.hand[1][1], a=58, L=56, w=5, blade=(235, 240, 250),
+          guard=(40, 40, 50), grip=(60, 40, 40))                            # katana
+    arm(p, f, 1, robe_c, SKIN)
+
+
+def _empress(p):
+    f = Fig("slim")
+    armor = (230, 220, 200)
+    hair = (250, 236, 180)
+    p.shape([(42, 70), (86, 70), (96, 114), (32, 114)], (90, 140, 230))     # cape
+    legs(p, f, (80, 100, 160), boot=(70, 90, 160))
+    torso(p, f, armor)
+    p.oval(f.tx, f.ty - 4, 7, 5, GOLD, w=1.6)
+    belt(p, f, (90, 140, 230), GOLD)
+    arm(p, f, 0, armor, SKIN)
+    for s_ in (-1, 1):                                                       # hair buns
+        p.ball(f.hx + s_ * 20, f.hy - f.hr * 0.75, 9, hair)
+    head(p, f, SKIN)
+    face(p, f, "dot", "smile")
+    p._circle(f.hx - f.hr * 0.37, f.hy + f.hr * 0.1, f.hr * 0.07, GOLD)     # odd eyes
+    p._circle(f.hx + f.hr * 0.37, f.hy + f.hr * 0.1, f.hr * 0.07, (90, 160, 255))
+    hair_cap(p, f, hair, depth=0.36, bangs=2)
+    hx, hy = f.hand[1]
+    p.glow(hx + 10, hy - 24, 18, (120, 200, 255), 130)
+    sword(p, hx, hy, a=62, L=50, blade=(170, 225, 255), guard=GOLD, grip=(60, 90, 200))
+    arm(p, f, 1, armor, SKIN)
+
+
+@art("spirit_empress")
+def _spirit_empress(p):
+    p.shadow()
+    _empress(p)
+
+
+@art("spirit_empress_air")
+def _spirit_empress_air(p):
+    _dragon(p, (170, 210, 245), (230, 245, 255), (150, 210, 255), kind="electro")
+    with p.at(64, 46, 0.55):
+        _empress(p)
+
+
+@art("bush_goblin")
+def _bush_goblin(p):
+    f = Fig("small")
+    p.shadow(rx=24)
+    legs(p, f, (110, 76, 46), boot=(80, 56, 36))
+    torso(p, f, (90, 160, 70))
+    for x, y in ((50, 88), (78, 90), (64, 100)):
+        p.ball(x, y, 6, (110, 180, 80), w=1.6, hl=False)                     # leafy coat
+    arm(p, f, 0, GOB, GOB)
+    goblin_ears(p, f)
+    head(p, f, GOB)
+    face(p, f, "dot", "grin", brows="angry")
+    nose(p, f, dk(GOB, 0.15), 1.4)
+    for x, y, r in ((50, 26, 9), (64, 20, 10), (78, 26, 9)):                 # bush hat
+        p.ball(x, y + 4, r, (90, 170, 70))
+    dagger(p, f.hand[1][0], f.hand[1][1], a=62, L=26)
+    arm(p, f, 1, GOB, GOB)
 
 
 # ===========================================================================

@@ -35,6 +35,7 @@ levels are benchmarked against each other (AI vs AI).
 """
 
 import copy
+import dataclasses
 import math
 import random
 
@@ -137,9 +138,21 @@ class AIController:
         return self.match.elixir[self.me]
 
     def _affordable(self, budget=None):
+        """[(hand index, key, card)] the AI can pay for. The card is what
+        actually comes out: Mirror -> a copy of the last card played (at its
+        mirrored cost), Spirit Empress -> her dragon form at 6+ elixir."""
         el = self._el() if budget is None else budget
-        return [(i, k, cards.CARDS[k]) for i, k in enumerate(self._hand())
-                if cards.CARDS[k].elixir <= el]
+        out = []
+        for i, k in enumerate(self._hand()):
+            cost = self.match.card_cost(self.me, k)
+            pk = self.match.play_key(self.me, k)
+            if cost is None or pk is None or cost > el:
+                continue
+            c = cards.CARDS[pk]
+            if pk != k or c.elixir != cost:
+                c = dataclasses.replace(c, elixir=cost)
+            out.append((i, k, c))
+        return out
 
     def _lane(self, x):
         return 0 if x < GRID_MID else 1
@@ -386,9 +399,11 @@ class AIController:
             return card.spell_damage * card.duration * mult
         if card.pull:
             return card.spell_damage * card.duration
+        if card.spell_kind == "void":
+            return card.void_tiers[1][2 if tower else 1] * card.hits
         if tower and card.tower_damage is not None:
-            return card.tower_damage
-        return card.spell_damage
+            return card.tower_damage * card.hits
+        return card.spell_damage * card.hits
 
     def _spell_value(self, card, x, y, units):
         v, n = 0.0, 0
@@ -427,9 +442,10 @@ class AIController:
             return False
         need_n = 3 if not self.lv(2) else (2 if not self.lv(4) else 1)
         for i, k, c in self._affordable():
-            if c.category != "spell" or c.spawn_troops and not c.rolling:
+            if c.category != "spell" or (c.spawn_troops and not c.rolling
+                                         and not c.own_side):
                 continue
-            if c.spell_damage <= 0 or c.graveyard:
+            if self._spell_damage_total(c) <= 0 or c.graveyard:
                 continue
             cands = []
             for e in units:
@@ -494,6 +510,8 @@ class AIController:
         for i, k, c in self._affordable():
             if c.key == "rage" and push_val >= 7 and len(mine) >= 3:
                 return self._place(i, cx, self.L(cy), c, exact=True)
+            if c.spell_kind == "clone" and push_val >= 6 and len(mine) >= 2:
+                return self._place(i, cx, self.L(cy), c, exact=True)
             if c.freeze > 0 and push_val >= 6:
                 defenders = [e for e in self._opp_units()
                              if dist(e.x, e.y, cx, cy) <= 4.5]
@@ -512,7 +530,8 @@ class AIController:
             return True
         if c.deploy_anywhere:                                 # Miner
             return True
-        if c.category == "spell" and (c.graveyard or (c.spawn_troops and not c.rolling)):
+        if c.category == "spell" and (c.graveyard or (c.spawn_troops and not c.rolling
+                                                      and not c.own_side)):
             return True
         if c.category == "building" and c.attacks == "buildings" and c.range >= 6:
             return True                                       # X-Bow, Mortar
@@ -731,9 +750,24 @@ class AIController:
         self._why = "leak"
         if self._el() < 9.8:
             return False
-        troops = [t for t in self._affordable() if t[2].category != "spell"]
+        aff = self._affordable()
+        troops = [t for t in aff if t[2].category != "spell"]
         if not troops:
-            return False
+            # a hand of spells only: cast the cheapest somewhere useful so
+            # the cycle keeps moving (buffs on my units, damage on theirs)
+            if not aff:
+                return False
+            i, k, c = min(aff, key=lambda t: t[2].elixir)
+            mine = self._my_units()
+            if (c.rage or c.spell_kind == "clone") and mine:
+                u = max(mine, key=lambda u: u.max_hp)
+                return self._place(i, u.x, self.L(u.y), c, exact=True)
+            foes = self._opp_units() or self._towers(self.opp)
+            if foes and not c.own_side:
+                e = min(foes, key=lambda e: e.hp)
+                return self._place(i, e.x, self.L(e.y), c, exact=True)
+            king = self.match.towers[(self.me, "king")]
+            return self._place(i, king.x, self.L(king.y) + 2.0, c, exact=True)
         i, k, c = min(troops, key=lambda t: t[2].elixir)
         if self._is_wincon(c):
             return self._play_wincon(i, c, self._pick_lane())

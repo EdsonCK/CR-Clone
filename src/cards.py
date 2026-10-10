@@ -216,6 +216,61 @@ class CardDef:
     pull: float = 0.0                               # tornado pull strength
     graveyard: bool = False                         # spawn skeletons over an area
 
+    # --- v1.1 mechanics (the 2023-2026 cards) ---
+    mixed: Optional[Tuple[Tuple[str, int], ...]] = None
+                                # mixed squad: ((unit_key, count), ...) deployed
+                                #   together; first group in front (Goblin Gang,
+                                #   Rascals). sub_*_mult tune the units.
+    formation: str = ""         # "line": squad deploys in a horizontal row
+    formation_gap: float = 1.4  #   (Royal Recruits, Royal Hogs), tiles apart
+    transform: Optional[Tuple[float, str]] = None
+                                # (hp fraction, key): below that much hp the unit
+                                #   turns into another unit (Goblin Demolisher)
+    blast_on_death: bool = False  # kamikaze that explodes on death too
+    death_knockback: float = 0.0  # knockback of the death_damage blast
+    no_knockback: bool = False  # can't be pushed by knockback (Minion Giant)
+    secondary: Optional[Tuple[int, float, float, float, float, str, float]] = None
+                                # independent 2nd weapon: (damage, hit_speed,
+                                #   min_range, max_range, splash, attacks,
+                                #   crown_tower_mult) (Goblin Machine rocket)
+    untargetable: bool = False  # troops/buildings can't target it, spells can
+    cloak: float = 0.0          # invisible until it attacks; re-cloaks this many
+                                #   seconds after its last attack (Royal Ghost)
+    curse_on_hit: Optional[Tuple[str, float]] = None
+                                # (unit_key, secs): troops it hits are cursed; if
+                                #   they die cursed they become unit_key for us
+    hook: Optional[Tuple[float, float, float]] = None
+                                # (min, max, cooldown) Fisherman's anchor: pulls
+                                #   a ground troop in, or himself to a building
+    enchant: Optional[Tuple[int, float, int, int, float]] = None
+                                # (allies, radius, bonus_dmg, every_nth_hit,
+                                #   linger_secs) Rune Giant's enchantment
+    parry: Optional[Tuple[float, float]] = None
+                                # (cooldown, reflect_mult) blocks a melee hit and
+                                #   hits back for reflect_mult x it (Ronin)
+    recoil: float = 0.0         # tiles it hops back after each shot (Firecracker)
+    shrapnel: Optional[Tuple[int, float, float]] = None
+                                # (pieces, spread_deg, length) the shot bursts on
+                                #   impact into pieces flying on (Firecracker)
+    passive: bool = False       # never attacks or moves (Phoenix Egg)
+    hatch: Optional[str] = None # unit that appears when lifetime runs out
+    spawn_first: Optional[float] = None  # first spawner delay (Goblin Drill)
+    spawn_knockback: float = 0.0         # knockback of spawn_damage
+    heal_burst: Optional[Tuple[float, int, int, float]] = None
+                                # (radius, hp_per_pulse, pulses, secs) heals
+                                #   allies where it explodes (Heal Spirit)
+    own_side: bool = False      # spell can only be cast on your half
+    spell_kind: str = ""        # special spells: void | vines | clone | curse |
+                                #   mirror
+    void_tiers: Optional[Tuple[Tuple[int, int, int], ...]] = None
+                                # ((max_targets, dmg, crown_dmg), ...) per hit
+    hits: int = 1               # number of hits over `duration` (Void, Vines)
+    pick: int = 0               # Vines: how many (highest-hp) targets
+    troops_only: bool = False   # ignores buildings and towers (Ram Rider bola)
+    alt_form: Optional[Tuple[int, str]] = None
+                                # (cost, key): with >= cost elixir the card is
+                                #   played as `key` for that cost (Spirit Empress)
+
     def tower_dmg(self) -> int:
         return self.tower_damage if self.tower_damage is not None else self.spell_damage
 
@@ -227,7 +282,7 @@ B = "buildings"
 
 
 # ===========================================================================
-#  THE ROSTER  --  95 cards + the sub-units they spawn
+#  THE ROSTER  --  123 cards + the sub-units they spawn
 # ===========================================================================
 _CARD_LIST = [
 
@@ -649,6 +704,118 @@ _CARD_LIST = [
             # so she can immediately dash in again for another double-damage
             # hit - unless another enemy is closer, then she dashes at that.
 
+    # ==================== v1.1: THE NEWER CARDS ====================
+    # Stats are the real level-11 numbers scaled into this game's units
+    # (about x0.51 hp, x0.54 damage); ranges, speeds and timings are as-is.
+    CardDef("berserker", "Berserker", 2, rarity="common",
+            hp=453, damage=55, hit_speed=0.6, range=0.8, speed=SPEED_FAST,
+            attacks=G, first_hit=0.3),
+    CardDef("firecracker", "Firecracker", 3, rarity="common",
+            hp=154, damage=35, hit_speed=3.0, range=6.0, speed=SPEED_FAST,
+            attacks=AG, shrapnel=(5, 26.0, 2.6), recoil=1.0),
+            # her firework bursts into 5 sparks that fly on through the
+            # target (big targets eat several); she hops back after each shot
+    CardDef("goblin_gang", "Goblin Gang", 3, rarity="common",
+            hp=88, damage=55, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
+            count=6, attacks=AG, mixed=(("goblin", 3), ("spear_goblin", 3)),
+            sub_hp_mult=1.29, sub_dmg_mult=1.38),
+    CardDef("skeleton_dragons", "Skeleton Dragons", 4, rarity="common",
+            hp=283, damage=88, hit_speed=2.0, range=3.5, speed=SPEED_FAST,
+            count=2, attacks=AG, flying=True, splash=1.5, spawn_radius=0.8),
+    CardDef("rascals", "Rascals", 5, rarity="common",
+            hp=403, damage=85, hit_speed=1.2, range=0.8, speed=SPEED_MEDIUM,
+            count=3, attacks=AG, mixed=(("rascal_boy", 1), ("rascal_girl", 2))),
+    CardDef("royal_recruits", "Royal Recruits", 7, rarity="common",
+            hp=277, damage=72, hit_speed=1.3, range=1.6, speed=SPEED_MEDIUM,
+            count=6, attacks=G, shield_hp=121, formation="line",
+            formation_gap=1.55, first_hit=0.5),
+    CardDef("royal_delivery", "Royal Delivery", 3, category="spell",
+            rarity="common", spell_radius=3.0, spell_damage=238, tower_damage=71,
+            own_side=True, spawn_troops=("royal_recruits", 1)),
+            # lands 3s after you cast it - on your side only - then a Royal
+            # Recruit pops out of the crate
+    CardDef("heal_spirit", "Heal Spirit", 1, rarity="rare",
+            hp=109, damage=60, hit_speed=1.0, range=2.5, speed=SPEED_VERY_FAST,
+            attacks=AG, kamikaze=True, death_damage=(1.5, 60),
+            heal_burst=(2.5, 51, 4, 1.0)),
+    CardDef("suspicious_bush", "Suspicious Bush", 2, rarity="rare",
+            hp=41, damage=0, hit_speed=1.0, range=0.8, speed=SPEED_MEDIUM,
+            attacks=B, untargetable=True, kamikaze=True,
+            death_spawn=("bush_goblin", 2)),
+            # troops and buildings ignore it; at the first building it
+            # bursts into 2 Bush Goblins (also when spelled to death)
+    CardDef("goblin_cage", "Goblin Cage", 4, category="building", rarity="rare",
+            hp=395, damage=0, range=0, attacks=G, lifetime=20.0,
+            death_spawn=("goblin_brawler", 1)),
+    CardDef("goblin_demolisher", "Goblin Demolisher", 4, rarity="rare",
+            hp=658, damage=101, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
+            attacks=G, splash=1.5, transform=(0.5, "demolisher_charge")),
+            # below half health he lights his own fuse and runs at the
+            # nearest building (see demolisher_charge)
+    CardDef("minion_giant", "Minion Giant", 4, rarity="rare",
+            hp=919, damage=103, hit_speed=1.5, range=4.0, sight=6.5,
+            speed=SPEED_MEDIUM, attacks=B, flying=True, no_knockback=True),
+            # flies, targets buildings, spits toxin from range
+    CardDef("royal_hogs", "Royal Hogs", 5, rarity="rare",
+            hp=424, damage=40, hit_speed=1.2, range=0.7, speed=SPEED_VERY_FAST,
+            count=4, attacks=B, river_jump=True, formation="line",
+            formation_gap=1.25),
+    CardDef("mirror", "Mirror", 1, category="spell", rarity="epic",
+            spell_kind="mirror"),
+            # replays your last card one level higher for its cost + 1
+    CardDef("goblin_curse", "Goblin Curse", 2, category="spell", rarity="epic",
+            spell_radius=3.0, spell_damage=19, tower_damage=5, dot=True,
+            duration=6.0, spell_kind="curse", curse_on_hit=("goblin", 0.4)),
+            # enemies that die in it come back as YOUR Goblins
+    CardDef("clone", "Clone", 3, category="spell", rarity="epic",
+            spell_radius=3.0, spell_kind="clone"),
+    CardDef("vines", "Vines", 3, category="spell", rarity="epic",
+            spell_radius=2.5, spell_damage=83, tower_damage=21, duration=2.0,
+            hits=2, pick=3, spell_kind="vines"),
+            # roots the 3 highest-hp enemies (air ones are dragged down)
+    CardDef("goblin_drill", "Goblin Drill", 4, category="building",
+            rarity="epic", hp=664, damage=0, range=0, attacks=G, lifetime=10.0,
+            deploy_anywhere=True, spawner=("goblin", 1, 3.0), spawn_first=0.8,
+            death_spawn=("goblin", 2), spawn_damage=(2.0, 46),
+            spawn_knockback=1.0, sub_hp_mult=1.29, sub_dmg_mult=1.38),
+    CardDef("rune_giant", "Rune Giant", 4, rarity="epic",
+            hp=1347, damage=65, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
+            attacks=B, enchant=(2, 8.5, 120, 3, 5.0)),
+            # enchants the 2 closest allied troops: every 3rd hit +120
+    CardDef("void", "Void", 5, category="spell", rarity="epic",
+            spell_radius=2.5, duration=4.0, hits=3, spell_kind="void",
+            void_tiers=((1, 379, 53), (4, 160, 28), (999, 83, 19))),
+            # 3 strikes; each hits harder the FEWER targets are inside
+    CardDef("fisherman", "Fisherman", 3, rarity="legendary",
+            hp=440, damage=106, hit_speed=1.3, range=1.2, sight=7.0,
+            speed=SPEED_MEDIUM, attacks=G, hook=(3.5, 7.0, 4.0),
+            slow=(0.65, 1.5)),
+    CardDef("royal_ghost", "Royal Ghost", 3, rarity="legendary",
+            hp=612, damage=142, hit_speed=1.8, range=1.2, speed=SPEED_FAST,
+            attacks=G, splash=1.0, cloak=1.8, river_jump=True),
+    CardDef("mother_witch", "Mother Witch", 4, rarity="legendary",
+            hp=268, damage=72, hit_speed=1.0, range=5.5, speed=SPEED_MEDIUM,
+            attacks=AG, curse_on_hit=("cursed_hog", 5.0)),
+    CardDef("phoenix", "Phoenix", 4, rarity="legendary",
+            hp=532, damage=118, hit_speed=1.0, range=1.6, speed=SPEED_MEDIUM,
+            attacks=AG, flying=True, death_damage=(1.5, 89),
+            death_knockback=1.0, death_spawn=("phoenix_egg", 1)),
+    CardDef("goblin_machine", "Goblin Machine", 5, rarity="legendary",
+            hp=1088, damage=115, hit_speed=1.2, range=1.2, speed=SPEED_MEDIUM,
+            attacks=G, secondary=(165, 3.5, 2.5, 5.0, 1.5, AG, 0.5)),
+    CardDef("ram_rider", "Ram Rider", 5, rarity="legendary",
+            hp=894, damage=136, hit_speed=1.8, range=0.8, speed=SPEED_MEDIUM,
+            attacks=B, charge=True, charge_mult=2.0, river_jump=True,
+            back_riders=("ram_rider_bola", 1)),
+            # the rider throws snaring bolas at troops while the ram charges
+    CardDef("ronin", "Ronin", 5, rarity="legendary",
+            hp=900, damage=202, hit_speed=1.3, range=1.2, speed=SPEED_FAST,
+            attacks=G, parry=(3.5, 2.0)),
+    CardDef("spirit_empress", "Spirit Empress", 3, rarity="legendary",
+            hp=567, damage=174, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            attacks=G, first_hit=0.3, alt_form=(6, "spirit_empress_air")),
+            # 3 elixir: on foot. With 6+ elixir she rides her dragon (6)
+
     # ==================== NON-DEPLOYABLE SUB-UNITS ====================
     # These are spawned by other cards; they don't appear in the deck builder.
     CardDef("skeleton", "Skeleton", 0, deployable=False,
@@ -690,6 +857,38 @@ _CARD_LIST = [
     CardDef("goblin_monster", "Goblin Monster", 0, deployable=False,
             hp=1100, damage=150, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=G),   # Goblinstein's melee companion
+    # ---- v1.1 sub-units ----
+    CardDef("rascal_boy", "Rascal Boy", 0, deployable=False,
+            hp=945, damage=118, hit_speed=1.5, range=0.8, speed=SPEED_MEDIUM,
+            attacks=G),
+    CardDef("rascal_girl", "Rascal Girl", 0, deployable=False,
+            hp=132, damage=68, hit_speed=1.0, range=5.0, speed=SPEED_MEDIUM,
+            attacks=AG),
+    CardDef("bush_goblin", "Bush Goblin", 0, deployable=False,
+            hp=154, damage=139, hit_speed=1.4, range=0.8, speed=SPEED_VERY_FAST,
+            attacks=B),
+    CardDef("goblin_brawler", "Goblin Brawler", 0, deployable=False,
+            hp=546, damage=183, hit_speed=1.1, range=0.8, speed=SPEED_FAST,
+            attacks=G),
+    CardDef("demolisher_charge", "Goblin Demolisher", 0, deployable=False,
+            hp=658, damage=0, hit_speed=1.0, range=0.8, speed=SPEED_VERY_FAST,
+            attacks=B, kamikaze=True, blast_on_death=True, lifetime=10.0,
+            death_damage=(2.5, 220), death_knockback=1.5),
+    CardDef("cursed_hog", "Cursed Hog", 0, deployable=False,
+            hp=318, damage=29, hit_speed=1.2, range=0.75, speed=SPEED_VERY_FAST,
+            attacks=B, river_jump=True),
+    CardDef("phoenix_egg", "Phoenix Egg", 0, deployable=False,
+            hp=121, damage=0, range=0, speed=0.0, attacks=G, passive=True,
+            lifetime=3.8, hatch="phoenix_reborn"),
+    CardDef("phoenix_reborn", "Phoenix", 0, deployable=False,
+            hp=532, damage=118, hit_speed=1.0, range=1.6, speed=SPEED_MEDIUM,
+            attacks=AG, flying=True),
+    CardDef("ram_rider_bola", "Bola", 0, deployable=False,
+            hp=1, damage=57, hit_speed=1.1, range=5.5, attacks=AG,
+            troops_only=True, slow=(0.3, 2.0)),
+    CardDef("spirit_empress_air", "Spirit Empress", 6, deployable=False,
+            rarity="legendary", hp=910, damage=168, hit_speed=1.4, range=5.0,
+            speed=SPEED_MEDIUM, attacks=AG, flying=True),
 ]
 
 # key -> CardDef lookup

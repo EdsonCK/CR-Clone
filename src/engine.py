@@ -105,6 +105,16 @@ def _seg_dist(px, py, ax, ay, bx, by):
     return dist(px, py, ax + abx * t, ay + aby * t)
 
 
+def curse(e, team, spec, power):
+    """Mark `e` so that, if it dies while cursed, a `spec[0]` unit appears
+    for `team` (Mother Witch's hogs, Goblin Curse's goblins)."""
+    key, secs = spec
+    e.curse_t = max(e.curse_t, secs)
+    e.curse_key = key
+    e.curse_team = team
+    e.curse_pow = power
+
+
 def river_side(y):
     """-1 = top (enemy) half, +1 = bottom (player) half, 0 = on the river."""
     if y < RIVER_TOP:
@@ -204,7 +214,22 @@ class Entity:
         self._engaged = None       # id of the target we've started swinging at
         self._match_ref = None     # set by Match for event emission
         self.dash_cd = 0.0
+        # v1.1 card mechanics
+        self.curse_t = 0.0         # cursed: dying turns us into curse_key
+        self.curse_key = None      #   (for curse_team, at curse_pow)
+        self.curse_team = None
+        self.curse_pow = None
+        self.root_timer = 0.0      # Vines: can't move or attack
+        self._grounded = False     # Vines dragged a flier down
+        self.rune_t = 0.0          # Rune Giant enchantment (every Nth hit +dmg)
+        self.rune_n = 0
+        self.rune_bonus = 0.0
+        self.parry_cd = 0.0        # Ronin
+        self.hook_cd = 0.0         # Fisherman
+        self.clone = False         # made by the Clone spell (1 hp)
         self.spawn_timer = card.spawner[2] if card.spawner else 0.0
+        if card.spawner and card.spawn_first is not None:
+            self.spawn_timer = card.spawn_first
         self.elixir_timer = card.generates_elixir[1] if card.generates_elixir else 0.0
         self.lifetime = card.lifetime
 
@@ -243,8 +268,8 @@ class Entity:
     def can_attack(self, other):
         if other.team == self.team or not other.alive:
             return False
-        if other.invis_timer > 0:      # cloaked units can't be targeted
-            return False
+        if other.invis_timer > 0 or other.card.untargetable:
+            return False               # cloaked / hidden units can't be targeted
         if self.attacks == "buildings":
             return other.is_building or other.is_tower
         if other.flying and self.attacks != "air_ground":
@@ -265,6 +290,8 @@ class Entity:
             m *= self.atk_buff
         if self.card.ramp_stages and self.card.ramp_kind == "speed":
             m *= self.ramp_mult()
+        if self.slow_timer > 0 and self.slow_factor < 1.0:
+            m *= self.slow_factor     # slows hit attack speed too (as in CR)
         return self.hit_speed / m
 
     def child_power(self):
@@ -351,6 +378,9 @@ class Entity:
                 self._dmg_acc = getattr(self, "_dmg_acc", 0.0) + dealt
         if self.evo and m is not None and self.hp > 0:
             evo_engine.after_damaged(self, m, shield_before)
+        if (self.card.transform and self.hp > 0
+                and self.hp < self.max_hp * self.card.transform[0]):
+            self._transform_pending = True
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -388,6 +418,20 @@ class Entity:
             self.protect_timer -= dt
         if self.dash_cd > 0:
             self.dash_cd -= dt
+        if self.curse_t > 0:
+            self.curse_t -= dt
+        if self.rune_t > 0:
+            self.rune_t -= dt
+        if self.parry_cd > 0:
+            self.parry_cd -= dt
+        if self.hook_cd > 0:
+            self.hook_cd -= dt
+        if getattr(self, "_transform_pending", False):
+            self._transform_pending = False
+            self.transform_to(self.card.transform[1], match)
+        # Royal Ghost: hidden unless he swung in the last `cloak` seconds
+        if self.card.cloak and match.elapsed - self.atk_t > self.card.cloak:
+            self.invis_timer = max(self.invis_timer, dt * 1.5)
         # mid-dash: nothing else happens until we land (stuns can't stop it)
         if self.dash is not None:
             self._dash_update(dt, match)
@@ -400,6 +444,12 @@ class Entity:
         if self.freeze_timer > 0:
             self.freeze_timer -= dt
             return
+        if self.root_timer > 0:
+            self.root_timer -= dt
+            if self.root_timer <= 0 and self._grounded:
+                self._grounded = False
+                self.flying = True        # Vines let go: back in the air
+            return
         if self.deploy_timer > 0:
             self.deploy_timer -= dt
             return
@@ -408,8 +458,21 @@ class Entity:
         if self.lifetime and not self.is_tower:
             self.lifetime -= dt
             if self.lifetime <= 0:
+                if self.card.hatch:       # Phoenix Egg hatches
+                    match.emit("deploy", self.card.hatch, self.x, self.y, self.team)
+                    match.spawn_units(self.team, self.card.hatch, 1, self.x, self.y,
+                                      deploy=0.0, power=self.power, level=self.level)
                 self.alive = False
                 return
+        if self.card.passive:
+            return
+
+        # Rune Giant: keep up to N nearby allied troops enchanted
+        if self.card.enchant:
+            self._update_enchant(dt, match)
+        # independent second weapon (Goblin Machine's rocket launcher)
+        if self.card.secondary:
+            self._update_secondary(dt, match)
 
         # elixir collector
         if self.card.generates_elixir:
@@ -470,6 +533,11 @@ class Entity:
         d = dist(self.x, self.y, self.target.x, self.target.y)
         reach = self.range + self.target.radius
 
+        # Fisherman: anchor throw at targets a few tiles away
+        if self.card.hook and self.hook_cd <= 0 and d > reach:
+            if self._try_hook(match, d):
+                return
+
         # dashers (Bandit, Mega Knight, Boss Bandit) leap onto targets that
         # are a few tiles away instead of walking up to them
         if self.card.dash and self.dash_cd <= 0 and d > reach:
@@ -510,9 +578,10 @@ class Entity:
         self.dash = {"tx": tx, "ty": ty, "target": target, "kind": kind,
                      "immune": immune, "speed": speed, "sweep": sweep,
                      "hit": set(), "sx": self.x, "sy": self.y}
+        quiet = extra.pop("quiet", False)
         self.dash.update(extra)
         self.ramp_time = 0.0
-        if self._match_ref is not None:
+        if self._match_ref is not None and not quiet:
             self._match_ref.emit("dash", self.key, self.x, self.y, self.team)
 
     def _dash_update(self, dt, match):
@@ -559,9 +628,13 @@ class Entity:
             return
         best, best_d = None, 1e9
         for e in match.entities:
-            if e.team == self.team or not e.alive:
+            if e.team == self.team or not e.alive or e.invis_timer > 0:
+                continue
+            if e.card.untargetable:
                 continue
             if e.flying and rc.attacks != "air_ground":
+                continue
+            if rc.troops_only and (e.is_building or e.is_tower):
                 continue
             if e.is_king and not e.active and any(
                     match.towers[(e.team, s)].alive for s in ("left", "right")):
@@ -576,7 +649,126 @@ class Entity:
             match.projectiles.append(Projectile(
                 self.team, self.x, self.y, best,
                 rc.damage * cfg.GLOBAL_DAMAGE_MULT * self.child_power()[1], 0, rc.attacks,
-                0.0, None, style=rkey, owner=self))
+                rc.stun, rc.slow, style=rkey, owner=self))
+
+    # ---- v1.1 card mechanics ----------------------------------------------
+    def transform_to(self, key, match):
+        """Become another unit in place, keeping hp (Goblin Demolisher)."""
+        nc = cards.CARDS[key]
+        self.card = nc
+        self.key = key
+        self.dmg = nc.damage * cfg.GLOBAL_DAMAGE_MULT * self.power[1]
+        self.hit_speed = nc.hit_speed
+        self.range = nc.range
+        self.attacks = nc.attacks
+        self.base_speed = nc.speed * cfg.GLOBAL_SPEED_MULT
+        self.sight = max(nc.sight, nc.range)
+        self.lifetime = nc.lifetime
+        self.flying = nc.flying
+        self.target = None
+        self._engaged = None
+        self.attack_cd = 0.0
+        self.ramp_time = 0.0
+        match.emit("deploy", key, self.x, self.y, self.team)
+
+    def _try_hook(self, match, d):
+        """Fisherman's anchor: drag a ground troop in, or reel himself over
+        to a building. Returns True if it was thrown."""
+        lo, hi, cd = self.card.hook
+        t = self.target
+        gap = d - t.radius
+        if not (lo <= gap <= hi) or t.flying or t.is_dashing():
+            return False
+        if river_side(self.y) * river_side(t.y) < 0:
+            return False                     # not across the river
+        self.hook_cd = cd
+        self.atk_t = match.elapsed
+        ux, uy = (t.x - self.x) / d, (t.y - self.y) / d
+        self.atk_dir = (ux, uy)
+        match.emit("attack", self.key, self.x, self.y, self.team, big=False)
+        match.effects.append(Effect("chain", self.team, self.x, self.y, 0, 0.35,
+                                    card_key=self.key,
+                                    points=[(self.x, self.y), (t.x, t.y)]))
+        slow = self.card.slow
+        if t.is_building or t.is_tower:
+            # reel himself in to the building
+            stop = t.radius + 0.5
+            self.start_dash(None, kind="point", speed=9.0, quiet=True,
+                            point=(t.x - ux * stop, t.y - uy * stop))
+        else:
+            t.start_dash(None, kind="point", speed=8.0, quiet=True,
+                         point=(self.x + ux * 0.9, self.y + uy * 0.9))
+            t.target = None
+            if slow:
+                t.slow_factor, t.slow_timer = slow[0], slow[1]
+        return True
+
+    def _update_enchant(self, dt, match):
+        n, rad, bonus, every, linger = self.card.enchant
+        self._ench_t = getattr(self, "_ench_t", 0.0) - dt
+        if self._ench_t > 0:
+            return
+        self._ench_t = 0.5
+        mine = getattr(self, "_enchanted", [])
+        mine = [e for e in mine if e.alive and e.rune_t > 0]
+        for e in mine:
+            e.rune_t = linger            # stays charged while we live
+        if len(mine) < n:
+            cands = sorted(
+                (e for e in match.entities
+                 if e.alive and e.team == self.team and e is not self
+                 and not e.is_building and not e.is_tower and e.rune_t <= 0
+                 and not e.card.kamikaze
+                 and dist(self.x, self.y, e.x, e.y) <= rad),
+                key=lambda e: dist(self.x, self.y, e.x, e.y))
+            for e in cands[:n - len(mine)]:
+                e.rune_t = linger
+                e.rune_n = 0
+                e.rune_bonus = bonus * self.power[1]
+                e.rune_every = every
+                mine.append(e)
+                match.effects.append(Effect("chain", self.team, self.x, self.y, 0,
+                                            0.4, card_key=self.key,
+                                            points=[(self.x, self.y), (e.x, e.y)]))
+        self._enchanted = mine
+
+    def _update_secondary(self, dt, match):
+        """A second weapon that fires on its own (Goblin Machine rocket)."""
+        dmg, hs, lo, hi, splash, atk, tmult = self.card.secondary
+        self.sec_cd = getattr(self, "sec_cd", 1.0) - dt
+        if self.sec_cd > 0:
+            return
+        best, best_d = None, 1e9
+        for e in match.entities:
+            if not self.can_attack_with(e, atk):
+                continue
+            if e.is_king and not e.active and any(
+                    match.towers[(e.team, s)].alive for s in ("left", "right")):
+                continue
+            d = dist(self.x, self.y, e.x, e.y) - e.radius
+            if lo <= d <= hi and d < best_d:
+                best, best_d = e, d
+        if best is None:
+            return
+        self.sec_cd = hs
+        p = Projectile(self.team, self.x, self.y, best,
+                       dmg * cfg.GLOBAL_DAMAGE_MULT * self.power[1], splash, atk,
+                       0.0, None, style=self.key + "_rocket", owner=self)
+        p.tower_dmg = p.dmg * tmult
+        match.projectiles.append(p)
+        match.emit("attack", self.key + "_rocket", self.x, self.y, self.team)
+
+    def can_attack_with(self, other, attacks):
+        """can_attack() for a weapon with its own target type."""
+        if other.team == self.team or not other.alive:
+            return False
+        if other.invis_timer > 0 or other.card.untargetable:
+            return False
+        if attacks == "buildings":
+            return other.is_building or other.is_tower
+        if other.flying and attacks != "air_ground":
+            return False
+        return True
 
     def _keep_target(self, match):
         """True if we should hold our current target (don't re-scan).
@@ -704,6 +896,9 @@ class Entity:
                    big=self.max_hp >= 1500)
 
         # kamikaze units (spirits, wall breakers): ONE attack = explode & die
+        if self.card.kamikaze and self.card.blast_on_death:
+            self.alive = False            # on_death() sets off the blast
+            return
         if self.card.kamikaze:
             # Electro Spirit: instead of a blast, its zap chains across targets
             if self.card.chain:
@@ -729,17 +924,32 @@ class Entity:
                 by = self.y + (t.y - self.y) / d * pull
             match.effects.append(Effect("aoe", self.team, bx, by,
                                         rad, 0.35, card_key=self.key))
-            match.area_damage(self.team, bx, by, rad,
-                              kdmg * cfg.GLOBAL_DAMAGE_MULT,
-                              hit_air=(self.attacks == "air_ground"),
-                              stun=self.card.stun, freeze=self.card.freeze,
-                              slow=self.card.slow)
+            if kdmg > 0:
+                match.area_damage(self.team, bx, by, rad,
+                                  kdmg * cfg.GLOBAL_DAMAGE_MULT,
+                                  hit_air=(self.attacks == "air_ground"),
+                                  stun=self.card.stun, freeze=self.card.freeze,
+                                  slow=self.card.slow)
+            if self.card.heal_burst:          # Heal Spirit
+                hr, hamt, pulses, secs = self.card.heal_burst
+                for i in range(pulses):
+                    match.later_add(i * secs / max(pulses - 1, 1), "heal",
+                                    team=self.team, x=bx, y=by, radius=hr,
+                                    amount=hamt * self.power[0], key=self.key)
             self.alive = False
             return
 
         dmg = self.dmg
         if self.evo:
             dmg = evo_engine.before_attack(self, match, dmg)
+        # Rune Giant enchantment: every Nth hit carries bonus damage
+        if self.rune_t > 0:
+            self.rune_n += 1
+            if self.rune_n % getattr(self, "rune_every", 3) == 0:
+                dmg += self.rune_bonus
+                match.effects.append(Effect("aoe", self.team, self.target.x,
+                                            self.target.y, 0.6, 0.3,
+                                            card_key="rune_giant"))
         self._last_dmg = dmg
         # charge bonus
         if self.charged:
@@ -844,10 +1054,20 @@ class Entity:
             return
 
         if self.range >= PROJECTILE_RANGE_MIN:
-            match.projectiles.append(Projectile(
-                self.team, self.x, self.y, self.target,
-                dmg, self.card.splash, self.attacks, stun, slow,
-                style=self.key, owner=self))
+            pj = Projectile(self.team, self.x, self.y, self.target,
+                            dmg, self.card.splash, self.attacks, stun, slow,
+                            style=self.key, owner=self)
+            pj.shrapnel = self.card.shrapnel
+            match.projectiles.append(pj)
+            if self.card.recoil and not self.is_building:
+                # Firecracker: the launcher kicks her back a step
+                ux, uy = self.atk_dir
+                nx = min(max(self.x - ux * self.card.recoil, 0.5), cfg.GRID_COLS - 0.5)
+                ny = min(max(self.y - uy * self.card.recoil, 0.5), cfg.GRID_ROWS - 0.5)
+                if self.flying or river_side(ny) == river_side(self.y):
+                    self.start_dash(None, kind="point", point=(nx, ny), speed=5.0,
+                                    quiet=True)
+                    self.dash["keep_target"] = True
         else:
             match.apply_hit(self, self.target, dmg, self.card.splash, stun, slow)
 
@@ -868,13 +1088,22 @@ class Entity:
             match.add_elixir(1 - self.team, c.death_gives_elixir)
         # kamikaze units already exploded on their attack; if they were killed
         # before attacking they simply die with no blast
-        if c.death_damage and not c.kamikaze:
+        if c.death_damage and (not c.kamikaze or c.blast_on_death):
             radius, ddmg = c.death_damage
             ddmg *= self.power[1]
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
                                         radius, 0.35, card_key=self.key))
             match.area_damage(self.team, self.x, self.y, radius, ddmg, hit_air=True,
-                              slow=c.death_slow)
+                              slow=c.death_slow, knockback=c.death_knockback)
+            if c.blast_on_death:
+                match.emit("impact", self.key, self.x, self.y, self.team,
+                           radius=radius)
+        # cursed (Mother Witch / Goblin Curse): come back for the curser
+        if (self.curse_t > 0 and self.curse_key and not self.is_building
+                and not self.clone):
+            match.spawn_units(self.curse_team, self.curse_key, 1, self.x, self.y,
+                              deploy=0.3, power=self.curse_pow)
+            match.emit("portal", self.curse_key, self.x, self.y, self.curse_team)
         if c.death_spawn:
             ukey, ucount = c.death_spawn
             if ukey == "rage_pickup":
@@ -896,6 +1125,10 @@ PROJ_SPEEDS = {
     "princess_tower": 12, "king_tower": 10, "cannon": 11, "royal_giant": 9,
     "mortar": 6, "bomber": 7, "bomb_tower": 7, "bowler": 6, "executioner": 7,
     "sparky": 7, "flying_machine": 12, "tesla": 18,
+    "firecracker": 9, "firecracker_spark": 8, "goblin_machine_rocket": 8,
+    "goblin_demolisher": 7, "skeleton_dragons": 9, "minion_giant": 8,
+    "mother_witch": 10, "rascal_girl": 12, "ram_rider_bola": 10,
+    "spirit_empress_air": 11,
 }
 
 
@@ -936,6 +1169,8 @@ class Projectile:
         self.vx, self.vy = 0.0, 1.0   # facing, for the renderer
         self.speed = PROJ_SPEEDS.get(style, cfg.PROJECTILE_SPEED)
         self.alive = True
+        self.shrapnel = None   # (pieces, spread, length): burst on impact
+        self.tower_dmg = None  # crown-tower damage of a splash shot
 
     def update(self, dt, match):
         if self.homing and self.target and self.target.alive:
@@ -971,7 +1206,8 @@ class Projectile:
                     continue
                 if dist(self.x, self.y, e.x, e.y) <= self.hit_radius + e.radius * 0.7:
                     self._apply(e, match)
-                    if self.knockback and not (e.is_tower or e.is_building):
+                    if (self.knockback and not (e.is_tower or e.is_building)
+                            and not e.card.no_knockback):
                         e.x += self.vx * self.knockback
                         e.y += self.vy * self.knockback
                     self.hits.add(id(e))
@@ -988,6 +1224,8 @@ class Projectile:
 
     def _can_hit(self, e):
         if e.team == self.team or not e.alive or e.invis_timer > 0:
+            return False
+        if e.card.untargetable:
             return False
         if self.attacks == "buildings":
             return e.is_building or e.is_tower
@@ -1011,6 +1249,10 @@ class Projectile:
         e.take_damage(self.dmg)
         if self.owner is not None and self.owner.evo:
             evo_engine.on_projectile_hit(self, e, match)
+        o = self.owner
+        if (o is not None and o.card.curse_on_hit and not e.is_building
+                and not e.is_tower and match is not None):
+            curse(e, o.team, o.card.curse_on_hit, o.child_power())
         if self.stun:
             e.stun_timer = max(e.stun_timer, self.stun)
         if self.slow:
@@ -1022,6 +1264,21 @@ class Projectile:
             return   # damage already dealt along the flight path
         if self.owner is not None and self.owner.evo:
             evo_engine.on_projectile_impact(self, match)
+        # Firecracker: the firework bursts into sparks that fly on in a cone
+        if self.shrapnel:
+            n, spread, length = self.shrapnel
+            ang = math.atan2(self.vy, self.vx)
+            sx, sy = self.x - self.vx * 0.5, self.y - self.vy * 0.5
+            for i in range(n):
+                a = ang + math.radians(((i / max(n - 1, 1)) - 0.5) * spread)
+                match.projectiles.append(Projectile(
+                    self.team, sx, sy, None, self.dmg, 0, self.attacks, 0.0,
+                    self.slow, style="firecracker_spark", homing=False,
+                    dest=(sx + math.cos(a) * length, sy + math.sin(a) * length),
+                    pierce=True, hit_radius=0.3, owner=self.owner))
+            match.effects.append(Effect("aoe", self.team, self.x, self.y, 0.8,
+                                        0.25, card_key="firecracker"))
+            return
         # chain-lightning shooters (Electro Dragon): the bolt arcs onward from
         # the struck target instead of splashing
         card = cards.CARDS.get(self.style)
@@ -1037,7 +1294,8 @@ class Projectile:
                                         self.splash, 0.3, card_key=self.style))
             match.area_damage(self.team, self.x, self.y, self.splash, self.dmg,
                               hit_air=(self.attacks == "air_ground"),
-                              stun=self.stun, slow=self.slow)
+                              stun=self.stun, slow=self.slow,
+                              tower_damage=self.tower_dmg)
         elif self.homing:
             if self.target and self.target.alive:
                 self._apply(self.target, match)
@@ -1084,6 +1342,10 @@ class Effect:
         self.ends = ends             # (entity, entity) for a "link" beam
         self.origin = None           # (x, y) a thrown spell flies from
         self.tick = 0.0
+        self.curse = None            # poison zone that curses (Goblin Curse)
+        self.curse_pow = None
+        self.tiers = ()              # Void damage tiers
+        self.tower_damage = damage
 
     def update(self, dt, match):
         self.elapsed += dt
@@ -1094,7 +1356,8 @@ class Effect:
                 match.emit("impact", self.card_key, self.x, self.y, self.team,
                            radius=self.radius)
                 match._resolve_spell(self.team, card, self.x, self.y,
-                                     evo=getattr(self, "evo", False))
+                                     evo=getattr(self, "evo", False),
+                                     boost=getattr(self, "boost", 0))
                 match.effects.append(Effect("blast", self.team, self.x, self.y,
                                             max(self.radius, 1.0), 0.45,
                                             card_key=self.card_key))
@@ -1142,9 +1405,42 @@ class Effect:
             if self.elapsed >= self.duration:
                 self.alive = False
             return
-        if self.kind == "poison":
+        if self.kind == "void":
+            # Void: `hits` strikes over the duration; each one deals more the
+            # fewer targets are standing in it
+            due = int(self.elapsed / (self.duration / self.hits) + 1e-6)
+            while self.tick < min(due, self.hits):
+                self.tick += 1
+                inside = [e for e in match.entities
+                          if e.alive and e.team != self.team
+                          and dist(self.x, self.y, e.x, e.y) <= self.radius + e.radius * 0.5]
+                n = len(inside)
+                dmg = tdmg = 0
+                for cap, d1, d2 in self.tiers:
+                    if n <= cap:
+                        dmg, tdmg = d1, d2
+                        break
+                for e in inside:
+                    e.take_damage((tdmg if e.is_tower else dmg) * self.dps)
+                match.effects.append(Effect("blast", self.team, self.x, self.y,
+                                            self.radius, 0.35, card_key="void"))
+                match.emit("impact", "void", self.x, self.y, self.team,
+                           radius=self.radius)
+        elif self.kind == "vines":
+            # Vines: the chosen targets are rooted (fliers pulled down) and
+            # take `hits` ticks of damage
+            due = int(self.elapsed / (self.duration / self.hits) + 1e-6) + 1
+            while self.tick < min(due, self.hits):
+                self.tick += 1
+                for e in self.ends:
+                    if e.alive:
+                        e.take_damage(self.tower_damage if e.is_tower else self.damage)
+            self.points = [(e.x, e.y) for e in self.ends if e.alive]
+        elif self.kind == "poison":
             for e in match.entities:
                 if e.alive and e.team != self.team and dist(self.x, self.y, e.x, e.y) <= self.radius:
+                    if self.curse and not e.is_tower and not e.is_building:
+                        curse(e, self.team, self.curse, self.curse_pow)
                     # crown towers take reduced spell damage; other buildings
                     # take full damage (Earthquake: bonus vs buildings)
                     if e.is_tower:
@@ -1243,6 +1539,7 @@ class Match:
         # Evolutions: per team the card keys that evolve, and their charge
         # (plays since the last evolved copy). Charges start FULL, so the
         # first copy you play comes out evolved.
+        self.last_played = {PLAYER: None, ENEMY: None}   # for Mirror
         self.evo_cards = {PLAYER: set(), ENEMY: set()}
         self.hero_cards = {PLAYER: set(), ENEMY: set()}
         for t in (PLAYER, ENEMY):
@@ -1368,8 +1665,8 @@ class Match:
         card = cards.CARDS[key]
         if x < 0.3 or x > cfg.GRID_COLS - 0.3 or y < 0.3 or y > cfg.GRID_ROWS - 0.3:
             return False
-        # spells can target anywhere
-        if card.category == "spell":
+        # spells can target anywhere (Royal Delivery: only your own side)
+        if card.category == "spell" and not card.own_side:
             return True
         # no placing in the river
         if RIVER_TOP - 0.2 <= y <= RIVER_BOTTOM + 0.2:
@@ -1399,29 +1696,55 @@ class Match:
             return False
 
     # ---- playing cards -----------------------------------------------------
+    def card_cost(self, team, key):
+        """Elixir this card costs right now (Mirror and Spirit Empress vary)."""
+        card = cards.CARDS[key]
+        if card.spell_kind == "mirror":
+            last = self.last_played.get(team)
+            return cards.CARDS[last].elixir + 1 if last else None
+        if card.alt_form and self.elixir[team] >= card.alt_form[0]:
+            return card.alt_form[0]
+        return card.elixir
+
+    def play_key(self, team, key):
+        """The card that actually comes out when `key` is played (Mirror ->
+        your last card; Spirit Empress -> her dragon form at 6 elixir)."""
+        card = cards.CARDS[key]
+        if card.spell_kind == "mirror":
+            return self.last_played.get(team)
+        if card.alt_form and self.elixir[team] >= card.alt_form[0]:
+            return card.alt_form[1]
+        return key
+
     def play_card(self, team, hand_index, x, y):
         if hand_index >= len(self.hands[team]):
             return False
         key = self.hands[team][hand_index]
-        card = cards.CARDS[key]
         if key in self.banned and team == PLAYER:
             return False
-        if self.elixir[team] < card.elixir:
+        cost = self.card_cost(team, key)
+        dkey = self.play_key(team, key)
+        if cost is None or dkey is None or self.elixir[team] < cost:
             return False
-        if not self.can_place(team, key, x, y):
+        if not self.can_place(team, dkey, x, y):
             return False
-        self.elixir[team] -= card.elixir
-        self.stats["spent"][team] += card.elixir
+        mirrored = cards.CARDS[key].spell_kind == "mirror"
+        self.elixir[team] -= cost
+        self.stats["spent"][team] += cost
         pl = self.stats["played"][team]
         pl[key] = pl.get(key, 0) + 1
-        evo = self.evo_ready(team, key)
-        if key in self.evo_charge[team]:
-            if evo:
-                self.evo_charge[team][key] = 0
-            else:
-                self.evo_charge[team][key] += 1
-        hero = key in self.hero_cards[team]
-        self._deploy(team, key, x, y, evo=evo, hero=hero)
+        evo = hero = False
+        if not mirrored:
+            evo = self.evo_ready(team, key)
+            if key in self.evo_charge[team]:
+                if evo:
+                    self.evo_charge[team][key] = 0
+                else:
+                    self.evo_charge[team][key] += 1
+            hero = key in self.hero_cards[team]
+            self.last_played[team] = key
+        self._deploy(team, dkey, x, y, evo=evo, hero=hero,
+                     boost=1 if mirrored else 0, played=key)
         # cycle the card
         self.queues[team].append(key)
         newk = self.queues[team].pop(0)
@@ -1463,6 +1786,14 @@ class Match:
                                  tower_damage=d.get("tower_dmg"))
                 self.emit("impact", d.get("key"), d["x"], d["y"], team,
                           radius=d["radius"])
+            elif kind == "heal":
+                self.effects.append(Effect("aoe", team, d["x"], d["y"], d["radius"],
+                                           0.3, card_key=d.get("key")))
+                for e in self.entities:
+                    if (e.alive and e.team == team and not e.is_tower
+                            and not e.is_building
+                            and dist(d["x"], d["y"], e.x, e.y) <= d["radius"]):
+                        e.hp = min(e.max_hp, e.hp + d["amount"])
             elif kind == "spawn":
                 self.emit("portal", d["key"], d["x"], d["y"], team)
                 self.spawn_units(team, d["key"], d["count"], d["x"], d["y"], deploy=0.0,
@@ -1472,25 +1803,47 @@ class Match:
     def effects_rage(self, team, x, y, radius, duration):
         self.effects.append(Effect("rage", team, x, y, radius, duration))
 
-    def _deploy(self, team, key, x, y, evo=False, hero=False):
+    def _deploy(self, team, key, x, y, evo=False, hero=False, boost=0, played=None):
+        """Put a played card on the field. `played` is the hand card (when it
+        differs from `key`: Mirror, Spirit Empress); `boost` adds levels."""
         card = cards.CARDS[key]
+        lkey = key if played is None or played == "mirror" else played
         self.emit("deploy", key, x, y, team, evo=evo, hero=hero)
         if card.category == "spell":
-            self._cast_spell(team, card, x, y, evo=evo)
+            self._cast_spell(team, card, x, y, evo=evo, boost=boost)
+            return
+        power = level = None
+        if team not in self.team_power:
+            m = cards.level_mult(self.card_level(team, lkey) + boost)
+            power, level = (m, m), self.card_level(team, lkey) + boost
+        if card.mixed:
+            # mixed squad: first group up front, the rest behind it
+            fwd = -1 if team == PLAYER else 1
+            pw = power or self.level_power(team, lkey)
+            sp = (pw[0] * card.sub_hp_mult, pw[1] * card.sub_dmg_mult)
+            units = []
+            for gi, (uk, n) in enumerate(card.mixed):
+                gy = y + fwd * (0.55 if gi == 0 else -0.6)
+                gy = min(max(gy, 0.5), cfg.GRID_ROWS - 0.5)
+                units += self.spawn_units(team, uk, n, x, gy, power=sp, level=level)
         else:
-            units = self.spawn_units(team, key, card.count, x, y)
-            if evo or hero:
-                evo_engine.on_spawn_group(self, units, card, evo=evo, hero=hero)
-            if card.companion:   # Goblinstein's Monster, etc.
-                ck, cc = card.companion
-                cx = x + 1.2 if x + 1.2 < cfg.GRID_COLS - 0.5 else x - 1.2
-                comp = self.spawn_units(team, ck, cc, cx, y,
-                                        power=(card.sub_hp_mult * units[0].power[0],
-                                               card.sub_dmg_mult * units[0].power[1])
-                                        if units else None, level=units[0].level if units else None)
-                if units and comp:      # remember each other (Lightning Link)
-                    units[0].partner = comp[0]
-                    comp[0].partner = units[0]
+            units = self.spawn_units(team, key, card.count, x, y, power=power,
+                                     level=level)
+        if not units:
+            return
+        if evo or hero:
+            evo_engine.on_spawn_group(self, units, cards.CARDS[lkey], evo=evo,
+                                      hero=hero)
+        if card.companion:   # Goblinstein's Monster, etc.
+            ck, cc = card.companion
+            cx = x + 1.2 if x + 1.2 < cfg.GRID_COLS - 0.5 else x - 1.2
+            comp = self.spawn_units(team, ck, cc, cx, y,
+                                    power=(card.sub_hp_mult * units[0].power[0],
+                                           card.sub_dmg_mult * units[0].power[1]),
+                                    level=units[0].level)
+            if comp:      # remember each other (Lightning Link)
+                units[0].partner = comp[0]
+                comp[0].partner = units[0]
 
     def spawn_units(self, team, key, count, x, y, deploy=None, power=None, level=None):
         """Create `count` units of `key` around (x, y); returns them."""
@@ -1506,6 +1859,15 @@ class Match:
             level = self.team_level.get(team)
         if count <= 1:
             made.append(Entity(card, team, x, y, deploy=deploy, power=power))
+        elif card.formation == "line":
+            # a row across the arena (Royal Recruits, Royal Hogs)
+            gap = card.formation_gap
+            x0 = min(max(x, 0.5 + gap * (count - 1) / 2),
+                     cfg.GRID_COLS - 0.5 - gap * (count - 1) / 2)
+            for i in range(count):
+                ox = x0 + (i - (count - 1) / 2.0) * gap
+                ox = max(0.4, min(cfg.GRID_COLS - 0.4, ox))
+                made.append(Entity(card, team, ox, y, deploy=deploy, power=power))
         else:
             r = card.spawn_radius
             for i in range(count):
@@ -1523,8 +1885,9 @@ class Match:
             rad, dmg = card.spawn_damage
             self.effects.append(Effect("aoe", team, x, y, rad, 0.35,
                                        card_key=card.key))
-            self.area_damage(team, x, y, rad, dmg, hit_air=True,
-                             stun=card.spawn_stun, slow=card.spawn_slow)
+            self.area_damage(team, x, y, rad, dmg * power[1], hit_air=True,
+                             stun=card.spawn_stun, slow=card.spawn_slow,
+                             knockback=card.spawn_knockback)
         return made
 
     def spell_origin(self, team):
@@ -1541,7 +1904,7 @@ class Match:
             return max(base * 0.5, dist(ox, oy, x, y) / spd)
         return base
 
-    def _cast_spell(self, team, card, x, y, evo=False):
+    def _cast_spell(self, team, card, x, y, evo=False, boost=0):
         # spells don't hit instantly: an incoming marker shows for a delay (or
         # the spell visibly FLIES from the king tower), then _resolve_spell()
         # applies the effect (see Effect.update).
@@ -1549,23 +1912,35 @@ class Match:
         fx = Effect("incoming", team, x, y, card.spell_radius or 1.2, delay,
                     card_key=card.key)
         fx.evo = evo
+        fx.boost = boost
         if card.key in cfg.SPELL_FLIGHT_SPEED:
             fx.origin = self.spell_origin(team)
         self.effects.append(fx)
 
-    def _resolve_spell(self, team, card, x, y, evo=False):
+    def _resolve_spell(self, team, card, x, y, evo=False, boost=0):
         fwd = -1 if team == PLAYER else 1
         # spells hit harder at higher card levels (Levels waves: wave level)
         lp = self.level_power(team, card.key)
+        lvl = self.team_level.get(team) if team in self.team_power else \
+            self.card_level(team, card.key)
+        if boost:                                   # Mirror: one level higher
+            b = cards.level_mult(cards.LEVEL_BASE + boost)
+            lp = (lp[0] * b, lp[1] * b)
+            lvl = (lvl or cards.LEVEL_BASE) + boost
         if evo:
             evo_engine.on_spell(self, team, card, x, y, evo, lp)
         pw = lp[1]
-        lvl = self.team_level.get(team) if team in self.team_power else \
-            self.card_level(team, card.key)
-        # troop-dropping spell (Goblin Barrel)
+        if card.spell_kind:
+            self._special_spell(team, card, x, y, lp, lvl)
+            return
+        # troop-dropping spell (Goblin Barrel, Royal Delivery)
         if card.spawn_troops and not card.rolling:
+            if card.spell_damage:
+                self.area_damage(team, x, y, card.spell_radius,
+                                 card.spell_damage * pw, hit_air=True,
+                                 tower_damage=card.tower_dmg() * pw)
             self.spawn_units(team, card.spawn_troops[0], card.spawn_troops[1],
-                             x, y, deploy=0.0,
+                             x, y, deploy=0.25 if card.spell_damage else 0.0,
                              power=(card.sub_hp_mult * lp[0], card.sub_dmg_mult * lp[1]),
                              level=lvl)
             return
@@ -1611,6 +1986,62 @@ class Match:
                          slow=card.slow, tower_damage=card.tower_dmg() * pw,
                          knockback=card.knockback)
 
+    def _special_spell(self, team, card, x, y, lp, lvl):
+        """Void, Vines, Clone and Goblin Curse."""
+        k = card.spell_kind
+        pw = lp[1]
+        if k == "void":
+            fx = Effect("void", team, x, y, card.spell_radius, card.duration,
+                        dps=pw, card_key=card.key)
+            fx.tiers = card.void_tiers
+            fx.hits = card.hits
+            self.effects.append(fx)
+        elif k == "vines":
+            foes = [e for e in self.entities
+                    if e.alive and e.team != team and not e.card.untargetable
+                    and dist(x, y, e.x, e.y) <= card.spell_radius + e.radius * 0.5]
+            foes.sort(key=lambda e: -e.hp)
+            picked = foes[:card.pick]
+            for e in picked:
+                if e.is_tower:
+                    continue
+                e.root_timer = max(e.root_timer, card.duration)
+                if e.flying:
+                    e.flying = False          # dragged down to the ground
+                    e._grounded = True
+            fx = Effect("vines", team, x, y, card.spell_radius, card.duration,
+                        damage=card.spell_damage * pw, card_key=card.key,
+                        ends=tuple(picked))
+            fx.tower_damage = card.tower_dmg() * pw
+            fx.hits = card.hits
+            fx.points = [(e.x, e.y) for e in picked]
+            self.effects.append(fx)
+        elif k == "clone":
+            fwd = -1 if team == PLAYER else 1
+            for e in list(self.entities):
+                if (not e.alive or e.team != team or e.is_building or e.is_tower
+                        or e.card.is_champion or e.hero or e.clone
+                        or dist(x, y, e.x, e.y) > card.spell_radius + e.radius * 0.5):
+                    continue
+                cx = min(max(e.x + 0.45, 0.4), cfg.GRID_COLS - 0.4)
+                cy = min(max(e.y - fwd * 0.45, 0.4), cfg.GRID_ROWS - 0.4)
+                c = self.spawn_units(team, e.key, 1, cx, cy, deploy=0.0,
+                                     power=e.power, level=e.level)[0]
+                c.max_hp = c.hp = 1
+                c.shield = 1 if e.card.shield_hp else 0
+                c.clone = True
+                c.evo = e.evo
+                c.flying = e.flying
+                self.emit("portal", e.key, cx, cy, team)
+        elif k == "curse":
+            fx = Effect("poison", team, x, y, card.spell_radius, card.duration,
+                        dps=card.spell_damage * pw, card_key=card.key,
+                        building_mult=(card.tower_dmg() / card.spell_damage))
+            fx.curse = card.curse_on_hit
+            gob = cards.CARDS["goblin_gang"]
+            fx.curse_pow = (lp[0] * gob.sub_hp_mult, lp[1] * gob.sub_dmg_mult)
+            self.effects.append(fx)
+
     # ---- combat helpers ----------------------------------------------------
     def apply_hit(self, source, target, dmg, splash, stun=0.0, slow=None):
         if splash > 0:
@@ -1630,6 +2061,21 @@ class Match:
                 if slow:
                     target.slow_factor, target.slow_timer = slow
         else:
+            # Ronin's parry: blocks a ground melee hit and strikes back harder
+            pc = target.card.parry
+            if (pc and target.alive and target.parry_cd <= 0 and source.is_melee()
+                    and not source.flying and target.stun_timer <= 0
+                    and target.freeze_timer <= 0):
+                target.parry_cd = pc[0]
+                target.atk_t = self.elapsed
+                self.effects.append(Effect("aoe", target.team, source.x, source.y,
+                                           0.7, 0.3, card_key=target.key))
+                self.emit("attack", target.key, target.x, target.y, target.team)
+                prev = self._src, self._src_ent
+                self._src, self._src_ent = (target.team, target.key), target
+                source.take_damage(dmg * pc[1])
+                self._src, self._src_ent = prev
+                return
             if target.alive:
                 target.take_damage(dmg)
                 if stun:
@@ -1658,7 +2104,8 @@ class Match:
                 if slow:
                     e.slow_factor = slow[0]
                     e.slow_timer = slow[1]
-                if knockback and not (e.is_tower or e.is_building):
+                if (knockback and not (e.is_tower or e.is_building)
+                        and not e.card.no_knockback):
                     ox, oy = kb_from if kb_from is not None else (x, y)
                     dx, dy = e.x - ox, e.y - oy
                     dd = math.hypot(dx, dy) or 1.0

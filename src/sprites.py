@@ -34,7 +34,7 @@ BASE = sprite_art.BASE  # sprites are painted at 128x128, then scaled to fit
 
 # Bump this whenever the built-in art changes so it regenerates on next run.
 # Sprites you add yourself (not in the manifest) are never overwritten.
-SPRITE_VERSION = 9
+SPRITE_VERSION = 10
 
 # Main colour of each card. The game uses these to tint effects such as the
 # splash (AoE) rings, so they roughly match each card's art.
@@ -95,6 +95,26 @@ CARD_COLORS = {
     "skeleton_king": (120, 255, 140), "monk": (232, 120, 52),
     "goblinstein": (110, 214, 255), "boss_bandit": (255, 202, 58),
     "royal_guardian": (70, 110, 210), "goblin_monster": (110, 180, 96),
+    # v1.1
+    "berserker": (200, 80, 60), "firecracker": (255, 120, 80),
+    "goblin_gang": (110, 200, 80), "skeleton_dragons": (120, 255, 160),
+    "rascals": (80, 120, 210), "rascal_boy": (80, 120, 210),
+    "rascal_girl": (240, 120, 180), "royal_recruits": (66, 104, 196),
+    "royal_delivery": (230, 200, 120), "heal_spirit": (255, 236, 130),
+    "suspicious_bush": (90, 170, 70), "bush_goblin": (90, 170, 70),
+    "goblin_cage": (182, 120, 62), "goblin_brawler": (220, 60, 60),
+    "goblin_demolisher": (180, 60, 50), "demolisher_charge": (255, 146, 36),
+    "minion_giant": (150, 230, 80), "royal_hogs": (232, 156, 132),
+    "cursed_hog": (190, 110, 240), "mirror": (190, 226, 250),
+    "goblin_curse": (150, 220, 90), "clone": (140, 210, 255),
+    "vines": (110, 190, 70), "goblin_drill": (200, 209, 226),
+    "rune_giant": (255, 190, 70), "void": (170, 110, 250),
+    "fisherman": (240, 196, 60), "royal_ghost": (200, 220, 255),
+    "mother_witch": (170, 255, 120), "phoenix": (255, 146, 36),
+    "phoenix_reborn": (255, 146, 36), "phoenix_egg": (255, 150, 60),
+    "goblin_machine": (110, 118, 136), "ram_rider": (110, 160, 90),
+    "ronin": (40, 130, 110), "spirit_empress": (120, 200, 255),
+    "spirit_empress_air": (120, 200, 255),
 }
 
 # ---------------------------------------------------------------------------
@@ -128,6 +148,15 @@ SCALES = {
     "mighty_miner": 1.5, "archer_queen": 1.45, "little_prince": 1.3,
     "golden_knight": 1.45, "skeleton_king": 1.75, "monk": 1.5,
     "goblinstein": 1.35, "boss_bandit": 1.45,
+    # v1.1
+    "berserker": 1.25, "firecracker": 1.3, "rascal_girl": 1.1, "rascal_boy": 1.5,
+    "royal_recruits": 1.25, "heal_spirit": 1.05, "suspicious_bush": 1.15,
+    "bush_goblin": 1.1, "goblin_brawler": 1.35, "goblin_demolisher": 1.25,
+    "demolisher_charge": 1.25, "minion_giant": 1.7, "royal_hogs": 1.4,
+    "cursed_hog": 1.3, "rune_giant": 1.8, "fisherman": 1.4, "royal_ghost": 1.35,
+    "mother_witch": 1.3, "phoenix": 1.5, "phoenix_reborn": 1.5, "phoenix_egg": 1.0,
+    "goblin_machine": 1.75, "ram_rider": 1.6, "ronin": 1.4, "spirit_empress": 1.35,
+    "spirit_empress_air": 1.75, "skeleton_dragons": 1.4,
 }
 
 
@@ -145,7 +174,7 @@ def _build_sprite(card, force_count=None):
     """Paint a card. force_count=1 paints a single unit of a squad card."""
     unit = sprite_art.render_unit(card.key, card)
     count = force_count if force_count is not None else card.count
-    if card.category == "troop" and count > 1:
+    if card.category == "troop" and count > 1 and not card.mixed:
         return sprite_art.render_squad(unit, count)
     return unit
 
@@ -189,7 +218,7 @@ def ensure_sprites():
     jobs = []
     for key, card in cards.CARDS.items():
         jobs.append((key, card, None))
-        if card.category == "troop" and card.count > 1:
+        if card.category == "troop" and card.count > 1 and not card.mixed:
             jobs.append((key + "__u", card, 1))
     for name, card, fcount in jobs:
         path = os.path.join(SPRITE_DIR, name + ".png")

@@ -231,6 +231,19 @@ class FX:
             self.burst(x, y, 20, 90, 0.8, 5, (210, 214, 225), "dust", grow=8)
         elif key == "the_log":
             pass
+        elif key == "royal_delivery":
+            self.burst(x, y, 18, 140, 0.9, 3.5, (196, 150, 90), "debris", grav=330, up=120)
+            self.burst(x, y, 14, 70, 0.8, 7, (220, 200, 160), "dust", grow=10)
+            self.flash = max(self.flash, 0.15)
+        elif key == "void":
+            self.burst(x, y, 22, 120, 0.5, 2.5, (190, 120, 255), "spark")
+            self.burst(x, y, 8, 30, 0.9, 8, (60, 20, 90), "smoke", grow=10)
+        elif key == "vines":
+            self.burst(x, y, 16, 80, 0.7, 3, (110, 190, 70), "debris", grav=200, up=60)
+        elif key == "clone":
+            self.burst(x, y, 30, 110, 0.6, 2.5, (140, 210, 255), "spark", up=20)
+        elif key == "goblin_curse":
+            self.burst(x, y, 18, 80, 0.8, 3, (150, 220, 90), "bubble")
 
     # ------------------------------------------------------------ update
     def update(self, dt, match=None):
@@ -447,7 +460,55 @@ class FX:
         if k == "log":
             self._draw_log(surf, fx)
             return True
+        if k == "void":
+            self._draw_void(surf, fx)
+            return True
+        if k == "vines":
+            self._draw_vines(surf, fx)
+            return True
         return False
+
+    def _draw_void(self, surf, fx):
+        x, y = t2p(fx.x, fx.y)
+        R = fx.radius * TS
+        f = min(1.0, fx.elapsed / 0.3) * min(1.0, (fx.duration - fx.elapsed) / 0.3 + 0.2)
+        self._blit_circle(surf, x, y, R, (30, 10, 50), 120 * f)
+        self._blit_circle(surf, x, y, R * 0.55, (80, 30, 130), 90 * f)
+        for ring in range(3):                 # inward-spiralling arcs
+            rr = R * (0.35 + 0.3 * ring)
+            for i in range(4):
+                a0 = self.now * (3 + ring) + i * math.tau / 4 + ring
+                pygame.draw.arc(surf, (180, 120, 255), (x - rr, y - rr, 2 * rr, 2 * rr),
+                                a0, a0 + 0.8, 2)
+        # charge-up glow before each strike
+        step = fx.duration / max(getattr(fx, "hits", 3), 1)
+        ph = (fx.elapsed % step) / step
+        self._blit_circle(surf, x, y, R * 0.25 * ph, (230, 200, 255), 160 * ph)
+        pygame.draw.circle(surf, (170, 110, 250), (int(x), int(y)), int(R), 2)
+
+    def _draw_vines(self, surf, fx):
+        x, y = t2p(fx.x, fx.y)
+        prog = min(1.0, fx.elapsed / 0.25)
+        fade = min(1.0, (fx.duration - fx.elapsed) / 0.3)
+        r = random.Random(id(fx) & 0xFFFF)
+        for (tx, ty) in fx.points:
+            px, py = t2p(tx, ty)
+            # a thorny tendril curling out of the ground to each target
+            pts = []
+            for i in range(9):
+                t = i / 8 * prog
+                wob = math.sin(t * 9 + r.random() * 6) * 6 * (1 - t)
+                pts.append((_lerp(x, px, t) + wob, _lerp(y, py, t) - math.sin(t * math.pi) * 10))
+            if len(pts) >= 2:
+                pygame.draw.lines(surf, (40, 90, 30), False, pts, 6)
+                pygame.draw.lines(surf, (110, 190, 70), False, pts, 3)
+            # binding loops around the target
+            for k in range(3):
+                a0 = self.now * 2 + k * 2.1
+                pygame.draw.arc(surf, (90, 170, 60), (px - 12, py - 6 - k * 3, 24, 12),
+                                a0, a0 + 3.6, 3)
+            if fade < 1:
+                self._blit_circle(surf, px, py, 10, (110, 190, 70), 80 * fade)
 
     def _target_ring(self, surf, fx, col, prog):
         x, y = t2p(fx.x, fx.y)
@@ -567,6 +628,26 @@ class FX:
         if k in ("the_log", "barbarian_barrel"):
             self._target_ring(surf, fx, (190, 140, 80), prog)
             return True
+        if k == "royal_delivery":
+            # the crate falls out of the sky: growing shadow, then the box
+            self._target_ring(surf, fx, (230, 200, 120), prog)
+            self._blit_circle(surf, x, y, 4 + 10 * prog, (0, 0, 0), 50 + 90 * prog)
+            if prog > 0.55:
+                h = (1 - prog) / 0.45 * 120
+                bx, by = int(x), int(y - h)
+                pygame.draw.line(surf, (240, 240, 240), (bx - 10, by - 18), (bx, by - 6), 1)
+                pygame.draw.line(surf, (240, 240, 240), (bx + 10, by - 18), (bx, by - 6), 1)
+                pygame.draw.ellipse(surf, (220, 60, 60), (bx - 16, by - 30, 32, 16))
+                rect = pygame.Rect(bx - 9, by - 8, 18, 16)
+                pygame.draw.rect(surf, (176, 120, 64), rect)
+                pygame.draw.rect(surf, (90, 60, 30), rect, 2)
+                pygame.draw.line(surf, (90, 60, 30), rect.topleft, rect.bottomright, 2)
+            return True
+        if k in ("void", "vines", "clone", "goblin_curse"):
+            col = {"void": (170, 110, 250), "vines": (110, 190, 70),
+                   "clone": (140, 210, 255), "goblin_curse": (150, 220, 90)}[k]
+            self._target_ring(surf, fx, col, prog)
+            return True
         return False
 
     def _draw_blast(self, surf, fx):
@@ -628,14 +709,38 @@ class FX:
                                int(R * (0.4 + 0.8 * prog)), max(1, int(3 * (1 - prog))))
             return True
         if k in ("poison", "earthquake", "rage", "graveyard", "tornado", "the_log",
-                 "barbarian_barrel"):
+                 "barbarian_barrel", "goblin_curse", "vines"):
             return True            # the lingering zone draws itself
+        if k == "void":
+            pygame.draw.circle(surf, (230, 200, 255), (int(x), int(y)),
+                               int(R * (0.2 + 0.9 * prog)), max(1, int(5 * (1 - prog))))
+            self._blit_circle(surf, x, y, R * 0.6, (200, 160, 255), 160 * (1 - prog))
+            return True
+        if k == "clone":
+            self._blit_circle(surf, x, y, R * (0.5 + 0.5 * prog), (150, 215, 255), 120 * (1 - prog))
+            pygame.draw.circle(surf, (220, 245, 255), (int(x), int(y)),
+                               int(R * (0.6 + 0.4 * prog)), max(1, int(3 * (1 - prog))))
+            return True
+        if k == "royal_delivery":
+            pygame.draw.circle(surf, (240, 220, 160), (int(x), int(y)),
+                               int(R * (0.3 + 0.8 * prog)), max(1, int(4 * (1 - prog))))
+            return True
         return False
 
     def _draw_poison(self, surf, fx):
         x, y = t2p(fx.x, fx.y)
         R = fx.radius * TS
         f = min(1.0, fx.elapsed / 0.3) * min(1.0, (fx.duration - fx.elapsed) / 0.4)
+        if fx.card_key == "goblin_curse":
+            # sickly goblin-green fog with drifting skull-ish wisps
+            self._blit_circle(surf, x, y, R, (60, 90, 40), 80 * f)
+            for i in range(8):
+                a = -self.now * 0.6 + i * math.tau / 8
+                d = R * (0.5 + 0.2 * math.sin(self.now * 1.7 + i))
+                self._blit_circle(surf, x + math.cos(a) * d, y + math.sin(a) * d, R * 0.22,
+                                  (150, 210, 80), 55 * f)
+            pygame.draw.circle(surf, (170, 235, 90), (int(x), int(y)), int(R), 2)
+            return
         self._blit_circle(surf, x, y, R, (70, 130, 40), 70 * f)
         self._blit_circle(surf, x, y, R * 0.7, (110, 170, 50), 50 * f)
         for i in range(10):     # swirling haze blobs

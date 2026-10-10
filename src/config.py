@@ -193,6 +193,8 @@ SPELL_CAST_DELAY     = 0.8
 SPELL_CAST_TIMES     = {
     "zap": 0.35, "the_log": 0.2, "arrows": 0.9, "fireball": 0.7,
     "rage": 0.35, "freeze": 0.65, "poison": 0.6, "rocket": 1.0, "lightning": 0.6,
+    "royal_delivery": 3.0, "void": 0.5, "vines": 0.5, "clone": 0.4,
+    "goblin_curse": 0.5,
 }
 
 # Thrown spells fly from the caster's KING TOWER to the target, so you can see

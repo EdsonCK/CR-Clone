@@ -58,6 +58,9 @@ SPELL_FX_COLORS = {
     "goblin_barrel": (150, 110, 70), "barbarian_barrel": (160, 115, 72),
     "snowball": (200, 230, 250), "earthquake": (190, 140, 70),
     "tornado": (190, 195, 205), "graveyard": (150, 90, 190),
+    "royal_delivery": (230, 200, 120), "void": (170, 110, 250),
+    "vines": (110, 190, 70), "clone": (140, 210, 255),
+    "goblin_curse": (150, 220, 90),
 }
 
 # Themed projectile visuals, keyed by the SHOOTER's card key -> (kind, color).
@@ -94,6 +97,17 @@ PROJ_STYLES = {
     "royal_giant":    ("cannonball", (65, 62, 72)),
     "cannon":         ("cannonball", (65, 62, 72)),
     "xbow":           ("xbolt", (235, 225, 205)),
+    "firecracker":    ("firework", (255, 120, 80)),
+    "firecracker_spark": ("spark", (255, 210, 90)),
+    "goblin_machine_rocket": ("rocket", (220, 80, 60)),
+    "goblin_demolisher": ("bomb", (70, 70, 80)),
+    "skeleton_dragons": ("fire", (120, 255, 160)),
+    "minion_giant":   ("toxin", (150, 230, 80)),
+    "mother_witch":   ("magic", (170, 255, 140)),
+    "rascal_girl":    ("pellet", (200, 160, 110)),
+    "ram_rider_bola": ("bola", (210, 190, 150)),
+    "spirit_empress_air": ("zap", (150, 220, 255)),
+    "ronin":          ("bullet", (255, 255, 255)),
 }
 
 
@@ -103,6 +117,8 @@ STEEL_COL = (225, 228, 236)
 CHAIN_COLORS = {
     "golden_knight": (255, 210, 80),
     "goblinstein": (150, 255, 170),
+    "fisherman": (205, 190, 160),      # anchor rope
+    "rune_giant": (255, 190, 70),      # enchantment
 }
 
 
@@ -2272,8 +2288,10 @@ class Game(ModesMixin, ScreensMixin):
         """While a card is selected, tint the tiles you can't deploy on."""
         if self.selected is None or self.match is None:
             return
-        key = self.match.hands[PLAYER][self.selected]
-        if cards.CARDS[key].category == "spell":
+        key = self.match.play_key(PLAYER, self.match.hands[PLAYER][self.selected])
+        if key is None:
+            return
+        if cards.CARDS[key].category == "spell" and not cards.CARDS[key].own_side:
             return
         ts = cfg.TILE_SIZE
         tint = getattr(self, "_nodeploy_tile", None)
@@ -2344,7 +2362,11 @@ class Game(ModesMixin, ScreensMixin):
                 a = int(110 * min(1.0, e.hurt / 0.14))
                 spr.fill((a, a, a), special_flags=pygame.BLEND_RGB_ADD)
             if cloaked or e.immune_timer > 0:
-                spr.set_alpha(110 if cloaked else 200)
+                spr.set_alpha((110 if e.team == PLAYER else 70) if cloaked else 200)
+        if e.clone:                               # Clone spell copies: icy blue
+            spr = spr.copy()
+            spr.fill((0, 60, 110), special_flags=pygame.BLEND_RGB_ADD)
+            spr.set_alpha(185)
         # feet stay planted when squashing: anchor on the bottom centre
         bx = px + ox - spr.get_width() // 2
         by = py + oy + size // 2 - (spr.get_height() + int(size * sy)) // 2
@@ -2397,6 +2419,19 @@ class Game(ModesMixin, ScreensMixin):
                 col = (255, 150, 50) if lit else (60, 60, 70)
                 pygame.draw.circle(self.screen, col, (xx, y0), 3)
         # status tint markers
+        if e.root_timer > 0:                      # Vines
+            pygame.draw.circle(self.screen, (90, 170, 60), (int(px), int(py)), size // 2 + 2, 3)
+        if e.curse_t > 0:                          # cursed: little purple wisps
+            t = self._now() * 4 + e.anim_seed * 5
+            for k in range(3):
+                a = t + k * 2.09
+                pygame.draw.circle(self.screen, (190, 110, 240),
+                                   (int(px + math.cos(a) * size * 0.42),
+                                    int(py + math.sin(a) * size * 0.2 - size * 0.1)), 2)
+        if e.rune_t > 0:                           # Rune Giant enchantment
+            nxt = (e.rune_n % getattr(e, "rune_every", 3)) == getattr(e, "rune_every", 3) - 1
+            col = (255, 220, 90) if nxt else (230, 150, 50)
+            pygame.draw.circle(self.screen, col, (int(px + size * 0.38), int(py - size * 0.3)), 3)
         if e.freeze_timer > 0:
             pygame.draw.circle(self.screen, (150, 220, 255), (int(px), int(py)), size // 2 + 2, 2)
         elif e.stun_timer > 0:
@@ -2422,16 +2457,19 @@ class Game(ModesMixin, ScreensMixin):
     for _k in ("giant", "golem", "golemite", "pekka", "mega_knight", "giant_skeleton",
                "royal_giant", "electro_giant", "goblin_giant", "ice_golem", "elixir_golem",
                "elixir_golemite", "goblin_monster", "boss_bandit", "monk", "bowler",
-               "skeleton_king"):
+               "skeleton_king", "rune_giant", "goblin_machine", "rascal_boy",
+               "goblin_brawler"):
         ANIM_STYLE[_k] = "stomp"
     for _k in ("skeletons", "skeleton", "skeleton_army", "goblins", "goblin",
                "spear_goblins", "spear_goblin", "guards", "wall_breakers", "dart_goblin",
-               "bomber", "elixir_blob", "zappies", "rascals"):
+               "bomber", "elixir_blob", "zappies", "rascals", "goblin_gang",
+               "bush_goblin", "demolisher_charge", "rascal_girl", "firecracker",
+               "goblin_demolisher", "berserker"):
         ANIM_STYLE[_k] = "scurry"
     for _k in ("fire_spirit", "ice_spirit", "electro_spirit", "heal_spirit"):
         ANIM_STYLE[_k] = "hop"
     for _k in ("hog_rider", "prince", "dark_prince", "battle_ram", "cannon_cart",
-               "ram_rider", "royal_hogs"):
+               "ram_rider", "royal_hogs", "cursed_hog"):
         ANIM_STYLE[_k] = "gallop"
     for _k in ("wizard", "witch", "night_witch", "electro_wizard", "ice_wizard",
                "magic_archer", "goblinstein", "mother_witch", "battle_healer"):
@@ -2439,13 +2477,17 @@ class Game(ModesMixin, ScreensMixin):
     for _k in ("valkyrie",):
         ANIM_STYLE[_k] = "spinner"
     for _k in ("bandit", "golden_knight", "lumberjack", "mini_pekka", "royal_guardian",
-               "mighty_miner"):
+               "mighty_miner", "ronin", "fisherman", "spirit_empress", "royal_ghost",
+               "royal_recruits"):
         ANIM_STYLE[_k] = "dasher"
     for _k in ("balloon",):
         ANIM_STYLE[_k] = "balloon"
     for _k in ("lava_hound", "lava_pup", "baby_dragon", "inferno_dragon",
-               "electro_dragon"):
+               "electro_dragon", "skeleton_dragons", "phoenix", "phoenix_reborn",
+               "minion_giant", "spirit_empress_air"):
         ANIM_STYLE[_k] = "bigwing"
+    for _k in ("suspicious_bush",):
+        ANIM_STYLE[_k] = "hop"
     for _k in ("miner",):
         ANIM_STYLE[_k] = "burrow"
     del _k
@@ -3009,6 +3051,33 @@ class Game(ModesMixin, ScreensMixin):
         elif kind == "cannonball":
             pygame.draw.circle(self.screen, col, (px, py), 5)
             pygame.draw.circle(self.screen, lt_c(col, 50), (px - 1, py - 2), 1)
+        elif kind in ("firework", "rocket"):
+            ln = 9 if kind == "firework" else 11
+            tail = (px - ax * ln, py - ay * ln)
+            pygame.draw.line(self.screen, col, tail, (px, py), 4)
+            pygame.draw.circle(self.screen, (250, 250, 250), (px, py), 2)
+            fl = 3 + int(2 * math.sin(t * 50))
+            pygame.draw.circle(self.screen, (255, 210, 90),
+                               (int(tail[0] - ax * 2), int(tail[1] - ay * 2)), fl)
+            if kind == "firework":
+                for i in range(2):
+                    pygame.draw.circle(self.screen, (255, 240, 160),
+                                       (int(tail[0] - ax * (5 + i * 4) + math.sin(t * 30 + i) * 2),
+                                        int(tail[1] - ay * (5 + i * 4))), 1)
+        elif kind == "spark":
+            pygame.draw.line(self.screen, col, (px - ax * 5, py - ay * 5), (px, py), 3)
+            pygame.draw.circle(self.screen, (255, 255, 220), (px, py), 2)
+        elif kind == "toxin":
+            pygame.draw.circle(self.screen, dk_c(col, 50),
+                               (int(px - ax * 5), int(py - ay * 5)), 3)
+            pygame.draw.circle(self.screen, col, (px, py), 5)
+            pygame.draw.circle(self.screen, lt_c(col, 60), (px - 1, py - 2), 2)
+        elif kind == "bola":
+            a = t * 18
+            ox, oy = math.cos(a) * 5, math.sin(a) * 5
+            pygame.draw.line(self.screen, (120, 90, 60), (px - ox, py - oy), (px + ox, py + oy), 1)
+            pygame.draw.circle(self.screen, col, (int(px - ox), int(py - oy)), 3)
+            pygame.draw.circle(self.screen, col, (int(px + ox), int(py + oy)), 3)
         else:
             pygame.draw.circle(self.screen, col, (px, py), 3)
 
@@ -3045,13 +3114,15 @@ class Game(ModesMixin, ScreensMixin):
             ghost = sprites.get_sprite(key, 44).copy()
             ghost.set_alpha(170)
             self.screen.blit(ghost, (mx - 22, my - 50))
-        card = cards.CARDS[key]
+        cost = self.match.card_cost(PLAYER, key)
+        pkey = self.match.play_key(PLAYER, key) or key
+        card = cards.CARDS[pkey]
         mx, my = pygame.mouse.get_pos()
         if my > cfg.ARENA_Y0 + cfg.ARENA_PX_H:
             return
         tx, ty = px_to_tile(mx, my)
-        ok = (self.match.elixir[PLAYER] >= card.elixir
-              and self.match.can_place(PLAYER, key, tx, ty))
+        ok = (cost is not None and self.match.elixir[PLAYER] >= cost
+              and self.match.can_place(PLAYER, pkey, tx, ty))
         color = (90, 220, 90) if ok else (220, 80, 80)
         if card.category == "spell" and card.spell_radius > 0:
             rad = int(card.spell_radius * cfg.TILE_SIZE)
@@ -3156,7 +3227,8 @@ class Game(ModesMixin, ScreensMixin):
                 continue
             key = m.hands[PLAYER][i]
             card = cards.CARDS[key]
-            affordable = el >= card.elixir
+            cost = m.card_cost(PLAYER, key)
+            affordable = cost is not None and el >= cost
             sel = (self.selected == i)
             # slot with shadow + gradient
             pygame.draw.rect(self.screen, (16, 18, 26), r.move(0, 3), border_radius=9)
@@ -3186,8 +3258,8 @@ class Game(ModesMixin, ScreensMixin):
             pygame.draw.circle(self.screen, dk_c(cfg.COLOR_ELIXIR, 40),
                                (r.x + 11, r.y + 12), 10)
             pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.x + 10, r.y + 11), 9)
-            self._text(str(card.elixir), self.font_s, (255, 255, 255),
-                       center=(r.x + 10, r.y + 11))
+            self._text("?" if cost is None else str(cost), self.font_s,
+                       (255, 255, 255), center=(r.x + 10, r.y + 11))
             self._text(self._fit(card.name, self.font_s, r.w - 6), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
             if evo_p is not None:

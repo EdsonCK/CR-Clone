@@ -436,6 +436,18 @@ ATTACK_FAMILY = {
     # melee
     "mighty_miner": "drill", "miner": "clank", "battle_healer": "heal",
     "monk": "punch", "hog_rider": "smash", "battle_ram": "smash",
+    # v1.1 cards
+    "firecracker": "firework", "firecracker_spark": "firework",
+    "goblin_machine_rocket": "rocket", "goblin_machine": "clank",
+    "skeleton_dragons": "fire", "phoenix": "fire", "phoenix_reborn": "fire",
+    "rascal_girl": "sling", "rascal_boy": "punch", "goblin_brawler": "punch",
+    "royal_recruits": "stab", "bush_goblin": "stab", "berserker": "stab",
+    "heal_spirit": "healburst", "suspicious_bush": "rustle",
+    "goblin_demolisher": "lob", "demolisher_charge": "explode",
+    "minion_giant": "toxin", "mother_witch": "magic", "royal_ghost": "ghost",
+    "ronin": "katana", "rune_giant": "runehammer", "fisherman": "slap",
+    "royal_hogs": "smash", "cursed_hog": "smash", "ram_rider": "smash",
+    "spirit_empress": "katana", "spirit_empress_air": "zap",
 }
 
 HEAVY = {"pekka", "mega_knight", "giant_skeleton", "golem", "golemite", "giant",
@@ -560,6 +572,46 @@ def make_attack(c):
         sig = s_clang(520 * p, 0.55, sd, 1.0)
         mix_into(sig, s_thud(80 * p, 0.4, sd), 0, 0.8)
         mix_into(sig, s_whoosh(0.25, 300, 1400, sd, 0.6), 0, 1.0)
+    elif fam == "firework":
+        # a fizzing launch, then a crackle of sparks
+        sig = s_whoosh(0.22, 900 * p, 3200 * p, sd, 0.7)
+        r2 = random.Random(sd)
+        for i in range(6):
+            mix_into(sig, highpass(noise(0.03, decay=0.025, seed=sd + i), 2500),
+                     0.12 + r2.uniform(0, 0.18), 0.7)
+    elif fam == "rocket":
+        sig = lowpass(noise(0.4, attack=0.03, decay=0.35, seed=sd, color="brown"), 1800)
+        sig = gain(sig, 2.2)
+        mix_into(sig, tone(160 * p, 0.35, 420 * p, wave_="saw", decay=0.3, vol=0.18), 0)
+    elif fam == "sling":
+        sig = s_twang(520 * p, 0.14, sd)
+        mix_into(sig, s_whoosh(0.1, 1500, 3800, sd, 0.4), 0.02, 1.0)
+    elif fam == "toxin":
+        # a wet, gurgling retch
+        sig = tone(220 * p, 0.3, 120 * p, wave_="saw", decay=0.28, vol=0.25, vib=0.08)
+        sig = lowpass(sig, 1200)
+        mix_into(sig, bandpass(noise(0.3, decay=0.25, seed=sd), 700 * p, 2), 0, 1.6)
+    elif fam == "ghost":
+        sig = s_whoosh(0.35, 250 * p, 900 * p, sd, 0.9)
+        mix_into(sig, tone(620 * p, 0.35, 480 * p, wave_="triangle", attack=0.05,
+                           decay=0.3, vol=0.2, vib=0.04), 0, 1.0)
+        mix_into(sig, s_clang(800 * p, 0.25, sd, 0.6), 0.05, 0.5)
+    elif fam == "katana":
+        sig = s_whoosh(0.16, 1200 * p, 5200 * p, sd, 0.9)
+        mix_into(sig, s_clang(1900 * p, 0.3, sd, 1.0), 0.03, 0.55)
+    elif fam == "runehammer":
+        sig = s_thud(90 * p, 0.35, sd, 1.0)
+        mix_into(sig, s_clang(640 * p, 0.35, sd, 0.8), 0, 0.6)
+        mix_into(sig, s_chime(988 * p, (0, 7), 0.05, 0.3), 0.04, 0.3)
+    elif fam == "healburst":
+        sig = s_chime(1046 * p, (0, 4, 7, 12), 0.05, 0.6)
+        mix_into(sig, s_whoosh(0.3, 800, 3000, sd, 0.4), 0, 1.0)
+    elif fam == "rustle":
+        sig = bandpass(noise(0.35, attack=0.02, decay=0.3, seed=sd), 2600 * p, 1.5)
+        mix_into(sig, s_voice(400 * p, 2, 0.15, sd), 0.15, 0.6)
+    elif fam == "slap":
+        sig = s_thud(150 * p, 0.2, sd)
+        mix_into(sig, bandpass(noise(0.12, decay=0.1, seed=sd), 1800 * p, 2), 0, 1.4)
     elif fam == "stab":
         sig = s_clang(1500 * p, 0.15, sd, 0.6)
         if c.key in UNDEAD:
@@ -719,6 +771,40 @@ def make_spell(c):
         cast = s_whoosh(0.3, 600, 2400, sd, 0.6)
         hit = lowpass(noise(0.35, decay=0.3, seed=sd), 1800)
         mix_into(hit, s_thud(140, 0.2, sd), 0, 0.6)
+    elif k == "royal_delivery":
+        cast = s_brass(262, 0.5, (0, 4, 7))                       # royal fanfare
+        hit = s_thud(90, 0.4, sd)
+        mix_into(hit, s_clang(520, 0.25, sd, 0.5), 0, 0.5)        # crate cracks
+        mix_into(hit, s_explosion(0.7, sd, 0.4), 0, 0.6)
+    elif k == "void":
+        cast = tone(70, 0.7, 45, wave_="saw", attack=0.2, decay=0.5, vol=0.4, vib=0.05)
+        cast = lowpass(cast, 700)
+        hit = s_zap(420, 0.4, sd)
+        mix_into(hit, lowpass(noise(0.5, decay=0.45, seed=sd, color="brown"), 500), 0, 2.0)
+        mix_into(hit, tone(55, 0.5, 35, decay=0.45, vol=0.6), 0)
+    elif k == "vines":
+        cast = bandpass(noise(0.4, attack=0.05, decay=0.35, seed=sd), 1800, 1.5)
+        hit = []
+        r = random.Random(sd)
+        for i in range(6):                                         # creaks + snaps
+            mix_into(hit, tone(r.uniform(150, 300), 0.18, r.uniform(90, 140),
+                               wave_="saw", decay=0.16, vol=0.3), i * 0.07)
+            mix_into(hit, s_thud(r.uniform(160, 260), 0.07, sd + i, 0.5), i * 0.07, 0.5)
+        hit = lowpass(hit, 2200)
+    elif k == "clone":
+        cast = s_shimmer(1200, 0.4, sd, 4)
+        hit = s_chime(784, (0, 7, 12, 19), 0.05, 0.6)
+        mix_into(hit, s_shimmer(2000, 0.6, sd + 1, 6), 0, 0.6)
+    elif k == "goblin_curse":
+        cast = s_voice(300, 4, 0.3, sd, growl=0.2)
+        hit = []
+        for i, semi in enumerate((0, 1, 6)):
+            mix_into(hit, tone(220 * 2 ** (semi / 12), 1.0, wave_="triangle",
+                               attack=0.1, vib=0.02, vol=0.28), i * 0.05)
+        mix_into(hit, s_voice(520, 2, 0.25, sd + 1), 0.4, 0.5)    # goblin cackle
+    elif k == "mirror":
+        cast = s_shimmer(1800, 0.5, sd, 6)
+        hit = s_chime(1318, (0, 7, 12), 0.04, 0.4)
     else:
         cast = s_whoosh(0.3, 400, 2000, sd, 0.8)
         hit = s_explosion(0.8, sd, 0.6)
@@ -915,8 +1001,11 @@ def _jobs():
             jobs.append((key + "_attack", (lambda c=c: make_attack(c))))
             if c.deployable:
                 jobs.append((key + "_deploy", (lambda c=c: make_deploy(c))))
-    # towers attack too
-    for tk in ("princess_tower", "king_tower"):
+    # forms that appear mid-match announce themselves too
+    for key in ("spirit_empress_air", "demolisher_charge", "phoenix_reborn"):
+        jobs.append((key + "_deploy", (lambda c=cards.CARDS[key]: make_deploy(c))))
+    # towers attack too (and a few secondary weapons)
+    for tk in ("princess_tower", "king_tower", "goblin_machine_rocket"):
         fake = cards.CardDef(tk, tk, 0, hp=3000)
         jobs.append((tk + "_attack", (lambda c=fake: make_attack(c))))
     jobs.append(("_extras", make_extras))
