@@ -1194,8 +1194,8 @@ for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
 LEVEL_POWER = {
     "iron_legion": 0.92, "barbarian_raid": 0.86, "royal_court": 0.87,
     "rogues_den": 0.96, "spark_and_storm": 0.83, "hog_stampede": 0.86,
-    "pyromancers": 1.05, "graveyard_shift": 0.8, "marksmen": 0.93,
-    "miners_strike": 0.97, "dragons_lair": 0.93, "siege_engines": 1.12,
+    "pyromancers": 1.05, "graveyard_shift": 0.85, "marksmen": 0.93,
+    "miners_strike": 0.97, "dragons_lair": 0.93, "siege_engines": 1.0,
     "splash_zone": 0.9, "champions_arena": 0.97, "final_siege": 0.84,
     "goblin_uprising": 1.11, "royal_parade": 0.95, "spirit_grove": 1.22,
     "witching_hour": 1.23, "rascal_alley": 1.1, "rune_forge": 0.94,
