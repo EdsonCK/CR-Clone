@@ -157,8 +157,9 @@ it).
 **Evolutions** - an unlocked Evolution in an EVO slot comes out *evolved*
 whenever its charge is full: its card glows purple in your hand, and the
 troop gets a purple aura and its extra ability. Playing it normally refills
-the charge (1 or 2 plays, shown as pips on the card). The first copy you play
-in a match is always evolved.
+the charge (1 or 2 plays, shown as pips on the card). As in Clash Royale the
+charge starts empty: the first copy you play in a match is the normal card,
+and the Evolution only comes out once you've cycled it.
 
 | Card | Cycles | Evolution |
 |---|---|---|
@@ -527,11 +528,31 @@ are in `SPELL_FLIGHT_SPEED` in `config.py`). Every spell has its own
 telegraph, impact and lingering look (scorch marks, frost, arrows stuck in
 the ground, earthquake cracks, poison haze...). See `src/fx.py`.
 
-Melee troops wind up for **half** their hit speed after engaging a new
-target before their first hit lands (`MELEE_FIRST_HIT_FRAC` in `config.py`;
-a card's `first_hit` field overrides it - Balloon, Golem and Golemites use
-1.0s). Ranged troops fire straight away, spirits explode on contact, and a
-finished charge hits on impact.
+Every troop and building has its real-game **first hit speed**: the wind-up
+between locking onto a new target and its first hit (Valkyrie 0.1s, Knight
+0.5s, Musketeer 0.7s, Golem 1s... the `FIRST_HIT` table in `src/cards.py`;
+cards not listed use half their hit speed, `MELEE_FIRST_HIT_FRAC`). A stun
+interrupts the attack, so the wind-up starts over - and Sparky has to charge
+her whole shot again. Spirits explode on contact and a finished charge hits
+on impact.
+
+**Charging** (Prince, Dark Prince, Battle Ram, Ram Rider): they walk at their
+normal Medium speed, and after 3 tiles without attacking they charge at Very
+Fast speed with a double-damage first hit. Stuns, freezes and knockback
+cancel the charge.
+
+**Buildings** lose health over their lifetime - health *is* the clock, so
+every point of damage they take shortens the time they have left (the
+health bar shows both). They also take a moment to deploy (1s; Mortar and
+X-Bow 3.5s, Golem 3s among troops). The Tesla hides underground while idle:
+troops can't target it, only spells.
+
+**Siege**: the X-Bow and Mortar lock onto the first ground target in range -
+troops or buildings - and stay on it until it dies or leaves range. The
+Mortar can't hit anything within 3.5 tiles.
+
+The **Battle Ram** breaks the moment it hits a building, leaving its two
+Barbarians; only the Evolved Battle Ram bounces off and keeps ramming.
 
 ## Swapping in your own art
 
@@ -648,7 +669,7 @@ drops a Fire Spirit every 7 seconds.
 ## Notes / simplifications
 
 - Some ultra-unique mechanics are approximated to keep the engine readable
-  (e.g. charge, shields, dashes and champion abilities are simplified). Tune or extend
+  (e.g. shields, dashes and champion abilities are simplified). Tune or extend
   them in `engine.py` if you want more fidelity.
 - Collisions are soft (overlaps are pushed apart over a few frames rather
   than being hard walls), and path-finding only steers around the one

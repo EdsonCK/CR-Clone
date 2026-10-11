@@ -10,8 +10,8 @@ screen, shards), then put the card in one of your deck's two EVO SLOTS (the
 first two deck slots). In a match the card has to "cycle": each time you play
 it normally it gains a charge, and once it has `cycles` charges the next copy
 you play comes out EVOLVED (glowing purple card in your hand, purple aura on
-the troop). Then it starts charging again. Charges start full, so your first
-copy is already evolved - just like the real game.
+the troop). Then it starts charging again. Charges start EMPTY, so your
+first copy is always the normal card - just like the real game.
 
 HEROES
 ------

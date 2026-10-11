@@ -40,9 +40,11 @@ splash       : splash damage radius in tiles (0 = single target).
 death_spawn  : (unit_key, count)      -> spawn units when this dies.
 death_damage : (radius, damage)       -> explode when this dies.
 spawner      : (unit_key, count, secs)-> building periodically spawns units.
-lifetime     : seconds a building lives before decaying.
+lifetime     : seconds a building lives. It loses max_hp / lifetime hp every
+               second, so damage taken shortens its remaining time.
 generates_elixir : (amount, seconds)  -> elixir collector.
-charge       : True -> deals bonus damage on its first hit after moving.
+charge       : True -> after walking 3 tiles it charges: Very Fast, and its
+               next hit deals charge_mult damage. Stuns/knockback reset it.
 first_hit    : melee only - seconds of wind-up before the first hit on a new
                target. Default: MELEE_FIRST_HIT_FRAC (half) of hit_speed.
 mass         : how hard the unit is to push around (collisions). Default is
@@ -118,6 +120,14 @@ class CardDef:
     generates_elixir: Optional[Tuple[float, float]] = None
     charge: bool = False
     charge_mult: float = 2.0
+    charge_speed: float = 1.0   # x Very Fast while charging (chargers only)
+    breaks_on_hit: bool = False # Battle Ram: breaks on its first building hit
+    min_range: float = 0.0      # blind spot: can't hit targets this close (Mortar)
+    stun_reload: bool = False   # a stun restarts its whole reload (Sparky)
+    deploy_time: Optional[float] = None  # seconds before it acts once placed
+                                #   (default config.DEPLOY_TIME = 1s)
+    windup: Optional[float] = None  # ranged: seconds before the first shot
+                                #   on a new target (Firecracker)
     first_hit: Optional[float] = None   # melee wind-up override (seconds)
     mass: Optional[float] = None        # collision weight override
     shield_hp: int = 0
@@ -305,10 +315,10 @@ _CARD_LIST = [
             hp=48, damage=27, hit_speed=1.1, range=5.0, speed=SPEED_VERY_FAST,
             count=3, attacks=AG, spawn_radius=0.7),
     CardDef("bats", "Bats", 2, rarity="common",
-            hp=31, damage=30, hit_speed=1.1, range=0.9, speed=SPEED_FAST,
+            hp=31, damage=30, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             count=5, attacks=AG, flying=True, spawn_radius=0.9),
     CardDef("skeleton_barrel", "Skeleton Barrel", 3, rarity="common",
-            hp=420, damage=0, hit_speed=1.0, range=0.9, speed=SPEED_MEDIUM,
+            hp=420, damage=0, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
             count=1, attacks=B, flying=True,
             death_spawn=("skeleton", 6),
             sub_hp_mult=1.35, sub_dmg_mult=1.18),
@@ -343,7 +353,7 @@ _CARD_LIST = [
             attacks=AG, splash=1.4),
     CardDef("witch", "Witch", 5, rarity="epic",
             hp=498, damage=97, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
-            attacks=AG, splash=1.2, spawner=("skeleton", 4, 7.0),
+            attacks=AG, splash=1.2, spawner=("skeleton", 4, 5.0), spawn_first=1.0,
             sub_hp_mult=1.08, sub_dmg_mult=1.08),
             # witch: 4 skeletons every 7s
     CardDef("pekka", "P.E.K.K.A", 7, rarity="epic",
@@ -384,7 +394,7 @@ _CARD_LIST = [
     CardDef("golem", "Golem", 8, rarity="epic",
             hp=3599, damage=258, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 260), death_spawn=("golemite", 2),
-            sub_hp_mult=0.86, sub_dmg_mult=0.92, first_hit=1.0),
+            sub_hp_mult=0.86, sub_dmg_mult=0.92, first_hit=1.0, deploy_time=3.0),
 
     # -------------------- AIR TROOPS --------------------
     CardDef("minions", "Minions", 3, rarity="common",
@@ -394,13 +404,13 @@ _CARD_LIST = [
             hp=69, damage=32, hit_speed=1.0, range=2.0, speed=SPEED_FAST,
             count=6, attacks=AG, flying=True, spawn_radius=1.3),
     CardDef("mega_minion", "Mega Minion", 3, rarity="rare",
-            hp=319, damage=126, hit_speed=1.5, range=1.8, speed=SPEED_FAST,
+            hp=319, damage=126, hit_speed=1.5, range=1.8, speed=SPEED_MEDIUM,
             attacks=AG, flying=True),
     CardDef("baby_dragon", "Baby Dragon", 4, rarity="epic",
             hp=678, damage=85, hit_speed=1.5, range=3.0, speed=SPEED_FAST,
             attacks=AG, flying=True, splash=1.4),
     CardDef("inferno_dragon", "Inferno Dragon", 4, rarity="legendary",
-            hp=447, damage=20, hit_speed=0.4, range=3.5, speed=SPEED_FAST,
+            hp=447, damage=20, hit_speed=0.4, range=3.5, speed=SPEED_MEDIUM,
             attacks=AG, flying=True, ramp=True),
 
     # -------------------- SUPPORT / SPECIALIST --------------------
@@ -409,7 +419,7 @@ _CARD_LIST = [
             attacks=AG),   # outranges Cannon, but NOT Tesla (see tesla range)
     CardDef("princess", "Princess", 3, rarity="legendary",
             hp=104, damage=93, hit_speed=3.0, range=9.0, speed=SPEED_MEDIUM,
-            attacks=AG, splash=2.0),
+            attacks=AG, splash=2.0, deploy_time=1.2),
     CardDef("electro_wizard", "Electro Wizard", 4, rarity="legendary",
             hp=309, damage=84, hit_speed=1.8, range=5.0, speed=SPEED_FAST,
             attacks=AG, stun=0.5, multi_target=2,
@@ -426,7 +436,7 @@ _CARD_LIST = [
             count=3, attacks=AG, spawn_radius=1.4),
     CardDef("sparky", "Sparky", 6, rarity="legendary",
             hp=587, damage=513, hit_speed=5.0, range=5.0, speed=SPEED_SLOW,
-            attacks=G, splash=2.0, charge=True, charge_mult=1.0),
+            attacks=G, splash=2.0, stun_reload=True),
             # nerfed: 1300dmg/4s -> 1050dmg/5s; still one-shots most troops
 
     # -------------------- BUILDINGS --------------------
@@ -435,7 +445,9 @@ _CARD_LIST = [
             lifetime=30.0),
     CardDef("tesla", "Tesla", 4, category="building", rarity="common",
             hp=654, damage=108, hit_speed=1.1, range=6.8, attacks=AG,
-            lifetime=40.0, beam=True),
+            lifetime=40.0, beam=True, cloak=1.5),
+            # hides underground (untargetable by troops; spells still hit it)
+            # until it has a target, and again 1.5s after its last zap
             # long zap reach: Dart Goblin can NOT outrange it. beam=True ->
             # instant full-length bolt, no travelling projectile
     CardDef("inferno_tower", "Inferno Tower", 5, category="building",
@@ -445,14 +457,16 @@ _CARD_LIST = [
             hp=957, damage=164, hit_speed=1.6, range=6.0, attacks=G,
             splash=1.5, lifetime=35.0, death_damage=(2.0, 250)),
     CardDef("mortar", "Mortar", 4, category="building", rarity="common",
-            hp=807, damage=262, hit_speed=5.0, range=11.5, attacks=B,
-            splash=1.5, lifetime=30.0),
+            hp=807, damage=262, hit_speed=5.0, range=11.5, attacks=G,
+            splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5),
+            # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
-            hp=1260, damage=33, hit_speed=0.3, range=11.5, attacks=B,
-            lifetime=40.0),
+            hp=1260, damage=33, hit_speed=0.3, range=11.5, attacks=G,
+            lifetime=40.0, deploy_time=3.5),
+            # locks onto the first ground target in range (troop or building)
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
             hp=504, damage=0, range=0, attacks=G, lifetime=30.0,
-            spawner=("skeleton", 2, 3.5), death_spawn=("skeleton", 4),
+            spawner=("skeleton", 2, 3.5), death_spawn=("skeleton", 4), spawn_first=0.1,
             sub_hp_mult=1.26, sub_dmg_mult=1.26),
             # tombstone: 2 skeletons every 3.5s, 4 on death
     CardDef("goblin_hut", "Goblin Hut", 5, category="building", rarity="rare",
@@ -575,8 +589,9 @@ _CARD_LIST = [
             # tunnels anywhere; chip damage only (nerfed from 120 - he's a
             # 3-elixir unit you can drop directly on a tower)
     CardDef("battle_ram", "Battle Ram", 4, rarity="rare",
-            hp=595, damage=118, hit_speed=1.5, range=1.3, speed=SPEED_VERY_FAST,
+            hp=595, damage=118, hit_speed=1.5, range=1.3, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, death_spawn=("barbarian", 2),
+            breaks_on_hit=True,
             sub_hp_mult=1.14, sub_dmg_mult=1.08),
     CardDef("wall_breakers", "Wall Breakers", 2, rarity="epic",
             hp=189, damage=212, hit_speed=1.0, range=1.0, speed=SPEED_VERY_FAST,
@@ -713,7 +728,7 @@ _CARD_LIST = [
             attacks=G, first_hit=0.3),
     CardDef("firecracker", "Firecracker", 3, rarity="common",
             hp=154, damage=35, hit_speed=3.0, range=6.0, speed=SPEED_FAST,
-            attacks=AG, shrapnel=(5, 26.0, 2.6), recoil=1.0),
+            attacks=AG, shrapnel=(5, 50.0, 4.5), recoil=1.0),
             # her firework bursts into 5 sparks that fly on through the
             # target (big targets eat several); she hops back after each shot
     CardDef("goblin_gang", "Goblin Gang", 3, rarity="common",
@@ -776,11 +791,11 @@ _CARD_LIST = [
             # roots the 3 highest-hp enemies (air ones are dragged down)
     CardDef("goblin_drill", "Goblin Drill", 4, category="building",
             rarity="epic", hp=664, damage=0, range=0, attacks=G, lifetime=10.0,
-            deploy_anywhere=True, spawner=("goblin", 1, 3.0), spawn_first=0.8,
+            deploy_anywhere=True, spawner=("goblin", 1, 3.0), spawn_first=1.0,
             death_spawn=("goblin", 2), spawn_damage=(2.0, 46),
             spawn_knockback=1.0, sub_hp_mult=1.29, sub_dmg_mult=1.38),
     CardDef("rune_giant", "Rune Giant", 4, rarity="epic",
-            hp=1347, damage=65, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
+            hp=1347, damage=65, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, enchant=(2, 8.5, 120, 3, 5.0)),
             # enchants the 2 closest allied troops: every 3rd hit +120
     CardDef("void", "Void", 5, category="spell", rarity="epic",
@@ -841,7 +856,7 @@ _CARD_LIST = [
             hp=1050, damage=90, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(1.5, 90), first_hit=1.0),
     CardDef("bat", "Bat", 0, deployable=False,
-            hp=32, damage=32, hit_speed=1.1, range=0.9, speed=SPEED_FAST,
+            hp=32, damage=32, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             attacks=AG, flying=True),
     CardDef("lava_pup", "Lava Pup", 0, deployable=False,
             hp=100, damage=45, hit_speed=1.3, range=2.0, speed=SPEED_FAST,
@@ -936,6 +951,36 @@ _CARD_LIST = [
 
 # key -> CardDef lookup
 CARDS = {c.key: c for c in _CARD_LIST}
+
+# Real-game "first hit speed": the wind-up between locking onto a NEW target
+# and the first hit landing (melee: first_hit, ranged and buildings: windup).
+# Charging units skip it - a finished charge hits on impact.
+FIRST_HIT = {
+    "archers": 0.5, "baby_dragon": 0.3, "balloon": 0.2, "barbarians": 0.4,
+    "barbarian": 0.4, "bats": 0.6, "bat": 0.6, "berserker": 0.2, "bomber": 0.2,
+    "bowler": 0.5, "cannon": 1.0, "dark_prince": 0.6, "dart_goblin": 0.35,
+    "electro_dragon": 0.8, "electro_giant": 1.0, "electro_wizard": 0.6,
+    "elite_barbarians": 0.5, "executioner": 0.5, "firecracker": 0.65,
+    "fisherman": 0.1, "giant": 0.5, "goblin_demolisher": 0.5,
+    "goblin_giant": 0.8, "goblin_machine": 0.5, "goblins": 0.6, "goblin": 0.4,
+    "goblin_brawler": 0.2, "golem": 1.0, "hog_rider": 0.6, "hunter": 0.7,
+    "ice_golem": 1.0, "ice_wizard": 0.5, "knight": 0.5, "lumberjack": 0.4,
+    "magic_archer": 0.7, "mega_knight": 0.5, "mega_minion": 0.4,
+    "mini_pekka": 0.5, "minion_horde": 0.5, "minions": 0.5, "mortar": 1.0,
+    "mother_witch": 0.3, "musketeer": 0.7, "pekka": 0.5, "phoenix": 0.5,
+    "princess": 0.3, "ram_rider": 0.6, "rascal_boy": 0.4, "royal_ghost": 0.6,
+    "royal_giant": 0.9, "royal_hogs": 0.4, "royal_recruits": 0.5,
+    "rune_giant": 0.5, "skeleton_army": 0.5, "skeleton_dragons": 0.4,
+    "skeletons": 0.5, "skeleton": 0.5, "spear_goblins": 0.5,
+    "spear_goblin": 0.5, "spirit_empress_air": 0.6, "tesla": 0.5,
+    "valkyrie": 0.1, "witch": 0.7, "wizard": 0.4,
+}
+for _k, _v in FIRST_HIT.items():
+    _c = CARDS[_k]
+    if _c.range < 1.75 and _c.category != "building":
+        _c.first_hit = _v
+    else:
+        _c.windup = _v
 
 # The list shown in the deck builder (only real, playable cards).
 DEPLOYABLE_CARDS = [c for c in _CARD_LIST if c.deployable]

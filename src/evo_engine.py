@@ -48,6 +48,8 @@ def _push(e, fromx, fromy, amount):
     dd = math.hypot(dx, dy) or 1.0
     e.x += dx / dd * amount
     e.y += dy / dd * amount
+    if amount > 0:
+        e.reset_charge()
 
 
 def _enemies(match, e, radius, ground_only=False, troops_only=False, x=None, y=None,

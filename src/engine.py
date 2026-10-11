@@ -166,10 +166,14 @@ class Entity:
         self.attack_cd = 0.0
         # deploy delay: placed troops pause briefly; spawned units (from
         # spawner buildings / death spawns) pass deploy=0 for no delay.
-        if is_tower or self.is_building:
+        # Buildings deploy too (1s; Mortar and X-Bow 3.5s), as in the real game.
+        if is_tower:
             self.deploy_timer = 0.0
+        elif deploy is None:
+            self.deploy_timer = (card.deploy_time if card.deploy_time is not None
+                                 else cfg.DEPLOY_TIME)
         else:
-            self.deploy_timer = cfg.DEPLOY_TIME if deploy is None else deploy
+            self.deploy_timer = deploy
 
         # status effects
         self.stun_timer = 0.0
@@ -300,11 +304,21 @@ class Entity:
 
     def effective_speed(self):
         s = self.base_speed * self.slow_factor
+        if self.charged and self.charge_enabled and self.card.speed > 0:
+            # charging: up to Very Fast (Prince, Battle Ram...: 2x in CR)
+            s *= max(1.0, cfg.SPEED_VERY_FAST * self.card.charge_speed / self.card.speed)
         if self.rage_timer > 0:
             s *= 1.35
         if self.haste_timer > 0:
             s *= self.haste_mult
         return s
+
+    def reset_charge(self):
+        """Stuns, freezes and knockback cancel a charge (it has to build up
+        again over charge_dist tiles)."""
+        if self.charge_enabled:
+            self.charged = False
+            self.dist_since_attack = 0.0
 
     def effective_hitspeed(self):
         m = (1.35 if self.rage_timer > 0 else 1.0)
@@ -456,17 +470,34 @@ class Entity:
         # Royal Ghost: hidden unless he swung in the last `cloak` seconds
         if self.card.cloak and match.elapsed - self.atk_t > self.card.cloak:
             self.invis_timer = max(self.invis_timer, dt * 1.5)
+        # buildings: health IS the clock. They lose max_hp / lifetime every
+        # second (frozen or stunned too), so damage shortens their time.
+        if self.is_building and self.card.lifetime and self.deploy_timer <= 0:
+            rate = self.max_hp / self.card.lifetime
+            self.hp -= rate * dt
+            self.lifetime = max(0.0, self.hp / rate)
+            if self.hp <= 0:
+                self.hp = 0
+                self.alive = False
+                return
         # mid-dash: nothing else happens until we land (stuns can't stop it)
         if self.dash is not None:
             self._dash_update(dt, match)
             return
         if self.stun_timer > 0:
             self.stun_timer -= dt
+            self.reset_charge()
+            # a stun interrupts the attack: the wind-up starts over (and
+            # Sparky has to charge her whole shot again)
+            self._rewind = True
+            if self.card.stun_reload and self.attack_cd < self.hit_speed:
+                self.attack_cd = self.hit_speed
             if self.ramps():
                 self.ramp_time = 0.0   # a zap/stun resets any ramp-up
             return
         if self.freeze_timer > 0:
             self.freeze_timer -= dt
+            self.reset_charge()
             return
         if self.root_timer > 0:
             self.root_timer -= dt
@@ -481,8 +512,8 @@ class Entity:
             self.channel_t -= dt
             return
 
-        # building lifetime decay
-        if self.lifetime and not self.is_tower:
+        # timed troops (Phoenix Egg, decoys...) just count down
+        if self.lifetime and not self.is_tower and not self.is_building:
             self.lifetime -= dt
             if self.lifetime <= 0:
                 if self.card.hatch:       # Phoenix Egg hatches
@@ -582,15 +613,22 @@ class Entity:
                 return
 
         if d <= reach:
-            # melee units need a short wind-up after engaging a NEW target
-            # before the first hit lands (ranged units fire straight away;
-            # spirits explode on contact; a finished charge hits on impact)
-            if self._engaged != id(self.target):
+            # every unit needs its real-game wind-up ("first hit speed")
+            # after engaging a NEW target - or after a stun - before the
+            # first hit lands (spirits explode on contact; a finished charge
+            # hits on impact)
+            new = self._engaged != id(self.target)
+            if new or getattr(self, "_rewind", False):
+                self._rewind = False
                 self._engaged = id(self.target)
-                if self.evo:
+                if self.evo and new:
                     evo_engine.on_new_target(self, self.target, match)
                 if self.is_melee() and not self.card.kamikaze and not self.charged:
                     self.attack_cd = max(self.attack_cd, self.first_hit_delay())
+                elif self.card.windup is not None:
+                    self.attack_cd = max(self.attack_cd, self.card.windup
+                                         * self.effective_hitspeed()
+                                         / max(self.hit_speed, 1e-6))
             self._attack(match)
         elif not self.is_building and not self.is_tower:
             self._move_toward(self.target, dt, match)
@@ -820,7 +858,10 @@ class Entity:
                 match.towers[(t.team, s)].alive for s in ("left", "right")):
             return False
         reach = self.range + t.radius + 0.3   # small margin against flicker
-        return dist(self.x, self.y, t.x, t.y) <= reach
+        d = dist(self.x, self.y, t.x, t.y)
+        if self.card.min_range and d < self.card.min_range:
+            return False                      # walked into the blind spot
+        return d <= reach
 
     def _move_toward(self, target, dt, match):
         # bridge pathing for ground units crossing the river
@@ -914,10 +955,17 @@ class Entity:
 
     def _attack(self, match):
         before = self.atk_t
+        tgt = self.target
         self._attack_core(match)
         if ((self.evo or self.hero) and self.atk_t != before
                 and not self.card.kamikaze):
             evo_engine.after_attack(self, match, getattr(self, "_last_dmg", self.dmg))
+        # Battle Ram: breaks on its first hit on a building and the riders
+        # step out (only the Evolution keeps ramming)
+        if (self.card.breaks_on_hit and self.atk_t != before and not self.evo
+                and tgt is not None and (tgt.is_building or tgt.is_tower)):
+            self.hp = 0
+            self.alive = False
 
     def _reload_dagger(self, dt, match):
         """Dagger Duchess: refill one dagger per `reload` s while not throwing."""
@@ -1272,6 +1320,7 @@ class Projectile:
                             and not e.card.no_knockback):
                         e.x += self.vx * self.knockback
                         e.y += self.vy * self.knockback
+                        e.reset_charge()
                     self.hits.add(id(e))
         # non-homing, non-piercing shots (Hunter pellets) stop at the FIRST
         # enemy they touch - no pass-through
@@ -1338,7 +1387,7 @@ class Projectile:
                     self.team, sx, sy, None, self.dmg, 0, self.attacks, 0.0,
                     self.slow, style="firecracker_spark", homing=False,
                     dest=(sx + math.cos(a) * length, sy + math.sin(a) * length),
-                    pierce=True, hit_radius=0.3, owner=self.owner))
+                    pierce=True, hit_radius=0.4, owner=self.owner))
             match.effects.append(Effect("aoe", self.team, self.x, self.y, 0.8,
                                         0.25, card_key="firecracker"))
             return
@@ -1565,6 +1614,8 @@ class Effect:
                                   if e.is_tower else self.damage)
                     if not (e.is_tower or e.is_building):
                         e.y += self.direction * self.knockback
+                        if self.knockback:
+                            e.reset_charge()
                     self.hit.add(id(e))
         if self.elapsed >= self.duration:
             self.alive = False
@@ -1612,8 +1663,9 @@ class Match:
         self.elixir_rate = None    # fixed elixir multiplier (Triple Elixir...)
         self.always_rage = False   # Rage Battle: everyone is permanently raged
         # Evolutions: per team the card keys that evolve, and their charge
-        # (plays since the last evolved copy). Charges start FULL, so the
-        # first copy you play comes out evolved.
+        # (plays since the last evolved copy). Charges start EMPTY, as in
+        # Clash Royale: the first copy is the normal card and the Evolution
+        # comes out once it has been cycled `cycles` times.
         self.last_played = {PLAYER: None, ENEMY: None}   # for Mirror
         self.tower_troops = {PLAYER: towers.DEFAULT, ENEMY: towers.DEFAULT}
         self.chef = {}             # team -> Royal Chef cooking state
@@ -1625,7 +1677,7 @@ class Match:
             if hero_cards and hero_cards.get(t):
                 self.hero_cards[t] = set(hero_cards[t])
         import evos as _evos
-        self.evo_charge = {t: {k: _evos.EVOS[k].cycles for k in self.evo_cards[t]
+        self.evo_charge = {t: {k: 0 for k in self.evo_cards[t]
                                if k in _evos.EVOS} for t in (PLAYER, ENEMY)}
         self.entities = []
         self.projectiles = []
@@ -2261,6 +2313,7 @@ class Match:
                     dd = math.hypot(dx, dy) or 1.0
                     e.x += dx / dd * knockback
                     e.y += dy / dd * knockback
+                    e.reset_charge()
 
     def chain_damage(self, team, origin_x, origin_y, first_target, dmg,
                      stun, max_targets, jump_range, source_key):
@@ -2575,6 +2628,8 @@ class Match:
                     self.towers[(e.team, s)].alive for s in ("left", "right")):
                 continue
             d = dist(ent.x, ent.y, e.x, e.y)
+            if ent.card.min_range and d < ent.card.min_range:
+                continue                      # inside the blind spot (Mortar)
             if ent.is_tower or ent.is_building:
                 if d <= ent.range + e.radius and d < best_d:
                     best, best_d = e, d
