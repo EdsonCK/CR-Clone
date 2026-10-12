@@ -183,6 +183,15 @@ class AIController:
                                      "arrows", "zap", "the_log", "tornado"})
 
     # ============================================================ placement
+    def _roll_start(self, card, target_ly):
+        """Where to start a rolling spell (local y) so it rolls through a
+        target: just behind it - but The Log and Barbarian Barrel can only be
+        placed on our own side, so from there it rolls into them."""
+        ly = target_ly - 0.6
+        if card.own_side:
+            ly = min(ly, RIVER_TOP - 0.7)
+        return ly
+
     def _place(self, idx, x, ly, card=None, exact=False):
         """Play hand card `idx` at (x, local y). Applies the level's sloppy
         placement jitter, keeps troops on a legal tile, retries nearby."""
@@ -202,11 +211,12 @@ class AIController:
         if card.category != "spell":
             # spot blocked (e.g. on top of a tower): spiral out to the
             # nearest legal tile instead of giving up on the play
+            top = cfg.GRID_ROWS - 0.7 if card.deploy_anywhere else RIVER_TOP - 0.7
             for r in (1.0, 1.8, 2.6, 3.4):
                 for k in range(8):
                     a = k * math.pi / 4
                     tries.append((min(max(x + math.cos(a) * r, 0.7), cfg.GRID_COLS - 0.7),
-                                  min(max(ly + math.sin(a) * r, 0.7), RIVER_TOP - 0.7)))
+                                  min(max(ly + math.sin(a) * r, 0.7), top)))
         for (tx, tly) in tries:
             if m.play_card(self.me, idx, tx, self.W(tly)):
                 self.log.append((round(self.clock, 1), key, self._why,
@@ -230,7 +240,7 @@ class AIController:
             ly = self.L(e.y)
             if e.is_building:
                 # only siege buildings that can reach my towers matter
-                if e.card.attacks == "buildings" and e.card.range > 0 and \
+                if (e.card.attacks == "buildings" or e.card.siege) and e.card.range > 0 and \
                         dmin <= e.card.range + 2.5:
                     out.append((dmin, e))
                 continue
@@ -257,14 +267,14 @@ class AIController:
             swarm=len(group) >= 3 or any(e.card.count >= 3 for e in group),
             splash=any(e.card.splash > 0 or e.card.chain for e in group),
             tank=max((e.max_hp for e in group), default=0) >= 1200,
-            bldg=any(e.card.attacks == "buildings" for e in group),
+            bldg=any(e.card.attacks == "buildings" or e.card.siege for e in group),
         )
 
     # =============================================================== counters
     def _score_counter(self, card, prim, gs):
         if card.category == "spell":
             return None
-        if card.category == "building" and (card.attacks == "buildings"
+        if card.category == "building" and (card.attacks == "buildings" or card.siege
                                             or card.damage <= 0):
             return None
         if card.category == "troop" and card.attacks == "buildings":
@@ -476,7 +486,7 @@ class AIController:
                     lead += 1.5           # strikes land over 4s: aim ahead
                 x, y = self._predict(e, lead)
                 if c.rolling:
-                    y = self.W(self.L(y) - 0.6)
+                    y = self.W(self._roll_start(c, self.L(y)))
                 cands.append((x, y))
             if self.lv(4):
                 for a in units:
@@ -559,7 +569,7 @@ class AIController:
         if c.category == "spell" and (c.graveyard or (c.spawn_troops and not c.rolling
                                                       and not c.own_side)):
             return True
-        if c.category == "building" and c.attacks == "buildings" and c.range >= 6:
+        if c.category == "building" and c.siege:
             return True                                       # X-Bow, Mortar
         return False
 
@@ -934,7 +944,7 @@ class AIController:
                 for e in units:
                     x, y = self._predict(e, self.match.spell_delay(self.me, c, e.x, e.y))
                     if c.rolling:
-                        y = self.W(self.L(y) - 0.6)
+                        y = self.W(self._roll_start(c, self.L(y)))
                     v, n = self._spell_value(c, x, y, units)
                     if v > bv:
                         best, bv = (x, y), v

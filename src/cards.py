@@ -123,6 +123,7 @@ class CardDef:
     charge_speed: float = 1.0   # x Very Fast while charging (chargers only)
     breaks_on_hit: bool = False # Battle Ram: breaks on its first building hit
     min_range: float = 0.0      # blind spot: can't hit targets this close (Mortar)
+    siege: bool = False         # siege building (X-Bow, Mortar): a win condition
     stun_reload: bool = False   # a stun restarts its whole reload (Sparky)
     deploy_time: Optional[float] = None  # seconds before it acts once placed
                                 #   (default config.DEPLOY_TIME = 1s)
@@ -458,11 +459,11 @@ _CARD_LIST = [
             splash=1.5, lifetime=35.0, death_damage=(2.0, 250)),
     CardDef("mortar", "Mortar", 4, category="building", rarity="common",
             hp=807, damage=262, hit_speed=5.0, range=11.5, attacks=G,
-            splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5),
+            splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5, siege=True),
             # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
             hp=1260, damage=33, hit_speed=0.3, range=11.5, attacks=G,
-            lifetime=40.0, deploy_time=3.5),
+            lifetime=40.0, deploy_time=3.5, siege=True),
             # locks onto the first ground target in range (troop or building)
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
             hp=504, damage=0, range=0, attacks=G, lifetime=30.0,
@@ -494,7 +495,7 @@ _CARD_LIST = [
             spell_radius=2.5, spell_damage=75, tower_damage=45, stun=0.5),
     CardDef("the_log", "The Log", 2, category="spell", rarity="legendary",
             spell_radius=2.0, spell_damage=106, tower_damage=43,
-            rolling=True, knockback=1.5),
+            rolling=True, knockback=1.5, own_side=True),
     CardDef("arrows", "Arrows", 3, category="spell", rarity="common",
             spell_radius=4.0, spell_damage=153, tower_damage=61),
     CardDef("fireball", "Fireball", 4, category="spell", rarity="rare",
@@ -627,7 +628,7 @@ _CARD_LIST = [
             sub_hp_mult=1.26, sub_dmg_mult=1.26),
     CardDef("barbarian_barrel", "Barbarian Barrel", 2, category="spell",
             rarity="epic", spell_radius=1.6, spell_damage=70, tower_damage=28,
-            rolling=True, knockback=1.2, spawn_troops=("barbarian", 1),
+            rolling=True, knockback=1.2, own_side=True, spawn_troops=("barbarian", 1),
             sub_hp_mult=0.76, sub_dmg_mult=0.76),
     CardDef("snowball", "Giant Snowball", 2, category="spell", rarity="common",
             spell_radius=2.5, spell_damage=80, tower_damage=32,

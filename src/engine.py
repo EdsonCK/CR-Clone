@@ -30,6 +30,11 @@ RIVER_CENTER = (RIVER_TOP + RIVER_BOTTOM) / 2.0
 BRIDGE_X = [c + 0.5 for c in cfg.BRIDGE_COLS]
 
 PROJECTILE_RANGE_MIN = 2.5   # attack range at/above which a shot flies as a projectile
+# Crown tower footprints (half the side of their square, in tiles) and the
+# footprint of a building: nothing can be deployed on a standing tower's
+# tiles, and a building's tiles can't overlap them either.
+TOWER_HALF = {False: 1.5, True: 2.0}         # princess 3x3, king 4x4
+BUILDING_HALF = 1.0                          # buildings take 2x2 tiles
 MELEE_RANGE = 1.75           # below this a unit is "melee" (first-hit delay applies)
 
 TROOP_R = 0.45
@@ -1858,9 +1863,13 @@ class Match:
         card = cards.CARDS[key]
         if x < 0.3 or x > cfg.GRID_COLS - 0.3 or y < 0.3 or y > cfg.GRID_ROWS - 0.3:
             return False
-        # spells can target anywhere (Royal Delivery: only your own side)
+        # spells can target anywhere (The Log, Barbarian Barrel and Royal
+        # Delivery: only where you could deploy a troop)
         if card.category == "spell" and not card.own_side:
             return True
+        # troops and buildings can't go on a standing tower's tiles
+        if card.category != "spell" and self.on_tower(x, y, card):
+            return False
         # no placing in the river
         if RIVER_TOP - 0.2 <= y <= RIVER_BOTTOM + 0.2:
             return False
@@ -1887,6 +1896,18 @@ class Match:
             if x >= cfg.GRID_COLS / 2 and not self.towers[(PLAYER, "right")].alive:
                 return y < RIVER_BOTTOM + 6
             return False
+
+    def on_tower(self, x, y, card):
+        """True if deploying `card` at (x, y) would overlap a standing crown
+        tower (a destroyed tower's spot is free to build on)."""
+        pad = BUILDING_HALF if card.category == "building" else 0.0
+        for tw in self.towers.values():
+            if not tw.alive:
+                continue
+            h = TOWER_HALF[tw.is_king] + pad
+            if abs(x - tw.x) < h and abs(y - tw.y) < h:
+                return True
+        return False
 
     # ---- playing cards -----------------------------------------------------
     def card_cost(self, team, key):

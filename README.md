@@ -555,6 +555,14 @@ Mortar can't hit anything within 3.5 tiles.
 The **Battle Ram** breaks the moment it hits a building, leaving its two
 Barbarians; only the Evolved Battle Ram bounces off and keeps ramming.
 
+**Placement**: troops and buildings can't be deployed on a standing crown
+tower's tiles, and a building's own 2x2 footprint can't overlap them either
+(once one of your Princess Towers falls, its spot is free to build on).
+The Log, Barbarian Barrel and Royal Delivery can only be placed where you
+could deploy a troop - your own side (plus the pocket once an enemy Princess
+Tower is down); every other spell can be cast anywhere. The red tint while a
+card is selected shows exactly where it can't go.
+
 ## Swapping in your own art
 
 Every card has its own original, hand-built art (in `src/sprite_art.py`),
