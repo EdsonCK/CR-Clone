@@ -64,8 +64,9 @@ def load(path):
 
 
 def response(prev_snap, prev_full, snap, full, key):
-    """How much of the expected full-game change a card's last power change
-    produced (1 = as expected, 0 = nothing). None if it barely moved."""
+    """How much of the expected full-game change a card's power change since
+    the reference produced (1 = as expected, 0 = nothing). None if it barely
+    moved."""
     if not prev_full or key not in prev_full["cards"]:
         return None
     dl = math.log(snap.get(key, 1.0) / prev_snap.get(key, 1.0))
@@ -143,14 +144,15 @@ if __name__ == "__main__":
         snap = {k: (v["f"] if isinstance(v, dict) else v) for k, v in snap.items()}
         tuned = load(sys.argv[3])
         full = load(sys.argv[4])
-        # the previous round (snapR-1 / fullR-1 next to these files), if any
+        # the run's starting point (snap0 / full0 next to these files): a
+        # card's response is measured over ALL its changes so far, so a card
+        # flagged once stays flagged even in rounds where it didn't move
         import re
         prev_snap = prev_full = None
         mm = re.search(r"snap(\d+)\.json$", sys.argv[2])
         if mm and int(mm.group(1)) > 0:
             d = os.path.dirname(sys.argv[2])
-            r0 = int(mm.group(1)) - 1
-            ps, pf = os.path.join(d, "snap%d.json" % r0), os.path.join(d, "full%d.json" % r0)
+            ps, pf = os.path.join(d, "snap0.json"), os.path.join(d, "full0.json")
             if os.path.exists(ps) and os.path.exists(pf):
                 prev_snap, prev_full = B.load(ps), load(pf)
         out, notes = combine(snap, tuned, full, prev_snap, prev_full)
