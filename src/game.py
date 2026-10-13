@@ -38,6 +38,7 @@ from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
 from ai import AIController
 from screens import ScreensMixin
 from modes import ModesMixin
+from sandbox import SandboxMixin
 from trophyroad import TrophyMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
@@ -130,7 +131,7 @@ CHAIN_COLORS = {
 }
 
 
-class Game(ModesMixin, ScreensMixin, TrophyMixin):
+class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -437,8 +438,10 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             r, c = divmod(i, 2)
             self.menu_buttons.append(Button((cx - w // 2 + c * (hw + 8), 412 + r * 48, hw, 40),
                                             lbl, cb, "primary"))
-        self.menu_buttons.append(Button((cx - w // 2, 608, w, 40), "Quit", self._quit,
-                                        "danger"))
+        self.menu_buttons.append(Button((cx - w // 2, 608, hw, 40), "Sandbox",
+                                        self._open_sandbox, "gold"))
+        self.menu_buttons.append(Button((cx - w // 2 + hw + 8, 608, hw, 40), "Quit",
+                                        self._quit, "danger"))
         # sound toggles (top corners); labels refreshed every frame
         self.music_btn = Button((10, 10, 118, 30), "Music", lambda: self._toggle_music(),
                                 "dark")
@@ -709,6 +712,8 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                     self.level_run.update(mdt)
                 if self.match.finished:
                     self._on_match_end()
+            elif self.state == "sandbox" and self.match is not None:
+                self._sandbox_update(dt)
             self._update_audio(dt)
             if self.state in ("match", "result") and self.match is not None:
                 self.fx.update(mdt, self.match)
@@ -752,7 +757,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
         self.sfx.tick(dt)
         m = self.match
         # ---- music follows the screen ----
-        if self.state == "match" and m is not None:
+        if self.state in ("match", "sandbox") and m is not None:
             if self.level_run is not None:
                 w = self.level_run.current_wave()
                 final = w is not None and w.boss
@@ -991,8 +996,12 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                     self._set_levels_scroll(self.levels_scroll + step)
                 elif self.state == "prematch" and pygame.K_1 <= e.key <= pygame.K_5:
                     self._set_ai_level(e.key - pygame.K_0)
+                if self.state == "sandbox" and e.key == pygame.K_SPACE:
+                    self._sb_pause()
                 if e.key == pygame.K_ESCAPE:
-                    if self.state == "match":
+                    if self.state == "sandbox":
+                        self._sb_back()
+                    elif self.state == "match":
                         self.state = "menu"
                     elif self.state == "deck":
                         self._deck_cancel()
@@ -1010,6 +1019,8 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                     self._deck_set_scroll(self.deck_scroll - e.y * 48)
                 elif self.state == "levels":
                     self._set_levels_scroll(self.levels_scroll - e.y * 60)
+                elif self.state == "sandbox":
+                    self._sandbox_wheel(e.y)
                 elif self.state in self.EXTRA_SCREENS:
                     self._extra_wheel(e.y)
                 elif self.state == "prematch":
@@ -1051,6 +1062,9 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
                     continue
                 if self.state == "deck":
                     self._deck_click(e.pos, e.button)
+                    continue
+                if self.state == "sandbox":
+                    self._sandbox_click(e.pos, e.button)
                     continue
                 if e.button == 3 and self.state != "match":
                     continue      # right-click only means something in decks/match
@@ -1546,7 +1560,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
 
     # ================================================================= DRAW
     def _draw(self):
-        if self.state not in ("match", "result", "menu"):
+        if self.state not in ("match", "result", "menu", "sandbox"):
             self._menu_backdrop(floating=False)
         if self.state == "menu":
             self._draw_menu()
@@ -1564,6 +1578,8 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             self._draw_levels()
         elif self.state in self.EXTRA_SCREENS:
             getattr(self, "_draw_" + self.state)()
+        elif self.state == "sandbox":
+            self._draw_sandbox()
         elif self.state in ("match", "result"):
             self._draw_match()
             if self.state == "result":
@@ -1887,6 +1903,8 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             "Levels: 30 levels of waves. No enemy towers and no",
             "building-only cards. Every 2 stars opens the next level.",
             "Special Modes: 7 twisted battles + Endless Survival.",
+            "Sandbox: place any card for either side, pause, slow",
+            "time, toggle an AI and inspect units.",
             "",
             "Gold (wins, stars) upgrades cards in Cards: Lv 11-16,",
             "+10% HP & damage per level. Towers = deck average.",
@@ -3255,7 +3273,52 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             surf = pygame.Surface((rad * 2, rad * 2), pygame.SRCALPHA)
             pygame.draw.circle(surf, color + (70,), (rad, rad), rad)
             self.screen.blit(surf, (mx - rad, my - rad))
+        if card.category == "building" and card.range > 0:
+            # the building's attack range (and the Mortar's blind spot)
+            self._range_ring((mx, my), card.range, (255, 255, 255), 34, 150)
+            if card.min_range:
+                self._range_ring((mx, my), card.min_range, (40, 40, 40), 46, 120)
+        if card.category != "spell":
+            self._draw_threat_warnings(card, tx, ty)
         pygame.draw.circle(self.screen, color, (mx, my), 8, 2)
+
+    def _range_ring(self, center, tiles, rgb, fill_a, line_a):
+        """A translucent filled circle with an outline, `tiles` in radius."""
+        rad = max(2, int(tiles * cfg.TILE_SIZE))
+        surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
+        c = (rad + 2, rad + 2)
+        pygame.draw.circle(surf, rgb + (fill_a,), c, rad)
+        pygame.draw.circle(surf, rgb + (line_a,), c, rad, 2)
+        self.screen.blit(surf, (center[0] - rad - 2, center[1] - rad - 2))
+
+    def _draw_threat_warnings(self, card, tx, ty):
+        """While placing a troop or building: every enemy building whose range
+        the new unit would land in gets a red highlight, its range drawn
+        faintly, and a pulsing translucent red '!' above it."""
+        flying = card.flying and card.category != "building"
+        pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 160.0)
+        for e in self.match.entities:
+            if (e.team != ENEMY or not e.alive or not e.is_building or e.is_tower
+                    or e.card.range <= 0 or e.dmg <= 0 or e.attacks == "buildings"):
+                continue
+            if flying and e.attacks != "air_ground":
+                continue                      # can't shoot what we're placing
+            d = dist(tx, ty, e.x, e.y)
+            if d > e.range + 0.5 or (e.card.min_range and d < e.card.min_range):
+                continue
+            px, py = tile_to_px(e.x, e.y)
+            self._range_ring((px, py), e.range, (230, 40, 40), 22, 90)
+            hl = int(1.5 * cfg.TILE_SIZE)
+            glow = pygame.Surface((hl * 2 + 8, hl * 2 + 8), pygame.SRCALPHA)
+            c = (hl + 4, hl + 4)
+            pygame.draw.circle(glow, (255, 40, 40, int(95 + 70 * pulse)), c, hl)
+            pygame.draw.circle(glow, (255, 230, 230, 230), c, hl, 3)
+            pygame.draw.circle(glow, (255, 50, 50, 255), c, hl + 3, 2)
+            self.screen.blit(glow, (px - hl - 4, py - hl - 4))
+            mark = render_text(self.font_xl, "!", (255, 60, 60), True).copy()
+            mark.set_alpha(int(130 + 80 * pulse))
+            self.screen.blit(mark, (px - mark.get_width() // 2,
+                                    py - hl - mark.get_height() + 4))
 
     def _crown_icon(self, x, y, col):
         pts = [(x - 8, y + 5), (x - 8, y - 2), (x - 4, y + 1), (x, y - 5),

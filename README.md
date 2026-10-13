@@ -236,6 +236,33 @@ button lights up once their banner is planted:
 In Battles the AI brings as many Evolutions and Heroes as you do (from its
 own deck), and it uses Hero abilities too.
 
+## Sandbox
+
+**Sandbox** on the main menu is a free practice arena (nothing you do there
+touches your progress):
+
+* **Place any card for either side** - pick it from the strip at the bottom,
+  set the side (You / Enemy), its level (11-16) and whether it comes out as
+  its **Evolution** or **Hero**, then click the arena. Elixir is infinite and
+  you can place anywhere except the river and on a tower.
+* **Time controls** (top bar): Pause/Play (or Space), Step 0.1s, speed
+  0.25x / 0.5x / 1x / 2x, and Reset (fresh towers, empty field).
+* **AI opponent**: switch an AI on or off at any moment (L1-L5 button sets
+  its intelligence); while it's on it plays your AI deck with normal elixir.
+* **Inspector**: with no card picked, click any unit or tower to follow its
+  live stats - health, damage and hit speed, range (drawn on the arena), its
+  target (a line to it), wind-up / charge / stun / freeze / slow / hidden,
+  and a building's remaining lifetime. Champions and Heroes get a "Use
+  ability" button. Right-click clears the pick and the inspector.
+
+## Placement previews
+
+While you place a **building** its attack range is drawn around it (and the
+Mortar's blind spot). While you place a troop or building, every **enemy
+building** that could shoot it there lights up red with a pulsing red **!**
+above it and its range drawn faintly (flying troops ignore ground-only
+buildings like the Cannon and X-Bow).
+
 ## Special Modes
 
 Special Battles are 3-minute battles with a twist. The AI's cards are always
