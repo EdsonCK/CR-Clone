@@ -378,17 +378,17 @@ swapped out) **at the level's recommended card level**:
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 97% | 86% | 89% | 94% | 94% | 64% | 94% | 64% | 92% | 75% |
+| Expert clears | 100% | 89% | 86% | 92% | 100% | 64% | 94% | 78% | 97% | 64% |
 
 | Level | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 56% | 58% | 75% | 67% | 61% | 69% | 56% | 75% | 44% | 33% |
+| Expert clears | 58% | 67% | 72% | 67% | 64% | 58% | 69% | 67% | 44% | 31% |
 
 | Level | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 81% | 81% | 72% | 44% | 75% | 72% | 33% | 56% | 47% | 28% |
+| Expert clears | 83% | 89% | 81% | 47% | 69% | 78% | 33% | 56% | 47% | 44% |
 
-(36 runs per level, v1.2.1. Each level has a power factor, `LEVEL_POWER` in
+(36 runs per level, v1.3.0. Each level has a power factor, `LEVEL_POWER` in
 `src/levels.py`, on top of the usual enemy levels - that's the knob to turn
 if one feels off.)
 
