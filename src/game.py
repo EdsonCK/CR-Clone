@@ -39,6 +39,7 @@ from ai import AIController
 from screens import ScreensMixin
 from modes import ModesMixin
 from sandbox import SandboxMixin
+from home import HomeMixin
 from trophyroad import TrophyMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
@@ -131,7 +132,7 @@ CHAIN_COLORS = {
 }
 
 
-class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
+class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -631,6 +632,11 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             b.level_index = i
             out.append(b)
         y = cfg.WINDOW_H - 60
+        if getattr(self, "embedded", False):
+            bw = 240
+            out.append(Button((cfg.WINDOW_W // 2 - bw // 2, y, bw, 42), "Edit Level Deck",
+                              lambda: self._open_deck_editor("level", "levels")))
+            return out
         bw = (cfg.WINDOW_W - 44) // 2
         out.append(Button((16, y, bw, 42), "Edit Level Deck",
                           lambda: self._open_deck_editor("level", "levels")))
@@ -757,17 +763,25 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         self.sfx.tick(dt)
         m = self.match
         # ---- music follows the screen ----
+        cur = self.sfx.music_track or ""
         if self.state in ("match", "sandbox") and m is not None:
             if self.level_run is not None:
                 w = self.level_run.current_wave()
                 final = w is not None and w.boss
             else:
                 final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
-            self.sfx.music("final" if final else "battle")
+            # two battle themes, alternating from one battle to the next
+            if not (cur.startswith("battle") or cur.startswith("final")):
+                self.battle_theme = 2 if getattr(self, "battle_theme", 2) == 1 else 1
+            sfx2 = "2" if self.battle_theme == 2 else ""
+            self.sfx.music(("final" if final else "battle") + sfx2)
         elif self.state == "result":
             self.sfx.music(None)
         else:
-            self.sfx.music("menu")
+            # two menu themes: the other one each time you come back
+            if not cur.startswith("menu"):
+                self.menu_theme = 2 if getattr(self, "menu_theme", 2) == 1 else 1
+            self.sfx.music("menu" if self.menu_theme == 1 else "menu2")
         if m is None or self.state not in ("match", "result"):
             return
         evs = m.take_events()
@@ -993,12 +1007,15 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                                                           pygame.K_PAGEUP, pygame.K_PAGEDOWN):
                     step = {pygame.K_UP: -60, pygame.K_DOWN: 60,
                             pygame.K_PAGEUP: -360, pygame.K_PAGEDOWN: 360}[e.key]
-                    self._set_levels_scroll(self.levels_scroll + step)
+                    with self._embedded_if():
+                        self._set_levels_scroll(self.levels_scroll + step)
                 elif self.state == "prematch" and pygame.K_1 <= e.key <= pygame.K_5:
                     self._set_ai_level(e.key - pygame.K_0)
                 if self.state == "sandbox" and e.key == pygame.K_SPACE:
                     self._sb_pause()
-                if e.key == pygame.K_ESCAPE:
+                if e.key == pygame.K_ESCAPE and self._home_active():
+                    self._home_escape()
+                elif e.key == pygame.K_ESCAPE:
                     if self.state == "sandbox":
                         self._sb_back()
                     elif self.state == "match":
@@ -1013,6 +1030,12 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                         self.state = "menu"
                     elif self.state in self.EXTRA_SCREENS:
                         self._extra_escape()
+            elif e.type == pygame.MOUSEWHEEL and self._home_active():
+                with self._embedded_if():
+                    if self.state == "deck":
+                        self._deck_set_scroll(self.deck_scroll - e.y * 48)
+                    elif self.state == "levels":
+                        self._set_levels_scroll(self.levels_scroll - e.y * 60)
             elif e.type == pygame.MOUSEWHEEL:
                 # the wheel ONLY scrolls - it never selects anything
                 if self.state == "deck":
@@ -1046,6 +1069,9 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                     if self.slider_drag:
                         self.slider_drag = False
                         self._save_settings()
+            elif e.type == pygame.MOUSEMOTION and self._home_active():
+                if self.state in ("deck", "levels"):
+                    self._home_motion(e.pos)
             elif e.type == pygame.MOUSEMOTION:
                 if self.state == "deck" and self.deck_drag:
                     self._deck_drag_to(e.pos[1])
@@ -1059,6 +1085,9 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                 # pygame reports wheel turns as buttons 4-7 as well; those
                 # must never count as clicks (it used to toggle cards)
                 if e.button not in (1, 3):
+                    continue
+                if self._home_active():
+                    self._home_click(e.pos, e.button)
                     continue
                 if self.state == "deck":
                     self._deck_click(e.pos, e.button)
@@ -1403,6 +1432,14 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
     def _deck_buttons(self):
         y = cfg.WINDOW_H - 40
         m = self.DECK_MARGIN
+        if getattr(self, "embedded", False):
+            # the Deck tab saves as you go: no Save / Cancel
+            w = (cfg.WINDOW_W - 2 * m - 2 * 10) // 3
+            return [Button((m + i * (w + 10), y, w, 30), lbl, cb, st)
+                    for i, (lbl, cb, st) in enumerate(
+                        [("Clear", self._deck_clear, "dark"),
+                         ("Default", self._deck_default, "dark"),
+                         ("Cards & Upgrades", lambda: self._open_cards("deck"), "gold")])]
         widths = [112, 70, 78]
         gap = (cfg.WINDOW_W - 2 * m - sum(widths) - 78) // 3
         x = m
@@ -1459,7 +1496,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             self.deck_msg = "Only 1 Champion per deck."
             return
         if self.deck_mode == "level" and card.key in levels.BANNED:
-            self.deck_msg = "Win conditions can't be used in Levels."
+            self.deck_msg = "Building-only cards can't be used in Levels."
             return
         deck.append(card.key)
         self.deck_msg = ""
@@ -1560,6 +1597,9 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
 
     # ================================================================= DRAW
     def _draw(self):
+        if self._home_active():
+            self._draw_home()
+            return
         if self.state not in ("match", "result", "menu", "sandbox"):
             self._menu_backdrop(floating=False)
         if self.state == "menu":
@@ -1893,12 +1933,14 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         cx = cfg.WINDOW_W // 2
         self._screen_title("How To Play", 40)
         lines = [
-            "Trophy Road: ranked battles - win trophies, climb",
-            "arenas; your trophies pick the AI you face.",
+            "Tabs (bottom): Shop, Deck, Battle, Levels, Modes.",
+            "Top-right menu: Settings, AI Deck, Records, Help.",
+            "Trophy Road (Battle tab): ranked battles - win",
+            "trophies, climb arenas; trophies pick the AI you face.",
             "Battle: destroy more towers than the AI (King = win).",
             "Click a card then the arena - or drag it there.",
             "Elixir: max 10, x2 in the last minute, x3 in overtime.",
-            "Tower Troops: pick one per deck (Decks > Tower chip).",
+            "Tower Troops: pick one per deck (Deck tab > Tower chip).",
             "",
             "Levels: 30 levels of waves. No enemy towers and no",
             "building-only cards. Every 2 stars opens the next level.",
@@ -1916,7 +1958,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             "right) for the Hero's one-time ability.",
             "Champions (max 1): yellow button bottom-left.",
             "",
-            "Battle Setup: AI intelligence 1-5, elixir 0.5x-2x,",
+            "Friendly Battle: AI intelligence 1-5, elixir 0.5x-2x,",
             "AI card level: ladder (+1 per 3 wins) or yours.",
             "Achievements pay gold & shards; first win of the",
             "day gives a bonus. Settings: speed, volumes, sandbox.",
@@ -2179,6 +2221,65 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             self.screen.blit(t2, (cfg.WINDOW_W // 2 - t2.get_width() // 2, cy + 12))
 
     # --------------------------------------------------------- arena
+    def _margin_camps(self, surf, rng, W, H, BX, ry, rh):
+        """Decorations for the wide scenery margins beside the arena."""
+        def clearing(x, y, w, h):
+            pygame.draw.ellipse(surf, (112, 96, 66), (x - w // 2, y - h // 2, w, h))
+            pygame.draw.ellipse(surf, (134, 116, 82), (x - w // 2 + 6, y - h // 2 + 4,
+                                                       w - 12, h - 10))
+
+        def tent(x, y, col):
+            pygame.draw.ellipse(surf, (60, 52, 40), (x - 22, y + 8, 44, 12))
+            pts = [(x - 20, y + 14), (x, y - 18), (x + 20, y + 14)]
+            pygame.draw.polygon(surf, col, pts)
+            pygame.draw.polygon(surf, lt_c(col, 40), [(x - 7, y - 7), (x, y - 18), (x + 7, y - 7)])
+            for k in (-10, 10):                       # canvas stripes
+                pygame.draw.line(surf, dk_c(col, 50), (x, y - 18), (x + k, y + 14), 2)
+            pygame.draw.polygon(surf, (36, 28, 24), [(x - 5, y + 14), (x, y + 2), (x + 5, y + 14)])
+            pygame.draw.polygon(surf, dk_c(col, 80), pts, 2)
+            pygame.draw.line(surf, (90, 70, 50), (x, y - 18), (x, y - 28), 2)
+            pygame.draw.polygon(surf, col, [(x + 1, y - 28), (x + 9, y - 25), (x + 1, y - 22)])
+
+        def campfire(x, y):
+            for k in range(7):
+                a = k * math.tau / 7
+                pygame.draw.circle(surf, (110, 106, 100),
+                                   (int(x + math.cos(a) * 8), int(y + math.sin(a) * 5)), 3)
+            pygame.draw.line(surf, (90, 60, 34), (x - 6, y + 2), (x + 6, y - 2), 3)
+            pygame.draw.polygon(surf, (240, 120, 40), [(x - 5, y + 1), (x, y - 12), (x + 5, y + 1)])
+            pygame.draw.polygon(surf, (255, 214, 90), [(x - 2, y + 1), (x, y - 6), (x + 2, y + 1)])
+
+        def supplies(x, y):
+            for dx, dy in ((0, 0), (11, 2), (5, -8)):
+                pygame.draw.rect(surf, (150, 108, 60), (x + dx - 5, y + dy - 5, 10, 10))
+                pygame.draw.rect(surf, (96, 66, 36), (x + dx - 5, y + dy - 5, 10, 10), 1)
+                pygame.draw.line(surf, (96, 66, 36), (x + dx - 5, y + dy - 5),
+                                 (x + dx + 4, y + dy + 4), 1)
+            pygame.draw.ellipse(surf, (120, 80, 44), (x - 18, y - 4, 10, 13))   # a barrel
+            pygame.draw.line(surf, (70, 50, 30), (x - 18, y), (x - 9, y), 1)
+
+        def pillar(x, y, col):
+            pygame.draw.ellipse(surf, (60, 56, 50), (x - 9, y + 10, 18, 7))
+            pygame.draw.rect(surf, (150, 146, 136), (x - 6, y - 16, 12, 28))
+            pygame.draw.rect(surf, (110, 106, 98), (x - 6, y - 16, 12, 28), 1)
+            pygame.draw.rect(surf, (170, 166, 156), (x - 8, y - 19, 16, 5))
+            pygame.draw.rect(surf, col, (x - 4, y - 10, 8, 14))           # team banner
+            pygame.draw.circle(surf, (255, 170, 60), (x, y - 23), 4)       # torch flame
+            pygame.draw.circle(surf, (255, 230, 140), (x, y - 24), 2)
+
+        for side in (0, 1):
+            cxm = BX // 2 if side == 0 else W - BX // 2
+            for team, col in ((1, cfg.COLOR_TEAM_ENEMY), (0, cfg.COLOR_TEAM_PLAYER)):
+                # camp in the middle of that team's half
+                half_mid = (ry // 2) if team == 1 else (ry + rh + (H - ry - rh) // 2)
+                y = half_mid + (-30 if side == 0 else 30)
+                clearing(cxm, y + 6, 92, 58)
+                tent(cxm - 16, y - 4, col)
+                campfire(cxm + 22, y + 14)
+                supplies(cxm + 24, y - 12)
+            pillar(cxm, ry - 26, cfg.COLOR_TEAM_ENEMY)
+            pillar(cxm, ry + rh + 30, cfg.COLOR_TEAM_PLAYER)
+
     def _arena_bg(self):
         """The static arena picture (grass, scenery border, river, bridges,
         tower pads), rendered once per match and cached."""
@@ -2273,6 +2374,10 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                     pygame.draw.circle(surf, rng.choice(((240, 220, 90), (240, 120, 160),
                                                          (250, 250, 250))),
                                        (int(x + k * 4), int(y + (k % 2) * 3)), 2)
+        # ---- camps in the wide side margins: each side's tents, campfire,
+        # supplies and a torch pillar by the river ----
+        if BX >= 80:
+            self._margin_camps(surf, rng, W, H, BX, ry, rh)
         # team banners in the corners
         for (bx, by, col) in ((14, 14, cfg.COLOR_TEAM_ENEMY), (W - 14, 14, cfg.COLOR_TEAM_ENEMY),
                               (14, H - 34, cfg.COLOR_TEAM_PLAYER),

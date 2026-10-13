@@ -1028,6 +1028,86 @@ AI_DECK_PRESETS = {
                        "ice_spirit", "tesla", "void", "the_log"],
     "Rune Giant Rush": ["rune_giant", "ram_rider", "phoenix", "mother_witch",
                         "royal_ghost", "electro_wizard", "vines", "goblin_curse"],
+    "Graveyard Freeze": ["graveyard", "poison", "ice_wizard", "baby_dragon",
+                         "valkyrie", "tombstone", "barbarian_barrel", "knight"],
+    "Mortar Bait":    ["mortar", "miner", "goblin_gang", "dart_goblin",
+                       "skeleton_barrel", "archers", "the_log", "fireball"],
+    "Electro Giant":  ["electro_giant", "tornado", "lightning", "bowler",
+                       "dark_prince", "goblin_gang", "zap", "mega_minion"],
+    "Three Musketeers": ["three_musketeers", "battle_ram", "elixir_collector", "ice_golem",
+                         "bandit", "minion_horde", "zap", "royal_ghost"],
+    "Double Prince":  ["giant", "prince", "dark_prince", "mega_minion",
+                       "electro_wizard", "minions", "zap", "fireball"],
+    "Lumberloon":     ["balloon", "lumberjack", "freeze", "bowler",
+                       "barbarian_barrel", "tornado", "electro_wizard", "minions"],
+    "Elixir Golem":   ["elixir_golem", "battle_healer", "night_witch", "electro_dragon",
+                       "baby_dragon", "barbarian_barrel", "tornado", "rage"],
+    "Champion Cycle": ["golden_knight", "hog_rider", "valkyrie", "musketeer",
+                       "skeletons", "cannon", "the_log", "fireball"],
+}
+
+# Trophy Road opponents play VARIATIONS of the presets: each (card, options)
+# pair may swap that card for a similar one (same job in the deck), so a Log
+# Bait might bring a Cannon instead of the Inferno Tower or a Prince instead
+# of the Knight. Swaps stay on theme; at most one Champion per deck.
+AI_DECK_VARIANTS = {
+    "Hog Cycle":      [("cannon", ["tesla", "inferno_tower"]), ("musketeer", ["firecracker", "dart_goblin"]),
+                       ("ice_golem", ["valkyrie", "knight"]), ("fireball", ["earthquake", "poison"]),
+                       ("skeletons", ["bats", "fire_spirit"])],
+    "P.E.K.K.A Bridge": [("bandit", ["royal_ghost", "boss_bandit"]), ("magic_archer", ["dart_goblin", "firecracker"]),
+                         ("minions", ["bats", "mega_minion"]), ("poison", ["fireball"]),
+                         ("battle_ram", ["ram_rider"])],
+    "Golem Beatdown": [("night_witch", ["witch", "dark_prince"]), ("lightning", ["poison"]),
+                       ("baby_dragon", ["skeleton_dragons", "electro_dragon"]),
+                       ("tornado", ["barbarian_barrel", "zap"]), ("lumberjack", ["mini_pekka"])],
+    "Classic":        [("musketeer", ["wizard", "archer_queen"]), ("minions", ["bats", "mega_minion"]),
+                       ("cannon", ["tesla", "tombstone"]), ("knight", ["valkyrie", "prince"]),
+                       ("archers", ["spear_goblins", "dart_goblin"]), ("arrows", ["zap", "the_log"]),
+                       ("fireball", ["poison"])],
+    "Log Bait":       [("inferno_tower", ["cannon", "tesla"]), ("knight", ["prince", "valkyrie", "golden_knight"]),
+                       ("rocket", ["fireball"]), ("dart_goblin", ["goblin_gang", "magic_archer"]),
+                       ("ice_spirit", ["skeletons", "fire_spirit"])],
+    "Miner Control":  [("musketeer", ["firecracker", "magic_archer"]), ("ice_wizard", ["electro_wizard"]),
+                       ("bats", ["minions", "skeletons"]), ("inferno_tower", ["tesla", "bomb_tower"]),
+                       ("spear_goblins", ["goblin_gang", "archers"]), ("poison", ["earthquake"])],
+    "Lava Loon":      [("baby_dragon", ["skeleton_dragons", "inferno_dragon"]),
+                       ("mega_minion", ["minion_horde"]), ("lightning", ["fireball", "poison"]),
+                       ("zap", ["arrows", "the_log"]), ("minions", ["skeleton_army", "guards"])],
+    "X-Bow":          [("tesla", ["cannon", "inferno_tower"]), ("archers", ["firecracker", "dart_goblin"]),
+                       ("knight", ["valkyrie", "ice_golem"]), ("fireball", ["rocket", "poison"]),
+                       ("skeletons", ["electro_spirit"])],
+    "Sparky GG":      [("zappies", ["dart_goblin"]), ("cannon", ["tombstone"]),
+                       ("electro_dragon", ["baby_dragon"]), ("spear_goblins", ["goblin_gang"]),
+                       ("rage", ["arrows"])],
+    "MK Bats WB":     [("valkyrie", ["knight", "bandit"]), ("musketeer", ["wizard", "firecracker"]),
+                       ("wall_breakers", ["skeleton_barrel"]), ("cannon", ["inferno_tower"]),
+                       ("fireball", ["poison"])],
+    "Royal Giant":    [("hunter", ["archer_queen", "firecracker"]),
+                       ("electro_dragon", ["baby_dragon", "flying_machine"]), ("cannon", ["tesla"]),
+                       ("mega_minion", ["minions"]), ("skeletons", ["ice_spirit"])],
+    "Recruits Hogs":  [("flying_machine", ["dart_goblin"]), ("zappies", ["electro_wizard"]),
+                       ("goblin_cage", ["cannon"]), ("electro_spirit", ["ice_spirit"])],
+    "Drill Cycle":    [("berserker", ["knight", "valkyrie"]), ("firecracker", ["archers", "dart_goblin"]),
+                       ("tesla", ["cannon"]), ("void", ["poison", "earthquake"])],
+    "Rune Giant Rush": [("ram_rider", ["battle_ram"]), ("phoenix", ["baby_dragon"]),
+                        ("royal_ghost", ["bandit"]), ("vines", ["poison"])],
+    "Graveyard Freeze": [("poison", ["freeze"]), ("baby_dragon", ["skeleton_dragons"]),
+                         ("knight", ["skeleton_king", "valkyrie"]), ("tombstone", ["cannon"])],
+    "Mortar Bait":    [("miner", ["goblin_drill"]), ("dart_goblin", ["firecracker"]),
+                       ("archers", ["spear_goblins"]), ("fireball", ["rocket", "poison"])],
+    "Electro Giant":  [("bowler", ["valkyrie"]), ("dark_prince", ["prince"]),
+                       ("mega_minion", ["electro_wizard"]), ("lightning", ["poison"])],
+    "Three Musketeers": [("bandit", ["dark_prince"]), ("ice_golem", ["knight"]),
+                         ("minion_horde", ["minions"]), ("royal_ghost", ["heal_spirit"])],
+    "Double Prince":  [("giant", ["goblin_giant"]), ("mega_minion", ["baby_dragon"]),
+                       ("electro_wizard", ["ice_wizard"]), ("minions", ["bats"])],
+    "Lumberloon":     [("bowler", ["ice_golem"]), ("electro_wizard", ["ice_wizard"]),
+                       ("minions", ["bats"]), ("tornado", ["zap"])],
+    "Elixir Golem":   [("night_witch", ["witch"]), ("electro_dragon", ["skeleton_dragons"]),
+                       ("rage", ["zap"]), ("tornado", ["arrows"])],
+    "Champion Cycle": [("golden_knight", ["archer_queen", "monk", "mighty_miner", "little_prince"]),
+                       ("valkyrie", ["knight"]), ("musketeer", ["firecracker"]),
+                       ("cannon", ["tesla"])],
 }
 
 
@@ -1049,6 +1129,38 @@ def _arrange_specials(deck):
 
 
 AI_DECK_PRESETS = {k: _arrange_specials(v) for k, v in AI_DECK_PRESETS.items()}
+
+
+def deck_variant(name, rng, swap_chance=0.4):
+    """A Trophy Road variation of preset `name`: some cards swapped for an
+    on-theme alternative, and a random pick of which Evolution-capable cards
+    take the Evo slots (1-2) and which Hero-capable card the Hero slot (3)."""
+    import evos
+    deck = list(AI_DECK_PRESETS[name])
+    for card, opts in AI_DECK_VARIANTS.get(name, []):
+        if card not in deck or rng.random() >= swap_chance:
+            continue
+        opts = [o for o in opts if o in CARDS and o not in deck]
+        if not opts:
+            continue
+        new = rng.choice(opts)
+        champs = sum(CARDS[k].is_champion for k in deck if k != card)
+        if CARDS[new].is_champion and champs:
+            continue                              # one Champion per deck
+        deck[deck.index(card)] = new
+    ev_ok = [k for k in deck if k in evos.EVOS]
+    rng.shuffle(ev_ok)
+    ev = ev_ok[:2]
+    he_ok = [k for k in deck if k in evos.HEROES and k not in ev]
+    he = rng.choice(he_ok) if he_ok else None
+    rest = [k for k in deck if k not in ev and k != he]
+    rng.shuffle(rest)
+    front = list(ev)
+    while len(front) < 2:
+        front.append(rest.pop(0))
+    if he:
+        front.append(he)
+    return front + rest
 
 
 def random_deck():

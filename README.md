@@ -19,7 +19,32 @@ python src/main.py
 
 The first launch generates all the unit sprites into `assets/sprites/`.
 
-## What's in it (v1.2)
+## What's in it (v1.4)
+
+**New in v1.4**: a tabbed home screen like the real game - **Shop**
+(placeholder), **Deck**, **Battle**, **Levels** and **Modes** along the bottom,
+with Settings, AI Deck, Records, Last Match and How To Play in the three-bar
+menu at the top right. The window is wider (540 x 800) and the arena has
+camps, tents and torch pillars in its new side margins. A second menu theme
+and a second battle theme alternate. Trophy Road gives **+60 trophies** a
+win and its bots play **variations** of 22 archetype decks, with more
+Evolutions and Heroes the higher you climb.
+
+## Home screen
+
+* **Shop** - a placeholder for now (cards are upgraded with the gold you win).
+* **Deck** - the deck builder, saved as you go (deck slots 1-5, your Tower
+  Troop chip, Clear / Default, and **Cards & Upgrades** for the collection).
+* **Battle** - your arena and trophies (click it for the Trophy Road), the
+  big **Battle** button (a Trophy Road battle), **Friendly Battle** (pick the
+  AI's intelligence, elixir and deck yourself), Achievements, the next road
+  reward, the daily first-win bonus and your deck.
+* **Levels** - the 30 wave levels and your Level Deck.
+* **Modes** - the Special Battles, Endless Survival and the Sandbox.
+* **Three-bar menu** (top right) - Settings, AI Deck, Records, Last Match,
+  How To Play and Quit. Esc goes back to the Battle tab.
+
+## Earlier versions
 
 * **Trophy Road**: a ranked ladder through 16 arenas (Goblin Stadium ->
   Legendary Arena). Win trophies, lose some, and your trophy count picks the
@@ -28,7 +53,7 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 * **Tower Troops**: Tower Princess, Cannoneer, Dagger Duchess and Royal Chef
   man your Princess Towers, unlocked along the Trophy Road.
 * **Battle** the AI: 5 intelligence levels, a 0.5x-2x elixir handicap
-  slider, 14 archetype decks (or random / custom), and an AI card level that
+  slider, 22 archetype decks (or random / custom), and an AI card level that
   climbs as you beat it.
 * **Levels**: 30 themed wave challenges, unlocked by stars.
 * **Special Modes**: Triple Elixir, Sudden Death, Mirror Match, Draft, Rage
@@ -49,8 +74,8 @@ and Hero slots).
 
 ## Trophy Road
 
-**Trophy Road** on the main menu (the button shows your trophies) is the
-ranked ladder. You play your current deck against a bot chosen by your
+**Trophy Road** (the Battle tab's **Battle** button; the arena banner opens
+the road) is the ranked ladder. You play your current deck against a bot chosen by your
 trophy count:
 
 | Trophies | Arenas | Bot |
@@ -61,12 +86,19 @@ trophy count:
 | 2300-3399 | Frozen Peak, Jungle Arena, Hog Mountain | Expert |
 | 3400+ | Electro Valley, Spooky Town, Rascal's Hideout, Serenity Peak, Miner's Mine, Legendary Arena (5500) | Master |
 
-* A win is **+30 trophies** (+2 per crown you won by), a loss **-20**, a
+* A win is **+60 trophies** (+4 per crown you won by), a loss **-20**, a
   draw 0. You never drop below the gate of an arena you've reached.
 * The bot's cards are level 11 + 1 per 1000 trophies (up to 16), but never
   more than **one level above your crown towers**.
-* The bot plays one of the archetype decks (sometimes a random deck) and
-  brings a Tower Troop you could have unlocked by then.
+* The bot plays a **variation** of one of the 22 archetype decks (sometimes a
+  random deck): a few cards may be swapped for on-theme alternatives (a Log
+  Bait with a Cannon instead of the Inferno Tower, a Prince instead of the
+  Knight...), and which cards are its Evolutions and Hero changes every game.
+  It brings no Evolutions or Heroes at the start of the road, then 1 Evo
+  (from ~920 trophies), 1 Evo + its Hero (~1830) and the full 2 Evos + Hero
+  from 2750 on. It also brings a Tower Troop you could have unlocked by then.
+  The decks and their swaps are `AI_DECK_PRESETS` / `AI_DECK_VARIANTS` in
+  `src/cards.py`.
 * **Road rewards** every 100 trophies (gold, and 3 shards at every new
   arena) are paid once, the first time you reach them. The Trophy Road
   screen shows the whole road and points at your next reward.
@@ -90,7 +122,7 @@ The AI uses Tower Troops in Trophy Road battles. Mirror Match copies yours.
 
 ## How to play
 
-1. **Battle** from the main menu opens the **Battle Setup** screen. Two
+1. **Friendly Battle** on the Battle tab opens the **Battle Setup** screen. Two
    separate dials control the AI:
    * **AI Intelligence 1–5** (Novice, Casual, Skilled, Expert, Master): how
      well it plays. Keys **1–5** also work.
@@ -101,10 +133,13 @@ The AI uses Tower Troops in Trophy Road battles. Mirror Match copies yours.
 
    Your choices are remembered. Then hit **Start Battle!**
    * **Change AI Deck** opens the AI Deck screen; **Back to Battle Setup**
-     returns you straight to the battle screen. Pick from 11 archetype decks
+     returns you straight to the battle screen. Pick from 22 archetype decks
      (Hog Cycle, P.E.K.K.A Bridge, Golem Beatdown, Classic, Log Bait, Miner
-     Control, Lava Loon, X-Bow, Sparky GG, MK Bats WB, Royal Giant),
-     **Random**, or build your own **Custom** AI deck.
+     Control, Lava Loon, X-Bow, Sparky GG, MK Bats WB, Royal Giant, Recruits
+     Hogs, Drill Cycle, Rune Giant Rush, Graveyard Freeze, Mortar Bait,
+     Electro Giant, Three Musketeers, Double Prince, Lumberloon, Elixir Golem,
+     Champion Cycle), **Random**, or build your own **Custom** AI deck (also
+     in the three-bar menu: AI Deck).
    * **Edit My Deck** opens your deck editor and comes back here too.
    * **AI card level**: *Ladder* (the AI's cards start at level 11 and go up
      one level for every 3 wins you get against that intelligence level, up
@@ -144,7 +179,7 @@ progress, to start over).
 * **Achievements** - 28 milestones across every mode (win 10/50 battles,
   beat Expert/Master at even elixir, clear Level 10/20/30, 30/60/90 stars,
   Endless wave 10/20, 1000/2300/5500 trophies, max a card...). Claim the reward on the Achievements screen;
-  the menu button shows how many are waiting.
+  the Battle tab (and its Achievements button) shows how many are waiting.
 * **Sandbox** (Settings) unlocks every Level, Evolution and Hero for free
   play without touching your saved progress.
 
@@ -238,7 +273,7 @@ own deck), and it uses Hero abilities too.
 
 ## Sandbox
 
-**Sandbox** on the main menu is a free practice arena (nothing you do there
+**Sandbox** (Modes tab) is a free practice arena (nothing you do there
 touches your progress):
 
 * **Place any card for either side** - pick it from the strip at the bottom,
@@ -288,7 +323,7 @@ shard every 5 waves; your best wave is saved.
 
 ### Levels
 
-**Levels** on the main menu are set-piece challenges. The opponent has **no
+**Levels** (Levels tab) are set-piece challenges. The opponent has **no
 towers**: scripted waves of enemies march at yours, and your only goal is to
 survive them all with your King Tower standing. You can only deploy on your
 half. Stars: 3 = no tower lost, 2 = one Princess Tower lost, 1 = both lost.
@@ -316,7 +351,7 @@ Level rules:
   Your troops standing in it take 16 damage every second (a Goblin dies on
   the 6th tick), so you can't build an army at the spawn and camp the waves.
 
-The window is 420×800. It can be resized (or maximised) and the game scales
+The window is 540×800. It can be resized (or maximised) and the game scales
 to fit.
 
 Enemy units have **levels**. Card stats count as level 11, and every level
@@ -500,7 +535,10 @@ samples and nothing copyrighted. That includes:
   and impact sound for every spell.
 
 Sounds are panned left/right by where they happen. Toggle **Music** (M key)
-and **Sound** (N key) on the main menu; volumes are in `config.py`. The
+and **Sound** (N key) anywhere; volumes are in Settings. There are two menu
+themes and two battle themes (each with its faster final-minute version):
+battles alternate between the battle themes, and the menu switches theme
+each time you come back from a battle. The
 WAVs live in `assets/sounds/`. Drop in your own WAV with the same name
 (e.g. `knight_attack.wav`) and it is used and never overwritten.
 
@@ -672,6 +710,8 @@ src/
   game.py     window, menus, deck builder, rendering, input, main loop
   ui.py       shared text / gradient / button helpers
   screens.py  Cards, Settings, Match Stats, Achievements screens
+  home.py     the tabbed home screen (Shop / Deck / Battle / Levels / Modes)
+  sandbox.py  the Training Sandbox
   modes.py    Special Battles, Draft and Endless Survival
   levels.py   the 30 Levels, the wave runner and the Endless generator
   profile_data.py  gold, shards, card levels, unlocks (profile.json)

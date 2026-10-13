@@ -990,6 +990,111 @@ def make_battle_music():
     return normalize(soft_clip(out, 2.2, rms_target=0.16), 0.75)
 
 
+def _tom(f=110, seed=4):
+    t = tone(f, 0.35, f * 0.55, decay=0.22)
+    mix_into(t, lowpass(noise(0.08, decay=0.05, seed=seed), 900), 0, 0.3)
+    return t
+
+
+def make_menu_music2():
+    """Second menu theme: bright and warm - harp arpeggios, glockenspiel
+    melody, a soft hand drum (F major, a little quicker than the first)."""
+    bpm = 104
+    beat = 60.0 / bpm
+    # F - C/E - Dm - Bb  /  F - Am - Bb - C        (semitones from A4)
+    prog = [(-4, [0, 4, 7]), (-9, [0, 4, 7]), (-7, [0, 3, 7]), (-11, [0, 4, 7]),
+            (-4, [0, 4, 7]), (0, [0, 3, 7]), (-11, [0, 4, 7]), (-9, [0, 4, 7])]
+    bars = len(prog)
+    total = bars * 4 * beat
+    out = silence(total * 2)
+    mel = [12, None, 11, 9, 7, None, 9, None, 5, 7, 9, None, 7, None, None, None,
+           12, 14, 12, 11, 9, None, 7, 9, 10, 9, 7, 5, 7, None, None, None]
+    drum_lo, drum_hi = _tom(140, 5), _tom(220, 6)
+    for rep_ in range(2):
+        t0 = rep_ * total
+        for b, (root, chord) in enumerate(prog):
+            bt = t0 + b * 4 * beat
+            freqs = [_note(root + c - 12) for c in chord]
+            mix_into(out, _pad(freqs, 4 * beat, vol=0.08), bt, 0.8)
+            mix_into(out, pluck(_note(root - 24), 4 * beat, 0.3, seed=b), bt, 0.35)
+            # harp: rolling 16th arpeggio up and down two octaves
+            arp = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 2, 3, 4, 5, 4, 2]
+            for i, a in enumerate(arp):
+                oc, ci = divmod(a, 3)
+                f = _note(root + chord[ci] + 12 * oc - 12)
+                mix_into(out, pluck(f, beat * 0.9, 0.65, seed=b * 16 + i),
+                         bt + i * beat / 4, 0.12)
+            # hand drum: low on 1, high on the "and" of 2 and on 4
+            mix_into(out, drum_lo, bt, 0.22)
+            mix_into(out, drum_hi, bt + 1.5 * beat, 0.12)
+            mix_into(out, drum_hi, bt + 3 * beat, 0.14)
+            # glockenspiel melody (second pass), with a bell-like overtone
+            if rep_ == 1:
+                for i in range(4):
+                    m = mel[(b * 4 + i) % len(mel)]
+                    if m is not None:
+                        f = _note(m - 4)
+                        bell = tone(f * 2, beat * 1.4, decay=beat * 0.9)
+                        mix_into(bell, tone(f * 5.4, beat * 0.6, decay=beat * 0.25), 0, 0.25)
+                        mix_into(out, bell, bt + i * beat, 0.12)
+    out = loop_wrap(out, total * 2)
+    return normalize(soft_clip(normalize(out, 0.9), 1.6, rms_target=0.17), 0.7)
+
+
+def make_battle_music2():
+    """Second battle theme: war drums and toms, staccato strings, a horn
+    call over a choir-like pad (D minor, 150 bpm)."""
+    bpm = 150
+    beat = 60.0 / bpm
+    prog = [-7, -7, -11, -11, -9, -9, -12, -12,      # Dm Dm Bb Bb C C A A
+            -7, -7, -2, -2, -9, -9, -12, -12]        # Dm Dm G G C C A A
+    quality = {-7: [0, 3, 7], -11: [0, 4, 7], -9: [0, 4, 7], -12: [0, 4, 7],
+               -2: [0, 3, 7]}
+    bars = len(prog)
+    total = bars * 4 * beat
+    out = silence(total)
+    kick, snare = _kick(), _snare(7)
+    toms = [_tom(95, 8), _tom(130, 9), _tom(175, 10)]
+    hats = [_hat(s + 10) for s in range(4)]
+    horn = [0, None, 3, 5, 7, None, None, 5, 3, None, 2, 3, 0, None, None, None]
+    for b, root in enumerate(prog):
+        bt = b * 4 * beat
+        chord = quality[root]
+        # war drums: kick on 1 and the "and" of 2, snare on 3, tom roll at the end
+        mix_into(out, kick, bt, 0.55)
+        mix_into(out, kick, bt + 1.5 * beat, 0.4)
+        mix_into(out, snare, bt + 2 * beat, 0.32)
+        mix_into(out, toms[0], bt + 3 * beat, 0.28)
+        for q in range(8):
+            mix_into(out, hats[q % 4], bt + q * beat / 2, 0.06)
+        if b % 4 == 3:
+            for k in range(6):
+                mix_into(out, toms[2 - k // 2], bt + 2.5 * beat + k * beat / 4, 0.18 + 0.03 * k)
+        # bass: root pulses
+        for i in (0, 3, 4, 6):
+            f = _note(root - 24)
+            mix_into(out, lowpass(tone(f, beat / 2, wave_="saw", decay=beat * 0.45), 600),
+                     bt + i * beat / 2, 0.3)
+        # staccato strings in 8ths
+        for i in range(8):
+            f = _note(root + chord[(i // 2) % 3])
+            mix_into(out, lowpass(tone(f, beat * 0.22, wave_="saw", attack=0.003,
+                                       decay=beat * 0.15), 3000), bt + i * beat / 2, 0.1)
+        # choir-ish pad
+        mix_into(out, _pad([_note(root + c) for c in chord], 4 * beat, vol=0.05), bt, 0.9)
+        # horn call on the second half
+        if b >= 8:
+            for i in range(2):
+                m = horn[((b - 8) * 2 + i) % len(horn)]
+                if m is not None:
+                    f = _note(root + m)
+                    sig = lowpass(tone(f, beat * 1.9, wave_="saw", attack=0.05, vib=0.005),
+                                  f * 4)
+                    mix_into(out, sig, bt + i * 2 * beat, 0.14)
+    out = loop_wrap(out, total)
+    return normalize(soft_clip(out, 2.2, rms_target=0.16), 0.75)
+
+
 # ===========================================================================
 #  GENERATION / MANIFEST
 # ===========================================================================
@@ -1013,6 +1118,8 @@ def _jobs():
     jobs.append(("_extras", make_extras))
     jobs.append(("music_menu", make_menu_music))
     jobs.append(("music_battle", make_battle_music))
+    jobs.append(("music_menu2", make_menu_music2))
+    jobs.append(("music_battle2", make_battle_music2))
     return jobs
 
 
@@ -1076,6 +1183,8 @@ def ensure_sounds(progress=None):
             names = [name[:-6] + "_cast", name[:-6] + "_impact"]
         elif name == "music_battle":
             names = ["music_battle", "music_final"]
+        elif name == "music_battle2":
+            names = ["music_battle2", "music_final2"]
         else:
             names = [name]
         if not any(needs(nm) for nm in names):
@@ -1089,6 +1198,9 @@ def ensure_sounds(progress=None):
             write("music_battle", res)
             # the last-minute track: same loop, faster and a tone higher
             write("music_final", resample(res, 1.12))
+        elif name == "music_battle2":
+            write("music_battle2", res)
+            write("music_final2", resample(res, 1.12))
         elif isinstance(res, tuple):
             for nm, sig in zip(names, res):
                 write(nm, sig)
@@ -1166,7 +1278,8 @@ class SoundManager:
 
     # ---- music ----
     def music(self, track):
-        """track: 'menu' | 'battle' | 'final' | None (stop)."""
+        """track: 'menu' | 'menu2' | 'battle' | 'battle2' | 'final' | 'final2' |
+        None (stop)."""
         if not self.ok:
             return
         if not self.music_on:

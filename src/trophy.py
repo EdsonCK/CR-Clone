@@ -14,6 +14,9 @@ higher you climb, the smarter the AI and the higher its card levels.
     level (11 -> 16); the bot's cards are never more than one level above
     your crown towers, so upgrading still matters but you can't be
     stonewalled.
+  * Bots play VARIATIONS of the archetype decks (cards.deck_variant) and
+    bring no Evolutions / Heroes at first, up to 2 Evos + a Hero from
+    SPECIALS_FULL_AT trophies (bot_specials).
   * REWARDS line the road: gold every 100 trophies, shards at each new
     arena, and the Tower Troops unlock where they do in Clash Royale
     (Cannoneer: Frozen Peak, Dagger Duchess: Electro Valley, Royal Chef:
@@ -56,9 +59,10 @@ ARENAS = [
     Arena(5500, "Legendary Arena", 5, (255, 210, 90)),
 ]
 
-WIN_TROPHIES = 30        # + a small bonus per crown margin
+WIN_TROPHIES = 60        # + a small bonus per crown margin
 LOSS_TROPHIES = 20
-CROWN_BONUS = 2
+CROWN_BONUS = 4
+SPECIALS_FULL_AT = 2750  # bots bring a full set of Evos + Hero from here on
 
 
 def arena_index(trophies):
@@ -81,6 +85,14 @@ def next_arena(trophies):
 def bot_level(trophies):
     """AI intelligence for this trophy count."""
     return arena(trophies).ai
+
+
+def bot_specials(trophies):
+    """(evolutions, heroes) a Trophy Road bot brings: none at the start of the
+    road, growing to the full 2 Evolutions + 1 Hero by SPECIALS_FULL_AT
+    (about halfway) and staying there."""
+    n = min(3, int(3 * trophies / SPECIALS_FULL_AT))
+    return {0: (0, 0), 1: (1, 0), 2: (1, 1), 3: (2, 1)}[n]
 
 
 def bot_card_level(trophies, player_tower_level):

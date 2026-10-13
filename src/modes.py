@@ -53,9 +53,16 @@ class ModesMixin:
     def _open_modes(self):
         self.state = "modes"
 
+    def _mode_items(self):
+        """(key, name, description, icon) of every card on the Modes tab:
+        the Special Battles, Endless Survival and the Sandbox."""
+        return list(MODES) + [("sandbox", "Sandbox",
+                               "Place any card for either side, pause, inspect.",
+                               "elixir_collector")]
+
     def _mode_rect(self, i):
-        cols = 2
-        w = (cfg.WINDOW_W - 24 - 8) // cols
+        cols = 3 if cfg.WINDOW_W >= 500 else 2
+        w = (cfg.WINDOW_W - 24 - 8 * (cols - 1)) // cols
         h = 112
         r, c = divmod(i, cols)
         return pygame.Rect(12 + c * (w + 8), 128 + r * (h + 8), w, h)
@@ -69,13 +76,18 @@ class ModesMixin:
 
     def _modes_buttons(self):
         out = []
-        for i, (k, name, _, _) in enumerate(MODES):
+        for i, (k, name, _, _) in enumerate(self._mode_items()):
             r = self._mode_rect(i)
+            if k == "sandbox":
+                out.append(Button((r.x + 8, r.bottom - 36, r.w - 16, 30), "Open",
+                                  self._open_sandbox, "primary"))
+                continue
             out.append(Button((r.x + 8, r.bottom - 36, r.w - 16, 30), "Play",
                               (lambda k=k: self._start_mode(k)),
                               "gold" if k == "endless" else "go"))
-        out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
-                          lambda: self._goto("menu"), "dark"))
+        if not getattr(self, "embedded", False):
+            out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 52, 140, 40), "Back",
+                              lambda: self._goto("menu"), "dark"))
         return out
 
     def _modes_click(self, pos):
@@ -103,7 +115,7 @@ class ModesMixin:
                              2 if sel else 1, border_radius=8)
             self._text("%d %s" % (lv, cfg.AI_LEVELS[lv]["name"]), self.font_s,
                        WHITE, center=r.center)
-        for i, (k, name, desc, icon) in enumerate(MODES):
+        for i, (k, name, desc, icon) in enumerate(self._mode_items()):
             r = self._mode_rect(i)
             gold = k == "endless"
             self._panel(r, border=(214, 176, 84) if gold else (110, 120, 150),
@@ -115,7 +127,9 @@ class ModesMixin:
             for j, ln in enumerate(self._wrap(desc, self.font_s, r.w - 56)[:2]):
                 self._text(ln, self.font_s, (200, 204, 220), topleft=(r.x + 50, r.y + 28 + j * 14))
             rec = self.profile.special.get(k, {})
-            if k == "endless":
+            if k == "sandbox":
+                info = "free practice"
+            elif k == "endless":
                 info = "Best: wave %d" % self.profile.endless_best
             else:
                 info = "won %d / %d" % (rec.get("wins", 0), rec.get("plays", 0))

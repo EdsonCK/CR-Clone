@@ -216,11 +216,13 @@ class TrophyMixin:
         t = self.profile.trophies
         ai, alv = self._trophy_opponent()
         rng = random.Random()
-        # the opponent: a preset archetype (sometimes a random deck), and a
-        # Tower Troop from those unlocked at your arena
-        if rng.random() < 0.8:
-            ai_deck = list(rng.choice(list(cards.AI_DECK_PRESETS.values())))
+        # the opponent: a variation of a preset archetype (sometimes a random
+        # deck), and a Tower Troop from those unlocked at your arena
+        if rng.random() < 0.85:
+            self.trophy_deck_name = rng.choice(sorted(cards.AI_DECK_PRESETS))
+            ai_deck = cards.deck_variant(self.trophy_deck_name, rng)
         else:
+            self.trophy_deck_name = "Random"
             ai_deck = cards.random_deck()
         ai_tower = rng.choice([k for k in towers.ORDER if trophy.tower_troop_unlocked(k, t)])
         cfg.apply_ai_settings(ai, 1.0)
@@ -228,8 +230,13 @@ class TrophyMixin:
         self.level_run = None
         self.mode = "trophy"
         self.trophy_ai = ai
-        self.match = Match(self.player_deck, ai_deck,
-                           **self._match_specials(self.player_deck, ai_deck),
+        # Evolutions / Heroes: yours as unlocked; the bot's by trophy count
+        specials = self._match_specials(self.player_deck)
+        n_evo, n_hero = trophy.bot_specials(t)
+        ae, ah = self._special_cards(ai_deck, owned=False, n_evo=n_evo, n_hero=n_hero)
+        specials["evo_cards"][ENEMY] = ae
+        specials["hero_cards"][ENEMY] = ah
+        self.match = Match(self.player_deck, ai_deck, **specials,
                            card_levels={PLAYER: self.profile.deck_levels(self.player_deck),
                                         ENEMY: alv},
                            tower_levels={PLAYER: self.profile.tower_level(self.player_deck),

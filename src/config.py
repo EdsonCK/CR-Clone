@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "1.3.0"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "1.4.0"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
@@ -43,9 +43,9 @@ BRIDGE_COLS = (3, 14)   # left bridge center col, right bridge center col
 # How wide the on-screen side/bottom panels are (HUD area for your cards).
 HUD_HEIGHT  = 128      # pixels reserved at the bottom for your card hand
 TOP_BAR     = 40       # pixels reserved at the top for the timer / score
-ARENA_BORDER_X = 48    # decorative (non-placeable) scenery left/right of the
+ARENA_BORDER_X = 108    # decorative (non-placeable) scenery left/right of the
 ARENA_BORDER_Y = 28    #   arena and above/below it: stone rim, trees, bushes,
-                       #   banners. Purely visual. (window = 420 x 800)
+                       #   banners. Purely visual. (window = 540 x 800)
 ARENA_BORDER = ARENA_BORDER_Y
 SIDE_MARGIN = ARENA_BORDER_X
 
