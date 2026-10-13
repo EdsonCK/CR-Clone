@@ -2,3 +2,8 @@
 *
 !.gitignore
 !run_v2.sh
+!snap3.json
+!applied.txt
+!report_before.txt
+!report_after.txt
+!decisions.txt

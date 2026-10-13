@@ -1,0 +1,7 @@
+games 12000 (draws 145)
+  champions              mean win rate  50.3%  (8 cards)
+  ranged single-target   mean win rate  49.6%  (14 cards)
+  everything else        mean win rate  50.0%  (101 cards)
+  spread (sd of beta) 0.342
+  top:    balloon 74%, rascals 74%, witch 73%, lava_hound 71%, spirit_empress 68%, golem 66%, inferno_dragon 65%, skeleton_dragons 65%
+  bottom: tesla 40%, cannon 40%, mortar 39%, royal_hogs 38%, minion_horde 38%, rune_giant 36%, goblin_drill 35%, elixir_golem 24%

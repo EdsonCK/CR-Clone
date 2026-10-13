@@ -105,3 +105,76 @@ Method: 5 damped rounds against frozen snapshots (max ±35-50% per card per roun
 
 Spread of card performance (standard deviation): **5.78 → 1.77** elixir.
 
+## v1.3 rebalance (hybrid run, older cards only)
+
+Power factor applied on top of the v1.2 stats (see README, "v1.3 rebalance").
+
+| Card | Factor | Changes |
+|---|---|---|
+| archer_queen | x0.88 | hp 484->454; damage 122->115 |
+| archers | x1.25 | hp 147->159; damage 57->66 |
+| baby_dragon | x0.77 | hp 678->596; damage 85->75 |
+| balloon | x0.51 | hp 1139->734; damage 627->495 |
+| bandit | x0.88 | hp 503->472; damage 107->101 |
+| barbarian_hut | x1.19 | hp 1638->1790; sub_hp_mult 1.26->1.38; sub_dmg_mult 1.26->1.38 |
+| bats | x1.14 | hp 31->32; damage 30->33 |
+| battle_ram | x1.17 | hp 595->657; damage 118->124; sub_hp_mult 1.14->1.26; sub_dmg_mult 1.08->1.14 |
+| boss_bandit | x0.85 | hp 1256->1156; damage 148->136 |
+| bowler | x0.86 | hp 1185->1096; damage 183->169 |
+| cannon | x1.28 | hp 700->791; damage 120->136 |
+| cannon_cart | x0.88 | hp 541->507; shield_hp 396->371; damage 117->110 |
+| dark_prince | x0.81 | hp 627->565; shield_hp 166->150; damage 129->116 |
+| dart_goblin | x1.13 | hp 132->138; damage 77->83 |
+| earthquake | x1.27 | spell_damage 37->47; tower_damage 46->59 |
+| electro_giant | x0.87 | hp 1204->1102; damage 88->84 |
+| electro_spirit | x1.27 | hp 106->115; damage 53->62 |
+| electro_wizard | x1.09 | hp 309->318; damage 84->89; spawn_damage 84->89 |
+| elite_barbarians | x0.70 | hp 659->550; damage 226->189 |
+| elixir_golem | x1.60 | hp 885->1201; damage 117->138; sub_hp_mult 0.63->0.86; sub_dmg_mult 0.78->0.92 |
+| executioner | x0.83 | hp 533->485; damage 90->82 |
+| fire_spirit | x1.25 | hp 82->89; damage 162->187; death_damage 162->187 |
+| flying_machine | x0.88 | hp 327->313; damage 89->82 |
+| giant_skeleton | x0.67 | hp 1651->1353; damage 123->101 |
+| goblin_barrel | x1.19 | sub_hp_mult 1.26->1.37; sub_dmg_mult 1.26->1.37 |
+| goblin_giant | x0.88 | hp 2132->1957; damage 103->98; sub_hp_mult 0.89->0.82; sub_dmg_mult 0.94->0.90 |
+| goblin_hut | x1.28 | hp 1260->1423; sub_hp_mult 1.26->1.42; sub_dmg_mult 1.26->1.42 |
+| goblins | x1.28 | hp 93->101; damage 64->75 |
+| golden_knight | x0.74 | hp 979->845; damage 119->103 |
+| golem | x0.79 | hp 3599->3076; damage 258->237; sub_hp_mult 0.86->0.73; sub_dmg_mult 0.92->0.85 |
+| hunter | x1.13 | hp 463->492; damage 32->34 |
+| ice_golem | x0.79 | hp 1414->1212; damage 46->42 |
+| ice_spirit | x1.13 | hp 82->86; damage 57->62; death_damage 57->62 |
+| inferno_dragon | x0.68 | hp 447->369; damage 20->17 |
+| inferno_tower | x1.28 | hp 941->1063; damage 24->27 |
+| lava_hound | x0.51 | hp 4052->2630; damage 47->37; sub_hp_mult 1.35->0.88; sub_dmg_mult 1.18->0.93 |
+| magic_archer | x0.89 | hp 371->356; damage 88->82 |
+| mega_knight | x0.73 | hp 1835->1493; damage 138->124; spawn_damage 195->175; dash_damage 195->175 |
+| mega_minion | x1.29 | hp 319->349; damage 126->149 |
+| mighty_miner | x1.31 | hp 904->1033; damage 21->24 |
+| miner | x0.86 | hp 1067->988; damage 89->82 |
+| mini_pekka | x0.79 | hp 661->587; damage 350->311 |
+| minion_horde | x1.39 | hp 69->81; damage 32->38 |
+| minions | x1.22 | hp 89->95; damage 41->47 |
+| monk | x0.85 | hp 1020->942; damage 86->79 |
+| mortar | x1.20 | hp 807->885; damage 262->287 |
+| musketeer | x1.10 | hp 348->360; damage 125->133 |
+| night_witch | x0.68 | hp 702->580; damage 188->155; sub_hp_mult 1.25->1.03; sub_dmg_mult 1.25->1.03 |
+| pekka | x0.79 | hp 1593->1420; damage 392->349 |
+| poison | x1.08 | spell_damage 55->59; tower_damage 22->24 |
+| prince | x0.84 | hp 855->783; damage 214->196 |
+| princess | x1.10 | hp 104->107; damage 93->99 |
+| rocket | x1.14 | spell_damage 582->661; tower_damage 233->265 |
+| royal_giant | x0.94 | hp 2363->2268; damage 192->188 |
+| skeleton_army | x1.46 | hp 19->22; damage 19->24 |
+| skeleton_barrel | x1.26 | hp 420->489; sub_hp_mult 1.35->1.57; sub_dmg_mult 1.18->1.28 |
+| skeleton_king | x0.81 | hp 1039->933; damage 131->118 |
+| snowball | x1.09 | spell_damage 80->87; tower_damage 32->35 |
+| spear_goblins | x1.18 | hp 48->51; damage 27->30 |
+| tesla | x1.45 | hp 654->788; damage 108->130 |
+| three_musketeers | x1.14 | hp 264->282; damage 93->99 |
+| valkyrie | x0.70 | hp 1096->917; damage 157->131 |
+| wall_breakers | x1.19 | hp 189->212; damage 212->225; death_damage 212->225 |
+| witch | x0.56 | hp 498->372; damage 97->72; sub_hp_mult 1.08->0.81; sub_dmg_mult 1.08->0.81 |
+| wizard | x1.05 | hp 371->378; damage 153->158 |
+| xbow | x1.31 | hp 1260->1440; damage 33->38 |
+| zappies | x1.07 | hp 148->153; damage 51->53 |

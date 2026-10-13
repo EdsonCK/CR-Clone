@@ -628,6 +628,34 @@ All card stats were balanced with an automated benchmark,
 `tools/balance_data/` holds the benchmark results, and `BALANCE.md` lists
 every stat change.
 
+### v1.3 rebalance (hybrid: engagements propose, full games decide)
+
+The isolated engagements above had two blind spots: champions never get to
+use their abilities well in a 30-second 1-v-1 (so they looked overpowered and
+were cut too hard), and a support troop standing alone behind its tower never
+gets answered by a spell. v1.3 rebalanced the older cards with a hybrid run:
+
+* **Engagements v2** (`tools/balance.py`): both sides can answer with a Zap,
+  Arrows or Fireball when it trades well (chip on the tower counts), and
+  champions' abilities are timed by the Expert AI.
+* **Full games** (`tools/fullgame.py`): 12,000 complete matches between two
+  Skilled AIs with random decks per round; a Bradley-Terry model gives every
+  card a strength with an error bar, corrected for the cards it shared decks
+  with.
+* **Decision** (`tools/balance_v2.py`): a card only moves when the full games
+  say it's off - in the engagements' direction when both agree, on the full
+  games alone when they're clearly off. Cards that are fine in full games
+  never move, whatever the engagements say. A buff that measurably did
+  nothing in full games (the AI just doesn't use the card well) is capped at
+  +35% so it can't turn into a monster in human hands.
+* The 28 cards added in v1.1 (real-game stats) were left exactly as they are.
+
+Three rounds cut the spread of card strength by 30% (sd of strength 0.34 ->
+0.24). Champions went from 42-61% to 45-55% win rates and single-target
+ranged troops average 51% (50% in a 2,400-game check with Expert AIs).
+`tools/balance_data/v2/` keeps the final factors (`snap3.json`), the
+before/after reports and the per-card changes (`applied.txt`).
+
 ## Project layout
 
 ```
