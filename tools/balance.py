@@ -29,6 +29,20 @@ hard counter or one free win can't dominate) of attack-minus-defend scores
 over the whole card pool, in 2 timing variants. 0 = trades evenly on
 average; +1 = gains about one elixir per engagement.
 
+v2 engagements (closer to a real match)
+---------------------------------------
+  * PUSHES (optional, PARTNERS=1): a troop attacks with a standard partner
+    and only its contribution counts (the push without it is subtracted).
+    Off by default: against a single defender a two-card push wins almost
+    regardless of the card, which drowned the signal.
+  * BACKUP SPELLS: once a side's card is down, that side may answer with a
+    Zap, Arrows or Fireball if it's a good trade (the spell's elixir counts
+    against it). Fragile, high-value units - support ranged troops above
+    all - pay for standing behind the tower unprotected, as in real games.
+  * CHAMPIONS: abilities are timed by the Expert AI (level 4).
+Only cards outside FIXED (the 28 cards added in v1.1 at real-game stats)
+are tuned. tools/fullgame.py checks every round in full matches.
+
 How cards are tuned
 -------------------
 A card's power is scaled by one factor f: hp *= f^a, damage *= f^(1-a)
@@ -68,6 +82,18 @@ from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,  # noqa: E402
 
 # Support / combo cards that can't be judged in a 1-vs-1 engagement.
 UTILITY = {"rage", "freeze", "tornado", "elixir_collector"}
+# Cards that already use real-game stats (added in v1.1): never tuned, but
+# still in every engagement as opponents.
+FIXED = {"berserker", "firecracker", "goblin_gang", "skeleton_dragons", "rascals",
+         "royal_recruits", "royal_delivery", "heal_spirit", "suspicious_bush",
+         "goblin_cage", "goblin_demolisher", "minion_giant", "royal_hogs", "mirror",
+         "goblin_curse", "clone", "vines", "goblin_drill", "rune_giant", "void",
+         "fisherman", "royal_ghost", "mother_witch", "phoenix", "goblin_machine",
+         "ram_rider", "ronin", "spirit_empress"}
+BACKUP_SPELLS = ("zap", "arrows", "fireball")
+PARTNERS = os.environ.get("PARTNERS", "0") == "1"   # off: 2-v-1 pushes swamped the signal
+BACKUPS = os.environ.get("BACKUPS", "1") == "1"
+CHAMP_AI = int(os.environ.get("CHAMP_AI", "4"))
 TOWER_HP_PER_ELIXIR = 140.0
 DT = 0.05
 MAX_T = 30.0
@@ -88,8 +114,13 @@ def is_damage_spell(key):
 
 
 def pool():
-    """Everything that gets tuned."""
+    """Everything that is benchmarked (opponents included)."""
     return [c.key for c in cards.DEPLOYABLE_CARDS if c.key not in UTILITY]
+
+
+def tune_pool():
+    """What may actually be re-tuned: everything but the real-stat cards."""
+    return [k for k in pool() if k not in FIXED]
 
 
 def main_pool():
@@ -298,7 +329,98 @@ def _deploy_defender_one(m, key, off=(0, 0)):
     return True
 
 
-def engage(atk_key, def_key, variant, na=1, nd=1):
+def partner_for(key):
+    """The standard push partner for an attacking troop (None: attacks alone)."""
+    c = cards.CARDS[key]
+    if c.category != "troop" or c.deploy_anywhere:
+        return None
+    ranged = c.range >= 3.5 and c.attacks != "buildings"
+    p = "knight" if ranged else "musketeer"
+    if p == key:
+        p = "valkyrie" if ranged else "archers"
+    return p
+
+
+def _deploy_partner(m, pkey, key):
+    """Partner placed as a player would: a Knight in front of a ranged card,
+    a Musketeer behind anything else."""
+    c = cards.CARDS[key]
+    front = c.range >= 3.5 and c.attacks != "buildings"
+    y = RIVER_TOP - 1.0 + (1.2 if front else -2.2)
+    m._deploy(ATK, pkey, *_clamp_side(LANE_X, y, ATK))
+
+
+def _spell_trade(m, team, skey):
+    """(value, x, y) of the best spot to cast spell skey on the other side's
+    units: elixir worth of what it would destroy (partial damage counts
+    pro rata)."""
+    sc = cards.CARDS[skey]
+    dmg = sc.spell_damage
+    foes = [e for e in m.entities if e.team != team and e.alive and not e.is_tower
+            and e.invis_timer <= 0 and not e.untargetable and e.card.deployable]
+    best = (0.0, None, None)
+    for c0 in foes:
+        v = 0.0
+        for e in foes:
+            if dist(c0.x, c0.y, e.x, e.y) > sc.spell_radius:
+                continue
+            share = e.card.elixir / max(e.card.count, 1)
+            v += share * min(dmg, e.hp + e.shield) / max(e.max_hp, 1)
+        for tw in m.towers.values():          # chip on a crown tower counts too
+            if tw.team != team and tw.alive and \
+                    dist(c0.x, c0.y, tw.x, tw.y) <= sc.spell_radius + tw.radius * 0.5:
+                v += sc.tower_dmg() / TOWER_HP_PER_ELIXIR
+        if v > best[0]:
+            best = (v, c0.x, c0.y)
+    return best
+
+
+def _maybe_backup(m, team, used, banned):
+    """Cast the best-value backup spell for `team` (once) if it trades
+    positively. Returns its elixir cost (0 if nothing was cast)."""
+    if used.get(team):
+        return 0.0
+    best = None
+    for sk in BACKUP_SPELLS:
+        if sk in banned:
+            continue
+        v, x, y = _spell_trade(m, team, sk)
+        cost = cards.CARDS[sk].elixir
+        if x is not None and v >= cost * 1.0 and (best is None or v - cost > best[0]):
+            best = (v - cost, sk, x, y)
+    if best is None:
+        return 0.0
+    _, sk, x, y = best
+    m._deploy(team, sk, x, y)
+    used[team] = True
+    return float(cards.CARDS[sk].elixir)
+
+
+_BASELINE = {}
+
+
+def engage(atk_key, def_key, variant, na=1, nd=1, partner=True):
+    """X's contribution to a push (the push with X, minus the same push
+    without X), or the old lone engagement when X has no partner."""
+    p = partner_for(atk_key) if (PARTNERS and partner) else None
+    full = engage_one(atk_key, def_key, variant, na, nd, p)
+    if full is None or p is None:
+        return full
+    def sig(k):
+        c = cards.CARDS[k]
+        return (c.hp, c.damage, c.shield_hp, c.spell_damage, c.sub_hp_mult, c.sub_dmg_mult)
+    key = (p, def_key, variant, nd, sig(p), sig(def_key),
+           tuple(sig(k) for k in BACKUP_SPELLS))
+    base = _BASELINE.get(key)
+    if base is None:
+        base = engage_one(p, def_key, variant, 1, nd, None)
+        _BASELINE[key] = base
+    if base is None:
+        return None
+    return full - base
+
+
+def engage_one(atk_key, def_key, variant, na=1, nd=1, partner=None):
     """Run one engagement (na copies of the attacker vs nd copies of the
     defender). Returns the attacker's score in elixir, or None."""
     import random
@@ -311,7 +433,7 @@ def engage(atk_key, def_key, variant, na=1, nd=1):
     brains = {}
     if ac.is_champion or dc.is_champion:   # champion abilities use the AI's timing
         for team in (ATK, DEF):
-            brains[team] = AIController(m, team=team, level=3)
+            brains[team] = AIController(m, team=team, level=CHAMP_AI)
     dmg_spell = _damage_spell(ac)
     if dmg_spell:
         # the defence is already standing there; the spell is cast on it.
@@ -325,7 +447,14 @@ def engage(atk_key, def_key, variant, na=1, nd=1):
                 e.deploy_timer = max(e.deploy_timer, hold)
     else:
         _deploy_attacker(m, atk_key, na)
+        if partner:
+            _deploy_partner(m, partner, atk_key)
     tower0 = {k: t.hp for k, t in m.towers.items()}
+    spells_used, extra = {}, {ATK: 0.0, DEF: 0.0}
+    banned = {atk_key, def_key}
+    can_backup = {ATK: BACKUPS and ac.category != "spell",
+                  DEF: BACKUPS and dc.category != "spell"}
+    def_t = None
     trig = VARIANTS[variant]
     t = 0.0
     def_done = dmg_spell
@@ -345,6 +474,13 @@ def engage(atk_key, def_key, variant, na=1, nd=1):
                 def_done = _deploy_defender(m, def_key, nd)
                 if not def_done:
                     return None
+                def_t = t
+        # backup spells: a side answers once its own card has had a moment
+        if def_t is not None and t >= def_t + 1.0:
+            if can_backup[DEF]:
+                extra[DEF] += _maybe_backup(m, DEF, spells_used, banned)
+            if can_backup[ATK]:
+                extra[ATK] += _maybe_backup(m, ATK, spells_used, banned)
         m.update(DT)
         for b in brains.values():
             b._champion(DT)
@@ -372,14 +508,19 @@ def engage(atk_key, def_key, variant, na=1, nd=1):
     dealt = sum(tower0[k] - m.towers[k].hp for k in tower0 if k[0] == DEF)
     taken = sum(tower0[k] - m.towers[k].hp for k in tower0 if k[0] == ATK)
     score = (dealt - taken) / TOWER_HP_PER_ELIXIR
-    a_cost, d_cost = float(ac.elixir) * na, float(dc.elixir) * nd
+    a_cost, d_cost = float(ac.elixir) * na + extra[ATK], float(dc.elixir) * nd + extra[DEF]
+    if partner:
+        a_cost += cards.CARDS[partner].elixir
     # champion ability elixir counts as part of the card's cost
     for team, cost, u0, u1 in uses0.values():
         if team == ATK:
             a_cost += cost * (u0 - u1)
         else:
             d_cost += cost * (u0 - u1)
-    a_left = _value_left(m, ATK, {atk_key} | ({ac.companion[0]} if ac.companion else set()))
+    a_keys = {atk_key} | ({ac.companion[0]} if ac.companion else set())
+    if partner:
+        a_keys.add(partner)
+    a_left = _value_left(m, ATK, a_keys)
     d_left = _value_left(m, DEF, {def_key} | ({dc.companion[0]} if dc.companion else set()))
     score += (a_left - a_cost) - (d_left - d_cost)
     return score
@@ -528,7 +669,7 @@ def _tune_job(args):
 
 
 def tune(snapshot, procs=4, skip=()):
-    keys = [k for k in pool() if k not in skip]
+    keys = [k for k in tune_pool() if k not in skip]
     only = os.environ.get("ONLY")            # tune just these cards (comma list)
     if only:
         keys = [k for k in keys if k in only.split(",")]
