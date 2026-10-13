@@ -480,7 +480,7 @@ class ScreensMixin:
     # ============================================================ SETTINGS
     SETTING_DEFAULTS = {"music_vol": 0.45, "sfx_vol": 0.7, "speed": 1.0,
                         "colorblind": False, "drag_deploy": True,
-                        "dmg_numbers": False, "shake": True}
+                        "dmg_numbers": False, "shake": True, "fullscreen": False}
 
     def _load_extra_settings(self, d):
         for k, v in self.SETTING_DEFAULTS.items():
@@ -504,6 +504,7 @@ class ScreensMixin:
         else:
             cfg.COLOR_TEAM_PLAYER, cfg.COLOR_TEAM_ENEMY = (70, 130, 220), (220, 80, 80)
         fxmod.TEAM_COL[0], fxmod.TEAM_COL[1] = cfg.COLOR_TEAM_PLAYER, cfg.COLOR_TEAM_ENEMY
+        self._apply_display()
         self._arena_surf = None
         cache = getattr(self, "_arena_bg_cache", None)
         if isinstance(cache, dict):
@@ -522,6 +523,7 @@ class ScreensMixin:
         ("drag_deploy", "Drag cards to deploy", "toggle"),
         ("dmg_numbers", "Floating damage numbers", "toggle"),
         ("shake", "Screen shake", "toggle"),
+        ("fullscreen", "Borderless fullscreen  (F11)", "toggle"),
         ("sandbox", "Sandbox: unlock all Levels, Evos, Heroes", "toggle"),
     ]
 
@@ -556,6 +558,30 @@ class ScreensMixin:
         self.progress = {}
         self._save_progress()
         self.sfx.play("defeat", 0.6, min_gap=0.0)
+
+    def _apply_display(self):
+        """Borderless fullscreen on / off. The window is SCALED, so in
+        fullscreen SDL uses the desktop resolution without a border and
+        scales the game up to fit (keeping its shape, black bars at the
+        sides); mouse clicks are mapped back automatically."""
+        surf = pygame.display.get_surface()
+        if surf is None:
+            return
+        want = bool(getattr(self, "opt_fullscreen", False))
+        if want == bool(surf.get_flags() & pygame.FULLSCREEN):
+            return
+        try:
+            pygame.display.toggle_fullscreen()
+        except pygame.error:
+            try:
+                flags = pygame.SCALED | (pygame.FULLSCREEN if want else pygame.RESIZABLE)
+                pygame.display.set_mode((cfg.WINDOW_W, cfg.WINDOW_H), flags)
+            except pygame.error:
+                return
+        self.screen = pygame.display.get_surface()
+
+    def _toggle_fullscreen(self):
+        self._set_opt("fullscreen", not getattr(self, "opt_fullscreen", False))
 
     def _get_opt(self, key):
         return self.sandbox if key == "sandbox" else getattr(self, "opt_" + key)

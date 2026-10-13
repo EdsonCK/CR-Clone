@@ -993,6 +993,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             if e.type == pygame.QUIT:
                 self.running = False
             elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_F11 or (e.key == pygame.K_RETURN
+                                             and e.mod & pygame.KMOD_ALT):
+                    self._toggle_fullscreen()
+                    continue
                 if e.key == pygame.K_m:
                     self._toggle_music()
                 elif e.key == pygame.K_n:
@@ -1963,7 +1967,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             "Achievements pay gold & shards; first win of the",
             "day gives a bonus. Settings: speed, volumes, sandbox.",
             "",
-            "M = music on/off      N = sound on/off",
+            "M = music   N = sound   F11 = borderless fullscreen",
             "Click anywhere / Esc to return to the menu.",
         ]
         y = 86

@@ -351,7 +351,8 @@ Level rules:
   Your troops standing in it take 16 damage every second (a Goblin dies on
   the 6th tick), so you can't build an army at the spawn and camp the waves.
 
-The window is 540×800. It can be resized (or maximised) and the game scales
+The window is 540×800. It can be resized, maximised or made borderless
+fullscreen (F11) and the game scales
 to fit.
 
 Enemy units have **levels**. Card stats count as level 11, and every level
@@ -551,7 +552,10 @@ it, bump its number in `SOUND_REVS`; only that file is regenerated.
 
 Music and sound volume, **game speed** (1x / 1.5x / 2x), **colour-blind team
 colours** (blue vs orange), **drag cards to deploy**, **floating damage
-numbers**, **screen shake**, **Sandbox** and **Reset progress** (asks twice).
+numbers**, **screen shake**, **borderless fullscreen** (also **F11** or
+**Alt+Enter** anywhere; remembered between launches - the game scales up to
+fill your screen, keeping its shape), **Sandbox** and **Reset progress**
+(asks twice).
 
 ## Battlefield feel
 
