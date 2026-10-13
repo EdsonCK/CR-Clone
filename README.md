@@ -275,11 +275,13 @@ level it was balanced for ("rec. Lv"). Upgrade your cards to keep up.
 Level rules:
 
 * **Level Deck** – Levels use their own deck (**Edit Level Deck** on the
-  Levels screen, saved in `level_deck.json`). With no towers to hit, **win
-  conditions are banned**: Giant, Golem, Hog Rider, Balloon, Royal Giant,
-  Lava Hound, Battle Ram, Wall Breakers, Skeleton Barrel, Goblin Giant,
-  Electro Giant, Elixir Golem, Ice Golem, X-Bow and Mortar are greyed out in
-  the editor and can't be played.
+  Levels screen, saved in `level_deck.json`). With no towers to hit, cards
+  that **only attack buildings are banned**: Giant, Golem, Hog Rider,
+  Balloon, Royal Giant, Lava Hound, Battle Ram, Wall Breakers, Skeleton
+  Barrel, Goblin Giant, Electro Giant, Elixir Golem, Ice Golem, Royal Hogs,
+  Ram Rider, Rune Giant, Minion Giant and Suspicious Bush are greyed out in
+  the editor and can't be played. The X-Bow and Mortar shoot troops too, so
+  they're allowed.
 * **Marching** – your troops don't stand around waiting. With nothing to
   fight they march up their lane until the spot where the enemy Princess
   Tower would be is within their attack range, then hold there.

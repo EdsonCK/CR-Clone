@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "1.2.2"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "1.2.3"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)

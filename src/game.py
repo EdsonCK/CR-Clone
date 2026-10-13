@@ -578,7 +578,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             return
         if len(self.level_deck) != cfg.DECK_SIZE or levels.banned_in(self.level_deck):
             self._open_deck_editor("level", "levels")
-            self.deck_msg = "Your Level Deck needs 8 cards (no win conditions)."
+            self.deck_msg = "Your Level Deck needs 8 cards (no building-only cards)."
             return
         self._arena_surf = None
         self.level_key = key
@@ -1885,7 +1885,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             "Tower Troops: pick one per deck (Decks > Tower chip).",
             "",
             "Levels: 30 levels of waves. No enemy towers and no",
-            "win conditions. Every 2 stars opens the next level.",
+            "building-only cards. Every 2 stars opens the next level.",
             "Special Modes: 7 twisted battles + Endless Survival.",
             "",
             "Gold (wins, stars) upgrades cards in Cards: Lv 11-16,",
@@ -2073,7 +2073,7 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
             self._text(self._fit(card.name, self.font_s, r.w - 4), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
             if self.deck_mode == "level" and card.key in levels.BANNED:
-                # win conditions are locked out of Levels: grey + "no" sign
+                # building-only cards are locked out of Levels: grey + "no" sign
                 shade = pygame.Surface(r.size, pygame.SRCALPHA)
                 pygame.draw.rect(shade, (14, 14, 20, 175), shade.get_rect(), border_radius=7)
                 self.screen.blit(shade, r.topleft)
@@ -3654,13 +3654,13 @@ class Game(ModesMixin, ScreensMixin, TrophyMixin):
         pygame.draw.rect(self.screen, (214, 176, 84), thumb, border_radius=4)
         for b in btns[len(levels.LEVELS):]:
             b.draw(self.screen, self.font_m)
-        # the Levels deck (separate from your battle deck: no win conditions)
+        # the Levels deck (separate from your battle deck: no building-only cards)
         deck = self.level_deck
         sz, gap = 36, 6
         total = 8 * sz + 7 * gap
         x0 = cx - total // 2
         strip = self._panel((x0 - 12, cfg.WINDOW_H - 134, total + 24, 60))
-        self._text("Level Deck  (no win conditions)", self.font_sb, center=(cx, strip.y - 2))
+        self._text("Level Deck  (no building-only cards)", self.font_sb, center=(cx, strip.y - 2))
         for i, k in enumerate(deck):
             self.screen.blit(sprites.get_sprite(k, sz), (x0 + i * (sz + gap), strip.y + 14))
 

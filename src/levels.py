@@ -1226,8 +1226,9 @@ def stars_needed(index):
 
 # Win conditions only hit buildings - with no enemy towers they'd do
 # nothing, so they can't be used in Levels.
-BANNED = frozenset(c.key for c in cards.DEPLOYABLE_CARDS
-                   if c.attacks == "buildings" or c.siege)
+# only cards that can't hit anything but buildings are banned (the X-Bow and
+# Mortar shoot troops too, so they're welcome)
+BANNED = frozenset(c.key for c in cards.DEPLOYABLE_CARDS if c.attacks == "buildings")
 
 
 def banned_in(deck):
