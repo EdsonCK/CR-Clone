@@ -51,6 +51,11 @@ K = float(os.environ.get("K", "0.9"))
 DAMP = 0.6            # share of the engagement's proposed step taken
 SOLO = 0.5            # share of the full-game step taken when it acts alone
 MAX_STEP = 0.25       # max |log f| change per round (~ +/-25%)
+# A buff that measurably did nothing in full games (the card's result is set
+# by how the AI plays it, not by its stats) isn't pushed further: such cards
+# are capped at INSENSITIVE_CAP in total and listed as "AI-limited".
+INSENSITIVE_CAP = 1.35
+MIN_RESPONSE = 0.3    # observed / expected change in beta, below = insensitive
 
 
 def load(path):
@@ -58,7 +63,19 @@ def load(path):
         return json.load(f)
 
 
-def combine(snap, tuned, full):
+def response(prev_snap, prev_full, snap, full, key):
+    """How much of the expected full-game change a card's last power change
+    produced (1 = as expected, 0 = nothing). None if it barely moved."""
+    if not prev_full or key not in prev_full["cards"]:
+        return None
+    dl = math.log(snap.get(key, 1.0) / prev_snap.get(key, 1.0))
+    if abs(dl) < 0.1:
+        return None
+    observed = full["cards"][key]["beta"] - prev_full["cards"][key]["beta"]
+    return observed / (dl / K)
+
+
+def combine(snap, tuned, full, prev_snap=None, prev_full=None):
     cards_ = full["cards"]
     out, notes = dict(snap), []
     for key in B.tune_pool():
@@ -82,6 +99,11 @@ def combine(snap, tuned, full):
             step, why = 0.0, "engagements disagree, full-game signal weak"
         step = max(-MAX_STEP, min(MAX_STEP, step))
         f1 = max(B.F_MIN, min(B.F_MAX, f0 * math.exp(step)))
+        r = response(prev_snap or {}, prev_full, snap, full, key)
+        if r is not None and r < MIN_RESPONSE and f0 > 1.0 and f1 >= f0:
+            f1 = min(f1, max(1.0, min(f0, INSENSITIVE_CAP)))
+            f1 = min(f1, INSENSITIVE_CAP)
+            why = "AI-limited (buff had no effect, response %.2f)" % r
         out[key] = f1
         notes.append((key, f0, f1, beta, se, fe, why))
     return out, notes
@@ -121,11 +143,21 @@ if __name__ == "__main__":
         snap = {k: (v["f"] if isinstance(v, dict) else v) for k, v in snap.items()}
         tuned = load(sys.argv[3])
         full = load(sys.argv[4])
-        out, notes = combine(snap, tuned, full)
+        # the previous round (snapR-1 / fullR-1 next to these files), if any
+        import re
+        prev_snap = prev_full = None
+        mm = re.search(r"snap(\d+)\.json$", sys.argv[2])
+        if mm and int(mm.group(1)) > 0:
+            d = os.path.dirname(sys.argv[2])
+            r0 = int(mm.group(1)) - 1
+            ps, pf = os.path.join(d, "snap%d.json" % r0), os.path.join(d, "full%d.json" % r0)
+            if os.path.exists(ps) and os.path.exists(pf):
+                prev_snap, prev_full = B.load(ps), load(pf)
+        out, notes = combine(snap, tuned, full, prev_snap, prev_full)
         with open(sys.argv[5], "w") as f:
             json.dump(out, f, indent=1)
         for key, f0, f1, beta, se, fe, why in sorted(notes, key=lambda n: n[2] / n[1]):
-            if abs(f1 / f0 - 1) > 1e-6:
+            if abs(f1 / f0 - 1) > 1e-6 or why.startswith("AI-limited"):
                 print("  %-18s %.3f -> %.3f   (wr %4.1f%%, z %+.1f, engagement %.2f: %s)" % (
                     key, f0, f1, 100 / (1 + math.exp(-beta)), beta / se, fe, why))
     elif cmd == "report":
