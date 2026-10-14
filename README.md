@@ -132,7 +132,7 @@ Evolutions and Heroes the higher you climb.
   their lane.
 * **Rage** deals a Zap's damage where it lands (so does the Lumberjack's
   dropped Rage): it kills Bats, Skeletons and Spear Goblins.
-* **Evo Elite Barbarians** throw their Rage spear (0.6x damage) at ground
+* **Evo Elite Barbarians** throw their Rage spear (0.72x damage) at ground
   troops, buildings or crown towers 3.5-5 tiles away, every 5s. **Hero Ice
   Wizard**'s Snowman also works on crown towers.
 * **Skeleton Barrel** pops the moment it reaches its building (balloon pop,

@@ -331,27 +331,27 @@ _CARD_LIST = [
             hp=41, damage=41, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
             count=3, attacks=G, spawn_radius=0.6),
     CardDef("ice_spirit", "Ice Spirit", 1, rarity="common",
-            hp=86, damage=58, hit_speed=1.0, range=0.9, speed=SPEED_VERY_FAST,
+            hp=96, damage=70, hit_speed=1.0, range=0.9, speed=SPEED_VERY_FAST,
             count=1, attacks=AG, freeze=1.0, kamikaze=True,
-            death_damage=(1.5, 58)),   # explodes on attack: one hit, then gone
+            death_damage=(1.5, 70)),   # explodes on attack: one hit, then gone
     CardDef("fire_spirit", "Fire Spirit", 1, rarity="common",
-            hp=89, damage=174, hit_speed=1.0, range=1.2, speed=SPEED_VERY_FAST,
+            hp=98, damage=207, hit_speed=1.0, range=1.2, speed=SPEED_VERY_FAST,
             count=1, attacks=AG, kamikaze=True,
-            death_damage=(1.5, 174)),  # explodes on attack: one hit, then gone
+            death_damage=(1.5, 207)),  # explodes on attack: one hit, then gone
     CardDef("goblins", "Goblins", 2, rarity="common",
             hp=102, damage=63, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             count=3, attacks=G, spawn_radius=0.7),
     CardDef("spear_goblins", "Spear Goblins", 2, rarity="common",
-            hp=51, damage=28, hit_speed=1.1, range=5.0, speed=SPEED_VERY_FAST,
+            hp=56, damage=33, hit_speed=1.1, range=5.0, speed=SPEED_VERY_FAST,
             count=3, attacks=AG, spawn_radius=0.7),
     CardDef("bats", "Bats", 2, rarity="common",
-            hp=32, damage=31, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
+            hp=34, damage=34, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             count=5, attacks=AG, flying=True, spawn_radius=0.9),
     CardDef("skeleton_barrel", "Skeleton Barrel", 3, rarity="common",
-            hp=489, damage=0, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
+            hp=544, damage=0, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
             count=1, attacks=B, flying=True,
             death_spawn=("skeleton", 6), breaks_on_hit=True, first_hit=0.05,
-            sub_hp_mult=1.57, sub_dmg_mult=1.28),
+            sub_hp_mult=1.75, sub_dmg_mult=1.36),
             # pops the moment it reaches a building: the barrel drops its Skeletons
 
     # -------------------- CORE GROUND TROOPS --------------------
@@ -368,43 +368,43 @@ _CARD_LIST = [
             hp=965, damage=135, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.8, splash_self=True),   # 360 spin around her
     CardDef("mini_pekka", "Mini P.E.K.K.A", 4, rarity="rare",
-            hp=587, damage=335, hit_speed=1.6, range=1.2, speed=SPEED_FAST,
+            hp=539, damage=308, hit_speed=1.6, range=1.2, speed=SPEED_FAST,
             attacks=G),
     CardDef("musketeer", "Musketeer", 4, rarity="rare",
             hp=365, damage=110, hit_speed=1.1, range=6.0, speed=SPEED_MEDIUM,
             attacks=AG),
     CardDef("barbarians", "Barbarians", 5, rarity="common",
-            hp=253, damage=79, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
+            hp=226, damage=71, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
             count=5, attacks=G, spawn_radius=1.2),
     CardDef("elite_barbarians", "Elite Barbarians", 6, rarity="common",
-            hp=550, damage=176, hit_speed=1.7, range=1.2, speed=SPEED_FAST,
+            hp=511, damage=163, hit_speed=1.7, range=1.2, speed=SPEED_FAST,
             count=2, attacks=G, spawn_radius=1.0),
     CardDef("wizard", "Wizard", 5, rarity="rare",
             hp=421, damage=142, hit_speed=1.4, range=5.5, speed=SPEED_MEDIUM,
             attacks=AG, splash=1.4),
     CardDef("witch", "Witch", 5, rarity="epic",
-            hp=372, damage=67, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
+            hp=325, damage=52, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
             attacks=AG, splash=1.2, spawner=("skeleton", 4, 5.0), spawn_first=1.0,
-            sub_hp_mult=0.81, sub_dmg_mult=0.81),
+            sub_hp_mult=0.71, sub_dmg_mult=0.63),
             # witch: 4 skeletons every 7s
     CardDef("pekka", "P.E.K.K.A", 7, rarity="epic",
             hp=1420, damage=325, hit_speed=1.8, range=1.2, speed=SPEED_SLOW,
             attacks=G, no_knockback=True),
     CardDef("prince", "Prince", 5, rarity="epic",
-            hp=783, damage=182, hit_speed=1.4, range=1.6, speed=SPEED_MEDIUM,
+            hp=743, damage=173, hit_speed=1.4, range=1.6, speed=SPEED_MEDIUM,
             attacks=G, charge=True, charge_mult=2.0, no_knockback=True),
     CardDef("dark_prince", "Dark Prince", 4, rarity="epic",
-            hp=565, damage=108, hit_speed=1.3, range=1.3, speed=SPEED_MEDIUM,
-            attacks=G, splash=1.2, charge=True, shield_hp=150),
+            hp=525, damage=100, hit_speed=1.3, range=1.3, speed=SPEED_MEDIUM,
+            attacks=G, splash=1.2, charge=True, shield_hp=139),
     CardDef("giant_skeleton", "Giant Skeleton", 6, rarity="epic",
             hp=1353, damage=94, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, death_damage=(2.5, 595), death_bomb=2.0),
     CardDef("lumberjack", "Lumberjack", 4, rarity="legendary",
-            hp=564, damage=139, hit_speed=0.7, range=1.2, speed=SPEED_VERY_FAST,
+            hp=484, damage=119, hit_speed=0.7, range=1.2, speed=SPEED_VERY_FAST,
             attacks=G, death_spawn=("rage_pickup", 0),
-            sub_hp_mult=0.85, sub_dmg_mult=0.85),  # rage handled on death
+            sub_hp_mult=0.73, sub_dmg_mult=0.73),  # rage handled on death
     CardDef("bandit", "Bandit", 3, rarity="legendary",
-            hp=472, damage=94, hit_speed=1.0, range=1.2, speed=SPEED_FAST,
+            hp=445, damage=89, hit_speed=1.0, range=1.2, speed=SPEED_FAST,
             attacks=G, dash=(3.5, 5.0), dash_immune=True, charge_mult=2.0),
             # dashes onto targets 3.5-5 tiles away, invulnerable mid-dash
             # (a Princess Tower lands one shot on the way in, one mid-dash);
@@ -418,26 +418,26 @@ _CARD_LIST = [
             hp=859, damage=160, hit_speed=1.6, range=1.2, speed=SPEED_VERY_FAST,
             attacks=B, river_jump=True),   # vaults the river, no bridge needed
     CardDef("royal_giant", "Royal Giant", 6, rarity="common",
-            hp=2268, damage=175, hit_speed=1.7, range=5.0, speed=SPEED_SLOW,
+            hp=2002, damage=164, hit_speed=1.7, range=5.0, speed=SPEED_SLOW,
             attacks=B, no_knockback=True),
     CardDef("balloon", "Balloon", 5, rarity="epic",
-            hp=734, damage=460, hit_speed=2.5, range=1.2, speed=SPEED_MEDIUM,
+            hp=656, damage=433, hit_speed=2.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, flying=True, death_damage=(2.0, 186), death_bomb=1.0,
             first_hit=1.0),
     CardDef("golem", "Golem", 8, rarity="epic",
-            hp=3076, damage=220, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
+            hp=2358, damage=191, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 242), death_spawn=("golemite", 2),
-            sub_hp_mult=0.73, sub_dmg_mult=0.85, first_hit=1.0, deploy_time=3.0, no_knockback=True),
+            sub_hp_mult=0.56, sub_dmg_mult=0.74, first_hit=1.0, deploy_time=3.0, no_knockback=True),
 
     # -------------------- AIR TROOPS --------------------
     CardDef("minions", "Minions", 3, rarity="common",
-            hp=95, damage=44, hit_speed=1.0, range=2.0, speed=SPEED_FAST,
+            hp=103, damage=51, hit_speed=1.0, range=2.0, speed=SPEED_FAST,
             count=3, attacks=AG, flying=True, spawn_radius=0.9),
     CardDef("minion_horde", "Minion Horde", 5, rarity="common",
-            hp=81, damage=35, hit_speed=1.0, range=2.0, speed=SPEED_FAST,
+            hp=100, damage=43, hit_speed=1.0, range=2.0, speed=SPEED_FAST,
             count=6, attacks=AG, flying=True, spawn_radius=1.3),
     CardDef("mega_minion", "Mega Minion", 3, rarity="rare",
-            hp=349, damage=139, hit_speed=1.5, range=1.8, speed=SPEED_MEDIUM,
+            hp=362, damage=149, hit_speed=1.5, range=1.8, speed=SPEED_MEDIUM,
             attacks=AG, flying=True),
     CardDef("baby_dragon", "Baby Dragon", 4, rarity="epic",
             hp=583, damage=85, hit_speed=1.5, range=3.0, speed=SPEED_FAST,
@@ -451,12 +451,12 @@ _CARD_LIST = [
             hp=138, damage=77, hit_speed=0.7, range=6.0, speed=SPEED_VERY_FAST,
             attacks=AG),   # outranges Cannon, but NOT Tesla (see tesla range)
     CardDef("princess", "Princess", 3, rarity="legendary",
-            hp=107, damage=92, hit_speed=3.0, range=9.0, speed=SPEED_MEDIUM,
+            hp=102, damage=84, hit_speed=3.0, range=9.0, speed=SPEED_MEDIUM,
             attacks=AG, splash=2.0, deploy_time=1.2),
     CardDef("electro_wizard", "Electro Wizard", 4, rarity="legendary",
-            hp=318, damage=62, hit_speed=1.8, range=5.0, speed=SPEED_FAST,
+            hp=339, damage=70, hit_speed=1.8, range=5.0, speed=SPEED_FAST,
             attacks=AG, stun=0.5, multi_target=2,
-            spawn_damage=(2.5, 83), spawn_stun=0.5),
+            spawn_damage=(2.5, 93), spawn_stun=0.5),
             # 2 bolts per attack at different targets (both hit a lone
             # target); zaps + stuns everything where he lands
     CardDef("ice_wizard", "Ice Wizard", 3, rarity="legendary",
@@ -465,7 +465,7 @@ _CARD_LIST = [
             spawn_damage=(3, 88), spawn_slow=(0.7, 1.0)),
             # chilly entrance: damages + slows where he lands
     CardDef("three_musketeers", "Three Musketeers", 9, rarity="rare",
-            hp=282, damage=92, hit_speed=1.1, range=6.0, speed=SPEED_MEDIUM,
+            hp=270, damage=88, hit_speed=1.1, range=6.0, speed=SPEED_MEDIUM,
             count=3, attacks=AG, spawn_radius=1.4),
     CardDef("sparky", "Sparky", 6, rarity="legendary",
             hp=587, damage=477, hit_speed=5.0, range=5.0, speed=SPEED_SLOW,
@@ -474,10 +474,10 @@ _CARD_LIST = [
 
     # -------------------- BUILDINGS --------------------
     CardDef("cannon", "Cannon", 3, category="building", rarity="common",
-            hp=791, damage=126, hit_speed=0.9, range=5.5, attacks=G,
+            hp=982, damage=156, hit_speed=0.9, range=5.5, attacks=G,
             lifetime=30.0),
     CardDef("tesla", "Tesla", 4, category="building", rarity="common",
-            hp=788, damage=121, hit_speed=1.1, range=6.8, attacks=AG,
+            hp=756, damage=116, hit_speed=1.1, range=6.8, attacks=AG,
             lifetime=40.0, beam=True, cloak=1.5, footprint=2),
             # hides underground (untargetable by troops; spells still hit it)
             # until it has a target, and again 1.5s after its last zap
@@ -487,14 +487,14 @@ _CARD_LIST = [
             rarity="rare", hp=1063, damage=25, hit_speed=0.4, range=6.0,
             attacks=AG, ramp=True, lifetime=40.0),
     CardDef("bomb_tower", "Bomb Tower", 4, category="building", rarity="rare",
-            hp=957, damage=153, hit_speed=1.6, range=6.0, attacks=G,
+            hp=915, damage=146, hit_speed=1.6, range=6.0, attacks=G,
             splash=1.5, lifetime=35.0, death_damage=(2.0, 233), death_bomb=1.0),
     CardDef("mortar", "Mortar", 4, category="building", rarity="common",
             hp=885, damage=200, hit_speed=5.0, range=11.5, attacks=G,
             splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5, siege=True),
             # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
-            hp=1440, damage=35, hit_speed=0.3, range=11.5, attacks=G,
+            hp=1183, damage=29, hit_speed=0.3, range=11.5, attacks=G,
             lifetime=40.0, deploy_time=3.5, siege=True),
             # locks onto the first ground target in range (troop or building)
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
@@ -508,9 +508,9 @@ _CARD_LIST = [
             sub_hp_mult=1.42, sub_dmg_mult=1.42),
             # goblin hut: 1 spear goblin every 4.75s
     CardDef("barbarian_hut", "Barbarian Hut", 7, category="building",
-            rarity="rare", hp=1790, damage=0, range=0, attacks=G,
+            rarity="rare", hp=1889, damage=0, range=0, attacks=G,
             lifetime=50.0, spawner=("barbarian", 3, 15.0),
-            sub_hp_mult=1.38, sub_dmg_mult=1.38),
+            sub_hp_mult=1.46, sub_dmg_mult=1.46),
             # barb hut: 3 barbarians every 15s
     CardDef("furnace", "Furnace", 4, rarity="rare",
             hp=368, damage=90, hit_speed=1.8, range=6.0, speed=SPEED_MEDIUM,
@@ -539,22 +539,22 @@ _CARD_LIST = [
     CardDef("freeze", "Freeze", 4, category="spell", rarity="epic",
             spell_radius=3.0, spell_damage=56, tower_damage=22, freeze=4.0),
     CardDef("poison", "Poison", 4, category="spell", rarity="epic",
-            spell_radius=3.5, spell_damage=55, tower_damage=22, dot=True,
+            spell_radius=3.5, spell_damage=49, tower_damage=19, dot=True,
             duration=8.0, slow=(0.85, 0.5)),
     CardDef("rocket", "Rocket", 6, category="spell", rarity="rare",
             spell_radius=2.0, spell_damage=615, tower_damage=246,
             knockback=1.0),
     CardDef("lightning", "Lightning", 6, category="spell", rarity="epic",
-            spell_radius=3.5, spell_damage=521, tower_damage=209, stun=0.5),
+            spell_radius=3.5, spell_damage=467, tower_damage=187, stun=0.5),
 
     # ==================== EXPANSION SET (v0.1.3) ====================
     # -------- swarms & fast cheap troops --------
     CardDef("skeleton_army", "Skeleton Army", 3, rarity="epic",
-            hp=22, damage=22, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
+            hp=23, damage=24, hit_speed=1.0, range=0.9, speed=SPEED_FAST,
             count=15, attacks=G, spawn_radius=1.7),
     CardDef("guards", "Guards", 3, rarity="epic",
-            hp=38, damage=74, hit_speed=1.1, range=0.9, speed=SPEED_MEDIUM,
-            count=3, attacks=G, shield_hp=175, spawn_radius=0.9),
+            hp=37, damage=69, hit_speed=1.1, range=0.9, speed=SPEED_MEDIUM,
+            count=3, attacks=G, shield_hp=168, spawn_radius=0.9),
     CardDef("zappies", "Zappies", 4, rarity="rare",
             hp=153, damage=49, hit_speed=1.8, range=4.5, speed=SPEED_MEDIUM,
             count=3, attacks=AG, stun=0.4, spawn_radius=1.0),
@@ -566,12 +566,12 @@ _CARD_LIST = [
             # shotgun: 7 pellets fanned 34 deg. At max range only the middle
             # pellets connect; point-blank all 7 hit (brutal up close).
     CardDef("executioner", "Executioner", 5, rarity="epic",
-            hp=485, damage=76, hit_speed=1.6, range=5.0, speed=SPEED_MEDIUM,
+            hp=464, damage=73, hit_speed=1.6, range=5.0, speed=SPEED_MEDIUM,
             attacks=AG, splash=1.6, pierce=True, boomerang=True),
             # axe flies out to full range and comes BACK, hitting
             # everything along the line both ways
     CardDef("bowler", "Bowler", 5, rarity="epic",
-            hp=1096, damage=157, hit_speed=2.5, range=4.5, speed=SPEED_SLOW,
+            hp=1046, damage=150, hit_speed=2.5, range=4.5, speed=SPEED_SLOW,
             attacks=G, splash=1.4, knockback=0.6, pierce=True),
             # boulder rolls its full range, hitting and knocking back all
     CardDef("magic_archer", "Magic Archer", 4, rarity="legendary",
@@ -586,47 +586,47 @@ _CARD_LIST = [
             # night witch: 2 bats every 5s, 2 bats on death
     # -------- air --------
     CardDef("flying_machine", "Flying Machine", 4, rarity="rare",
-            hp=313, damage=76, hit_speed=1.1, range=6.0, speed=SPEED_FAST,
+            hp=326, damage=82, hit_speed=1.1, range=6.0, speed=SPEED_FAST,
             attacks=AG, flying=True),
     CardDef("electro_dragon", "Electro Dragon", 5, rarity="epic",
-            hp=591, damage=86, hit_speed=1.9, range=3.5, speed=SPEED_MEDIUM,
+            hp=570, damage=83, hit_speed=1.9, range=3.5, speed=SPEED_MEDIUM,
             attacks=AG, flying=True, stun=0.5, chain=(4, 2.0)),
             # bolt chains up to 4 targets (2-tile jumps), no repeats
     CardDef("lava_hound", "Lava Hound", 7, rarity="legendary",
-            hp=2630, damage=34, hit_speed=1.3, range=2.5, speed=SPEED_SLOW,
+            hp=2157, damage=31, hit_speed=1.3, range=2.5, speed=SPEED_SLOW,
             attacks=B, flying=True, death_spawn=("lava_pup", 6),
-            sub_hp_mult=0.88, sub_dmg_mult=0.93, no_knockback=True),
+            sub_hp_mult=0.72, sub_dmg_mult=0.84, no_knockback=True),
     # -------- tanks / bruisers --------
     CardDef("mega_knight", "Mega Knight", 7, rarity="legendary",
-            hp=1493, damage=115, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
-            attacks=G, splash=1.6, dash=(3.5, 5.0), dash_damage=(2.2, 163),
-            spawn_damage=(2.5, 163), no_knockback=True),
+            hp=1373, damage=106, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
+            attacks=G, splash=1.6, dash=(3.5, 5.0), dash_damage=(2.2, 150),
+            spawn_damage=(2.5, 150), no_knockback=True),
             # slams the ground where it lands, and JUMPS onto enemies
             # 3.5-5 tiles away (splash damage on landing)
     CardDef("goblin_giant", "Goblin Giant", 6, rarity="epic",
-            hp=1957, damage=91, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
+            hp=1693, damage=84, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, death_spawn=("spear_goblin", 2),
             back_riders=("spear_goblin", 2),
-            sub_hp_mult=0.82, sub_dmg_mult=0.9, no_knockback=True),
+            sub_hp_mult=0.71, sub_dmg_mult=0.83, no_knockback=True),
             # 2 spear goblins ride on his back and shoot while he's alive,
             # then hop off as real units when he dies (death_spawn)
     CardDef("cannon_cart", "Cannon Cart", 5, rarity="epic",
-            hp=507, damage=102, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
-            attacks=G, shield_hp=371),   # shielded mobile cannon
+            hp=470, damage=95, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
+            attacks=G, shield_hp=344),   # shielded mobile cannon
     CardDef("ice_golem", "Ice Golem", 2, rarity="rare",
-            hp=1212, damage=39, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
+            hp=1127, damage=38, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 56), death_slow=(0.6, 2.0)),
     # -------- win conditions --------
     CardDef("miner", "Miner", 3, rarity="legendary",
-            hp=988, damage=76, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            hp=906, damage=70, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, deploy_anywhere=True),
             # tunnels anywhere; chip damage only (nerfed from 120 - he's a
             # 3-elixir unit you can drop directly on a tower)
     CardDef("battle_ram", "Battle Ram", 4, rarity="rare",
-            hp=657, damage=115, hit_speed=1.5, range=1.3, speed=SPEED_MEDIUM,
+            hp=606, damage=110, hit_speed=1.5, range=1.3, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, death_spawn=("barbarian", 2),
             breaks_on_hit=True,
-            sub_hp_mult=1.26, sub_dmg_mult=1.14),
+            sub_hp_mult=1.16, sub_dmg_mult=1.09),
     CardDef("wall_breakers", "Wall Breakers", 2, rarity="epic",
             hp=212, damage=209, hit_speed=1.0, range=1.0, speed=SPEED_VERY_FAST,
             count=2, attacks=B, kamikaze=True,
@@ -635,36 +635,36 @@ _CARD_LIST = [
 
     # -------- electro & support pack (v0.1.9) --------
     CardDef("electro_spirit", "Electro Spirit", 1, rarity="common",
-            hp=115, damage=58, hit_speed=1.0, range=1.2, speed=SPEED_VERY_FAST,
+            hp=122, damage=65, hit_speed=1.0, range=1.2, speed=SPEED_VERY_FAST,
             count=1, attacks=AG, kamikaze=True, stun=0.5,
             chain=(12, 2.0)),
             # kamikaze zap that arcs up to 12 targets (2-tile jumps),
             # never the same target twice
     CardDef("electro_giant", "Electro Giant", 7, rarity="epic",
-            hp=1102, damage=78, hit_speed=1.7, range=1.2, speed=SPEED_SLOW,
+            hp=1490, damage=92, hit_speed=1.7, range=1.2, speed=SPEED_SLOW,
             attacks=B, reflect=(3.0, 56, 0.5), no_knockback=True),
             # counter-zap: anything within 3 tiles gets damaged+stunned
             # whenever he takes a hit
     CardDef("battle_healer", "Battle Healer", 4, rarity="rare",
-            hp=1021, damage=82, hit_speed=1.5, range=1.6, speed=SPEED_MEDIUM,
-            attacks=G, heal_on_attack=(3, 69)),
+            hp=961, damage=77, hit_speed=1.5, range=1.6, speed=SPEED_MEDIUM,
+            attacks=G, heal_on_attack=(3, 65)),
             # heals all nearby allies with every swing
     CardDef("elixir_golem", "Elixir Golem", 3, rarity="rare",
-            hp=1201, damage=128, hit_speed=1.3, range=1.2, speed=SPEED_SLOW,
+            hp=1362, damage=137, hit_speed=1.3, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_spawn=("elixir_golemite", 2),
-            sub_hp_mult=0.86, sub_dmg_mult=0.92),
+            sub_hp_mult=0.98, sub_dmg_mult=0.98),
             # splits twice; the final blobs feed the enemy elixir when killed
 
     # -------- expansion spells --------
     CardDef("goblin_barrel", "Goblin Barrel", 3, category="spell", rarity="epic",
             spawn_troops=("goblin", 3),
-            sub_hp_mult=1.37, sub_dmg_mult=1.37),
+            sub_hp_mult=1.41, sub_dmg_mult=1.41),
     CardDef("barbarian_barrel", "Barbarian Barrel", 2, category="spell",
-            rarity="epic", spell_radius=1.6, spell_damage=65, tower_damage=26,
+            rarity="epic", spell_radius=1.6, spell_damage=73, tower_damage=29,
             rolling=True, knockback=1.2, own_side=True, spawn_troops=("barbarian", 1),
-            sub_hp_mult=0.76, sub_dmg_mult=0.76),
+            sub_hp_mult=0.8, sub_dmg_mult=0.8),
     CardDef("snowball", "Giant Snowball", 2, category="spell", rarity="common",
-            spell_radius=2.5, spell_damage=81, tower_damage=33,
+            spell_radius=2.5, spell_damage=88, tower_damage=36,
             knockback=1.2, slow=(0.65, 2.0)),
     CardDef("earthquake", "Earthquake", 3, category="spell", rarity="rare",
             spell_radius=3.5, spell_damage=44, tower_damage=55, dot=True,
@@ -674,13 +674,13 @@ _CARD_LIST = [
             duration=1.0),   # the real Tornado's 5.5-tile radius
     CardDef("graveyard", "Graveyard", 5, category="spell", rarity="legendary",
             spell_radius=3.5, graveyard=True, duration=8.0,
-            sub_hp_mult=1.26, sub_dmg_mult=1.26),
+            sub_hp_mult=1.14, sub_dmg_mult=1.14),
 
     # ==================== CHAMPIONS (v0.2.0) ====================
     # Each has an activatable ability (yellow button in-match). Only ONE
     # champion may be in a deck. Abilities cost extra elixir + have a cooldown.
     CardDef("mighty_miner", "Mighty Miner", 4, rarity="champion",
-            hp=1033, damage=22, hit_speed=0.4, range=1.2, speed=SPEED_MEDIUM,
+            hp=1017, damage=22, hit_speed=0.4, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, is_champion=True,
             ramp_stages=((0.0, 1.0), (2.0, 2.0), (4.0, 3.0)),
             # drill: 3 damage stages (x1 -> x2 after 2s -> x3 after 4s on the
@@ -707,7 +707,7 @@ _CARD_LIST = [
             # the Guardian charges in, knocking back + damaging enemies on
             # his path, then stays to fight
     CardDef("golden_knight", "Golden Knight", 4, rarity="champion",
-            hp=845, damage=96, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            hp=766, damage=87, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, is_champion=True,
             ability_name="Dashing Dash", ability_type="chain_dash",
             ability_cost=1, ability_radius=5.5,
@@ -715,13 +715,13 @@ _CARD_LIST = [
             # chain-dashes through up to 10 enemies (each within 5.5 tiles of
             # the last), hitting each one; can't be damaged while dashing
     CardDef("skeleton_king", "Skeleton King", 4, rarity="champion",
-            hp=933, damage=110, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
+            hp=853, damage=101, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.3, is_champion=True,
             ability_name="Soul Summoning", ability_type="skeletons",
             ability_cost=2, ability_value=6, no_knockback=True),
             # 6 skeletons + 1 per soul collected from nearby deaths (max 10)
     CardDef("monk", "Monk", 5, rarity="champion",
-            hp=942, damage=73, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
+            hp=889, damage=69, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, is_champion=True, combo_every=3, knockback=1.2,
             # 3-hit combo: every 3rd strike splashes and knocks enemies back
             # (every champion ability below is ONE use per deployment, except
@@ -742,7 +742,7 @@ _CARD_LIST = [
             # a crackling beam joins Doctor and Monster for 4s: enemies
             # touching it take damage (per second) and are briefly stunned
     CardDef("boss_bandit", "Boss Bandit", 6, rarity="champion",
-            hp=1156, damage=126, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            hp=1233, damage=134, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, is_champion=True, dash=(3.5, 5.0), dash_immune=True,
             charge_mult=2.0,
             # dashes like the Bandit (invulnerable, double-damage landing)
@@ -759,26 +759,27 @@ _CARD_LIST = [
     # (x0.506 hp and damage - see STAT_SCALE); ranges, speeds and timings are
     # as-is.
     CardDef("berserker", "Berserker", 2, rarity="common",
-            hp=453, damage=51, hit_speed=0.6, range=0.8, speed=SPEED_FAST,
+            hp=444, damage=50, hit_speed=0.6, range=0.8, speed=SPEED_FAST,
             attacks=G, first_hit=0.3),
     CardDef("firecracker", "Firecracker", 3, rarity="common",
-            hp=154, damage=33, hit_speed=3.0, range=6.0, speed=SPEED_FAST,
+            hp=160, damage=36, hit_speed=3.0, range=6.0, speed=SPEED_FAST,
             attacks=AG, shrapnel=(5, 50.0, 4.5), recoil=1.0),
             # her firework bursts into 5 sparks that fly on through the
             # target (big targets eat several); she hops back after each shot
     CardDef("goblin_gang", "Goblin Gang", 3, rarity="common",
-            hp=88, damage=51, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
+            hp=73, damage=43, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             count=6, attacks=AG, mixed=(("goblin", 3), ("spear_goblin", 3)),
-            sub_hp_mult=1.29, sub_dmg_mult=1.38),
+            sub_hp_mult=1.08, sub_dmg_mult=1.15),
     CardDef("skeleton_dragons", "Skeleton Dragons", 4, rarity="common",
-            hp=283, damage=82, hit_speed=2.0, range=3.5, speed=SPEED_FAST,
+            hp=219, damage=63, hit_speed=2.0, range=3.5, speed=SPEED_FAST,
             count=2, attacks=AG, flying=True, splash=1.5, spawn_radius=0.8),
     CardDef("rascals", "Rascals", 5, rarity="common",
-            hp=403, damage=79, hit_speed=1.2, range=0.8, speed=SPEED_MEDIUM,
-            count=3, attacks=AG, mixed=(("rascal_boy", 1), ("rascal_girl", 2))),
+            hp=312, damage=61, hit_speed=1.2, range=0.8, speed=SPEED_MEDIUM,
+            count=3, attacks=AG, mixed=(("rascal_boy", 1), ("rascal_girl", 2)),
+            sub_hp_mult=0.77, sub_dmg_mult=0.77),
     CardDef("royal_recruits", "Royal Recruits", 7, rarity="common",
-            hp=277, damage=67, hit_speed=1.3, range=1.6, speed=SPEED_MEDIUM,
-            count=6, attacks=G, shield_hp=121, formation="line",
+            hp=195, damage=47, hit_speed=1.3, range=1.6, speed=SPEED_MEDIUM,
+            count=6, attacks=G, shield_hp=85, formation="line",
             formation_gap=1.55, first_hit=0.5),
     CardDef("royal_delivery", "Royal Delivery", 3, category="spell",
             rarity="common", spell_radius=3.0, spell_damage=221, tower_damage=66,
@@ -786,8 +787,8 @@ _CARD_LIST = [
             # lands 3s after you cast it - on your side only - then a Royal
             # Recruit pops out of the crate
     CardDef("heal_spirit", "Heal Spirit", 1, rarity="rare",
-            hp=109, damage=56, hit_speed=1.0, range=2.5, speed=SPEED_VERY_FAST,
-            attacks=AG, kamikaze=True, death_damage=(1.5, 56),
+            hp=124, damage=72, hit_speed=1.0, range=2.5, speed=SPEED_VERY_FAST,
+            attacks=AG, kamikaze=True, death_damage=(1.5, 72),
             heal_burst=(2.5, 51, 4, 1.0)),
     CardDef("suspicious_bush", "Suspicious Bush", 2, rarity="rare",
             hp=41, damage=0, hit_speed=1.0, range=0.8, speed=SPEED_MEDIUM,
@@ -796,41 +797,42 @@ _CARD_LIST = [
             # troops and buildings ignore it; at the first building it
             # bursts into 2 Bush Goblins (also when spelled to death)
     CardDef("goblin_cage", "Goblin Cage", 4, category="building", rarity="rare",
-            hp=395, damage=0, range=0, attacks=G, lifetime=20.0,
-            death_spawn=("goblin_brawler", 1)),
+            hp=438, damage=0, range=0, attacks=G, lifetime=20.0,
+            death_spawn=("goblin_brawler", 1),
+            sub_hp_mult=1.11, sub_dmg_mult=1.11),
     CardDef("goblin_demolisher", "Goblin Demolisher", 4, rarity="rare",
-            hp=658, damage=94, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
+            hp=548, damage=78, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
             attacks=G, splash=1.5, transform=(0.5, "demolisher_charge")),
             # below half health he lights his own fuse and runs at the
             # nearest building (see demolisher_charge)
     CardDef("minion_giant", "Minion Giant", 4, rarity="rare",
-            hp=919, damage=96, hit_speed=1.5, range=4.0, sight=6.5,
+            hp=930, damage=97, hit_speed=1.5, range=4.0, sight=6.5,
             speed=SPEED_MEDIUM, attacks=B, flying=True, no_knockback=True),
             # flies, targets buildings, spits toxin from range
     CardDef("royal_hogs", "Royal Hogs", 5, rarity="rare",
-            hp=424, damage=37, hit_speed=1.2, range=0.7, speed=SPEED_VERY_FAST,
+            hp=490, damage=40, hit_speed=1.2, range=0.7, speed=SPEED_VERY_FAST,
             count=4, attacks=B, river_jump=True, formation="line",
             formation_gap=1.25),
     CardDef("mirror", "Mirror", 1, category="spell", rarity="epic",
             spell_kind="mirror"),
             # replays your last card one level higher for its cost + 1
     CardDef("goblin_curse", "Goblin Curse", 2, category="spell", rarity="epic",
-            spell_radius=3.0, spell_damage=18, tower_damage=5, dot=True,
+            spell_radius=3.0, spell_damage=15, tower_damage=4, dot=True,
             duration=6.0, spell_kind="curse", curse_on_hit=("goblin", 0.4)),
             # enemies that die in it come back as YOUR Goblins
     CardDef("clone", "Clone", 3, category="spell", rarity="epic",
             spell_radius=3.0, spell_kind="clone"),
     CardDef("vines", "Vines", 3, category="spell", rarity="epic",
-            spell_radius=2.5, spell_damage=77, tower_damage=20, duration=2.0,
+            spell_radius=2.5, spell_damage=92, tower_damage=24, duration=2.0,
             hits=2, pick=3, spell_kind="vines"),
             # roots the 3 highest-hp enemies (air ones are dragged down)
     CardDef("goblin_drill", "Goblin Drill", 4, category="building",
-            rarity="epic", hp=664, damage=0, range=0, attacks=G, lifetime=10.0,
+            rarity="epic", hp=807, damage=0, range=0, attacks=G, lifetime=10.0,
             deploy_anywhere=True, spawner=("goblin", 1, 3.0), spawn_first=1.0,
-            death_spawn=("goblin", 2), spawn_damage=(2.0, 43),
-            spawn_knockback=1.0, sub_hp_mult=1.29, sub_dmg_mult=1.38),
+            death_spawn=("goblin", 2), spawn_damage=(2, 52),
+            spawn_knockback=1.0, sub_hp_mult=1.57, sub_dmg_mult=1.68),
     CardDef("rune_giant", "Rune Giant", 4, rarity="epic",
-            hp=1347, damage=60, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
+            hp=1786, damage=70, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, enchant=(2, 8.5, 112, 3, 5.0)),
             # enchants the 2 closest allied troops: every 3rd hit +120
     CardDef("void", "Void", 5, category="spell", rarity="epic",
@@ -842,28 +844,30 @@ _CARD_LIST = [
             speed=SPEED_MEDIUM, attacks=G, hook=(3.5, 7.0, 4.0),
             slow=(0.65, 1.5)),
     CardDef("royal_ghost", "Royal Ghost", 3, rarity="legendary",
-            hp=612, damage=132, hit_speed=1.8, range=1.2, speed=SPEED_FAST,
+            hp=520, damage=112, hit_speed=1.8, range=1.2, speed=SPEED_FAST,
             attacks=G, splash=1.0, cloak=1.8, river_jump=True),
     CardDef("mother_witch", "Mother Witch", 4, rarity="legendary",
-            hp=268, damage=67, hit_speed=1.0, range=5.5, speed=SPEED_MEDIUM,
+            hp=283, damage=74, hit_speed=1.0, range=5.5, speed=SPEED_MEDIUM,
             attacks=AG, curse_on_hit=("cursed_hog", 5.0)),
     CardDef("phoenix", "Phoenix", 4, rarity="legendary",
-            hp=532, damage=110, hit_speed=1.0, range=1.6, speed=SPEED_MEDIUM,
+            hp=511, damage=106, hit_speed=1.0, range=1.6, speed=SPEED_MEDIUM,
             attacks=AG, flying=True, death_damage=(1.5, 83),
-            death_knockback=1.0, death_spawn=("phoenix_egg", 1)),
+            death_knockback=1.0, death_spawn=("phoenix_egg", 1),
+            sub_hp_mult=0.96, sub_dmg_mult=0.96),
     CardDef("goblin_machine", "Goblin Machine", 5, rarity="legendary",
-            hp=1088, damage=107, hit_speed=1.2, range=1.2, speed=SPEED_MEDIUM,
+            hp=973, damage=96, hit_speed=1.2, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, secondary=(153, 3.5, 2.5, 5.0, 1.5, AG, 0.5), no_knockback=True),
     CardDef("ram_rider", "Ram Rider", 5, rarity="legendary",
-            hp=894, damage=126, hit_speed=1.8, range=0.8, speed=SPEED_MEDIUM,
+            hp=881, damage=125, hit_speed=1.8, range=0.8, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, river_jump=True,
-            back_riders=("ram_rider_bola", 1)),
+            back_riders=("ram_rider_bola", 1),
+            sub_hp_mult=0.99, sub_dmg_mult=0.99),
             # the rider throws snaring bolas at troops while the ram charges
     CardDef("ronin", "Ronin", 5, rarity="legendary",
-            hp=900, damage=188, hit_speed=1.3, range=1.2, speed=SPEED_FAST,
+            hp=794, damage=166, hit_speed=1.3, range=1.2, speed=SPEED_FAST,
             attacks=G, parry=(3.5, 2.0)),
     CardDef("spirit_empress", "Spirit Empress", 3, rarity="legendary",
-            hp=567, damage=162, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
+            hp=432, damage=123, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, first_hit=0.3, alt_form=(6, "spirit_empress_air")),
             # 3 elixir: on foot. With 6+ elixir she rides her dragon (6)
 
@@ -980,7 +984,7 @@ _CARD_LIST = [
             hp=137, damage=0, range=0, speed=0.0, attacks=G, lifetime=7.0,
             passive=True),
     CardDef("spirit_empress_air", "Spirit Empress", 6, deployable=False,
-            rarity="legendary", hp=910, damage=144, hit_speed=1.4, range=5.0,
+            rarity="legendary", hp=693, damage=110, hit_speed=1.4, range=5.0,
             speed=SPEED_MEDIUM, attacks=AG, flying=True),
 ]
 

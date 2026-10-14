@@ -1,0 +1,7 @@
+games 12000 (draws 339)
+  champions              mean win rate  51.6%  (8 cards)
+  ranged single-target   mean win rate  47.9%  (14 cards)
+  everything else        mean win rate  50.2%  (101 cards)
+  spread (sd of beta) 0.277
+  top:    rascals 72%, royal_recruits 69%, golem 67%, skeleton_dragons 65%, goblin_gang 63%, spirit_empress 62%, goblin_demolisher 61%, valkyrie 61%
+  bottom: elixir_collector 39%, giant 39%, hog_rider 39%, elixir_golem 38%, rune_giant 35%, goblin_drill 34%, mortar 31%, electro_giant 31%

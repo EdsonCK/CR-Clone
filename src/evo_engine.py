@@ -856,7 +856,7 @@ def _rage_spear(e, dt, match):
         return
     o = min(cands, key=lambda o: (o.is_tower or o.is_building, _d(e, o)))
     e.spear_cd = 5.0
-    _hit(match, e, o, e.dmg * 0.6)
+    _hit(match, e, o, e.dmg * 0.72)          # kills Goblins, not a Firecracker
     for i in range(1, 4):                            # trail of Rage behind the spear
         t = i / 4.0
         match.effects.append(Effect("rage", e.team, e.x + (o.x - e.x) * t,
