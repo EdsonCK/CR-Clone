@@ -1194,20 +1194,20 @@ for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
 # Expert AI (1.0 = untouched).
 LEVEL_POWER = {
     "goblin_ambush": 0.93, "iron_legion": 0.92, "sky_raiders": 1.1,
-    "barbarian_raid": 0.86, "royal_court": 0.87, "rogues_den": 0.96,
-    "spark_and_storm": 0.83, "hog_stampede": 0.86, "pyromancers": 1.01,
-    "graveyard_shift": 0.96, "marksmen": 0.93, "miners_strike": 0.97,
-    "dragons_lair": 1.07, "siege_engines": 1.0, "giants_causeway": 1.03,
-    "splash_zone": 1.03, "champions_arena": 1.03, "final_siege": 0.95,
-    "goblin_uprising": 1.05, "royal_parade": 0.91, "spirit_grove": 1.12,
-    "witching_hour": 1.3, "rascal_alley": 1.1, "rune_forge": 0.94,
-    "fishers_wharf": 1.47, "dragon_roost": 0.88, "machine_works": 1.17,
-    "grand_finale": 0.89,
+    "barbarian_raid": 0.86, "royal_court": 0.90, "rogues_den": 0.96,
+    "spark_and_storm": 0.83, "hog_stampede": 0.94, "pyromancers": 0.96,
+    "graveyard_shift": 0.96, "marksmen": 0.90, "miners_strike": 0.97,
+    "dragons_lair": 1.00, "siege_engines": 1.0, "giants_causeway": 1.03,
+    "splash_zone": 1.13, "champions_arena": 1.03, "final_siege": 0.95,
+    "goblin_uprising": 1.05, "royal_parade": 1.00, "spirit_grove": 1.12,
+    "witching_hour": 1.3, "rascal_alley": 1.14, "rune_forge": 0.88,
+    "fishers_wharf": 1.47, "dragon_roost": 0.88, "machine_works": 1.12,
+    "grand_finale": 0.98,
 }
 # v1.4.4: the crown towers became the real Tower Princess (+10% hp, +8%
 # damage) and the cards were rebalanced; this brings every level back to
 # its 1.4.3 difficulty (measured with the defend-only AI)
-WAVE_POWER = float(os.environ.get("LEVEL_WAVE_POWER", "1.0"))
+WAVE_POWER = float(os.environ.get("LEVEL_WAVE_POWER", "1.12"))
 for _lv in LEVELS:
     _lv.power = LEVEL_POWER.get(_lv.key, 1.0) * WAVE_POWER
 
