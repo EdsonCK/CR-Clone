@@ -7,7 +7,8 @@ Like Clash Royale, the menus are tabs along the bottom of the screen:
 
     Shop  |  Deck  |  Battle  |  Levels  |  Modes
 
-  * SHOP    a placeholder for now (upgrades only use the gold you win).
+  * SHOP    spend gems on gold, Evo shards and Hero coins, plus three
+            daily deals (shop.py).
   * DECK    the deck builder, live: changes save as soon as the deck has 8
             cards. "Cards" opens the collection / upgrade screen.
   * BATTLE  the home tab: your arena and trophies, the Battle button (Trophy
@@ -16,8 +17,10 @@ Like Clash Royale, the menus are tabs along the bottom of the screen:
   * LEVELS  the 30 wave levels.
   * MODES   Special Battles, Endless Survival and the Sandbox.
 
-The top bar shows trophies, gold and shards; the three-bar button on the
-right opens Settings, AI Deck, Records, Last Match, How To Play and Quit.
+The top bar shows your King level (tap it for the King Tower screen),
+trophies, gold, gems, Evo shards and Hero coins; the three-bar button on
+the right opens Settings, AI Deck, Records, Last Match, How To Play and
+Quit.
 
 Tabs reuse the existing screens: they're drawn into the space between the
 top bar and the tab bar (see _embedded()), so each screen lays itself out
@@ -33,6 +36,8 @@ import pygame
 
 import config as cfg
 import cards
+import king
+import shop
 import sprites
 import trophy
 import towers
@@ -171,13 +176,16 @@ class HomeMixin:
                         return
             return
         if pos[1] < TOP_H:
+            if button == 1 and self._xp_badge_rect().collidepoint(pos):
+                self._open_king("menu" if self.state == "menu" else self.state)
             return
         area = self._home_content()
         if self.state == "menu":
             if button == 1:
                 self._battle_tab_click(pos)
         elif self.state == "shop":
-            pass
+            if button == 1:
+                self._shop_click(pos)
         else:
             with self._embedded():
                 p = (pos[0], pos[1] - area.y)
@@ -219,28 +227,45 @@ class HomeMixin:
         if getattr(self, "dropdown", False):
             self._draw_dropdown()
 
+    @staticmethod
+    def _xp_badge_rect():
+        return pygame.Rect(6, 6, 40, 40)
+
     def _draw_home_topbar(self):
         W = cfg.WINDOW_W
+        pr = self.profile
         self.screen.blit(grad_rect(W, TOP_H, (40, 44, 66), (24, 26, 40), 0), (0, 0))
         pygame.draw.line(self.screen, (92, 84, 64), (0, TOP_H - 1), (W, TOP_H - 1), 2)
         cy = TOP_H // 2
-        x = 12
-        for kind, val, col in (("trophy", self.profile.trophies, GOLD_COL),
-                               ("gold", self.profile.gold, GOLD_COL),
-                               ("shard", self.profile.shards, SHARD_COL)):
+        # King level: blue XP badge with a progress ring
+        br = self._xp_badge_rect()
+        lv, into, need = king.progress(pr.king_xp)
+        pygame.draw.circle(self.screen, (16, 20, 34), br.center, 19)
+        frac = into / need if need else 1.0
+        if frac > 0:
+            pygame.draw.arc(self.screen, (120, 200, 255), br.inflate(-2, -2),
+                            math.pi / 2 - 2 * math.pi * frac, math.pi / 2, 3)
+        self._xp_icon(br.centerx, br.centery, 14)
+        self._text(str(lv), self.font_sb, center=br.center)
+        if br.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.circle(self.screen, (255, 222, 110), br.center, 20, 1)
+        x = br.right + 6
+        for kind, val, col in (("trophy", pr.trophies, GOLD_COL),
+                               ("gold", pr.gold, GOLD_COL),
+                               ("gems", pr.gems, (90, 220, 120)),
+                               ("shards", pr.shards, SHARD_COL),
+                               ("coins", pr.hero_coins, (255, 200, 70))):
             s = "%d" % val
-            w = self.font_m.size(s)[0] + 40
-            chip = pygame.Rect(x, cy - 15, w, 30)
-            pygame.draw.rect(self.screen, (18, 20, 30), chip, border_radius=15)
-            pygame.draw.rect(self.screen, (70, 74, 96), chip, 1, border_radius=15)
+            w = self.font_sb.size(s)[0] + 30
+            chip = pygame.Rect(x, cy - 13, w, 26)
+            pygame.draw.rect(self.screen, (18, 20, 30), chip, border_radius=13)
+            pygame.draw.rect(self.screen, (70, 74, 96), chip, 1, border_radius=13)
             if kind == "trophy":
-                self._trophy_icon(chip.x + 15, cy, 10)
-            elif kind == "gold":
-                self._coin(chip.x + 15, cy, 9)
+                self._trophy_icon(chip.x + 12, cy, 8)
             else:
-                self._shard(chip.x + 15, cy, 10)
-            self._text(s, self.font_m, col, topleft=(chip.x + 30, cy - 12))
-            x = chip.right + 8
+                self._reward_icon(kind, chip.x + 12, cy, 8)
+            self._text(s, self.font_sb, col, topleft=(chip.x + 23, cy - 9))
+            x = chip.right + 4
         # the three-bar menu button
         r = self._menu_btn_rect()
         hover = r.collidepoint(pygame.mouse.get_pos()) or getattr(self, "dropdown", False)
@@ -455,17 +480,11 @@ class HomeMixin:
         road = [row for row in trophy.road_rewards() if row[0] > pr.road_paid]
         y = rr.y + 40
         if road:
-            tt, label, gold, shards, tt_key = road[0]
+            tt, label, rw, tt_key = road[0]
             need = max(0, tt - t)
             s = "Next road reward at %d (%d to go):" % (tt, need)
             self._text(s, self.font_s, (220, 224, 240), topleft=(rr.x + 14, y))
-            gx = rr.x + 22 + self.font_s.size(s)[0]
-            self._coin(gx + 6, y + 8, 7)
-            self._text("+%d" % gold, self.font_sb, GOLD_COL, topleft=(gx + 16, y))
-            gx += 24 + self.font_sb.size("+%d" % gold)[0]
-            if shards:
-                self._shard(gx + 6, y + 8, 7)
-                self._text("+%d" % shards, self.font_sb, SHARD_COL, topleft=(gx + 16, y))
+            self._reward_row(rw, rr.right - 14, y + 8, gap=6)
             if tt_key:
                 self._text("+ unlocks %s" % towers.get(tt_key).name, self.font_s,
                            (255, 220, 140), topleft=(rr.x + 14, y + 18))
@@ -521,40 +540,86 @@ class HomeMixin:
         pygame.draw.rect(self.screen, dk_c(col, 60), r, 2, border_radius=10)
 
     # ------------------------------------------------------------ shop tab
+    SHOP_CARD_H = 104
+
+    def _shop_layout(self):
+        """[(rect, offer, is_deal)] and [(y, title)] section headers."""
+        W = cfg.WINDOW_W
+        y = TOP_H + 74
+        w = (W - 32 - 2 * 10) // 3
+        cells, heads = [], []
+        sections = [("Daily Deals", shop.daily_deals())] + shop.SECTIONS
+        for title, offers in sections:
+            heads.append((y, title))
+            y += 24
+            for i, o in enumerate(offers):
+                cells.append((pygame.Rect(16 + i * (w + 10), y, w, self.SHOP_CARD_H), o,
+                              title == "Daily Deals"))
+            y += self.SHOP_CARD_H + 10
+        return cells, heads
+
+    def _shop_click(self, pos):
+        for r, o, deal in self._shop_layout()[0]:
+            if r.collidepoint(pos):
+                if shop.buy(self.profile, o, deal):
+                    self.sfx.play("crown", 0.7, min_gap=0.0)
+                    self.shop_msg = "Bought %s!" % o[1]
+                elif deal and o[0] in shop.bought_today(self.profile):
+                    self.shop_msg = "Already bought today - new deals in %s." % shop.time_to_refresh()
+                else:
+                    self.shop_msg = "Not enough %s." % ("gems" if o[3][0] == "gems" else "gold")
+                self.shop_msg_t = self._now()
+                return
+
     def _draw_shop_tab(self):
         W = cfg.WINDOW_W
         cx = W // 2
-        y = TOP_H + 16
-        self._screen_title("Shop", y + 16)
-        self._text("Coming soon - for now, cards are upgraded with the gold you win.",
-                   self.font_s, (200, 204, 220), center=(cx, y + 52))
-        sections = [("Daily Deals", ["Card bundle", "Gold pouch", "Shard crystal"]),
-                    ("Gold", ["Pile of gold", "Bag of gold", "Chest of gold"]),
-                    ("Shards", ["Shard", "Shard pack", "Shard trove"])]
-        yy = y + 78
-        for title, offers in sections:
-            self._text(title, self.font_m, (235, 225, 190), topleft=(20, yy))
-            yy += 28
-            w = (W - 40 - 2 * 12) // 3
-            for i, name in enumerate(offers):
-                r = pygame.Rect(20 + i * (w + 12), yy, w, 120)
-                self._panel(r, top=(44, 46, 60), bottom=(28, 30, 40), border=(70, 74, 92))
-                icon = ("chest" if title == "Daily Deals" else title)
-                self._shop_icon(icon, i, r.centerx, r.y + 46)
-                self._text(name, self.font_s, (170, 174, 190), center=(r.centerx, r.bottom - 30))
-                lock = pygame.Rect(0, 0, r.w - 24, 20)
-                lock.center = (r.centerx, r.bottom - 12)
-                pygame.draw.rect(self.screen, (60, 62, 74), lock, border_radius=6)
-                self._text("coming soon", self.font_s, (150, 154, 170), center=lock.center)
-            yy += 132
-
-    def _shop_icon(self, kind, i, cx, cy):
-        s = 1.0 + 0.25 * i
-        if kind == "Gold":
-            for k in range(1 + i * 2):
-                self._coin(int(cx - 12 * i + k * 12 * (1 if i else 0)), int(cy + (k % 2) * 6), 10)
-        elif kind == "Shards":
-            for k in range(1 + i):
-                self._shard(int(cx - 10 * i + k * 20), int(cy), int(10 * s))
-        else:
-            self._tab_icon("shop", cx, cy, 1.4 + 0.2 * i)
+        pr = self.profile
+        self._screen_title("Shop", TOP_H + 22)
+        self._wallet(cx, TOP_H + 58, ("gems", "gold", "shards", "coins"))
+        cells, heads = self._shop_layout()
+        for y, title in heads:
+            self._text(title, self.font_m, (235, 225, 190), topleft=(18, y - 2))
+            if title == "Daily Deals":
+                t = "new deals in " + shop.time_to_refresh()
+                self._text(t, self.font_s, (170, 176, 196),
+                           topleft=(W - 18 - self.font_s.size(t)[0], y + 4))
+        mouse = pygame.mouse.get_pos()
+        bought = shop.bought_today(pr)
+        for r, o, deal in cells:
+            oid, name, reward, cost = o
+            done = deal and oid in bought
+            ok = shop.can_buy(pr, o, deal)
+            hov = r.collidepoint(mouse) and not done
+            border = (255, 222, 110) if hov else ((120, 200, 255) if deal else (80, 86, 110))
+            self._panel(r, top=(46, 50, 68) if not done else (34, 36, 44),
+                        bottom=(28, 30, 42), border=border, radius=10)
+            kinds = [k for k in ("gold", "gems", "shards", "coins") if reward.get(k)]
+            # the goods: a big icon (or two) and the amount
+            for q, kd in enumerate(kinds):
+                ix = r.centerx + (q - (len(kinds) - 1) / 2.0) * 34
+                self._reward_icon(kd, ix, r.y + 26, 14)
+            amt = "  ".join("%d" % reward[k] for k in kinds)
+            self._text(amt, self.font_sb, WHITE, center=(r.centerx, r.y + 52))
+            self._text(self._fit(name, self.font_s, r.w - 8), self.font_s, (200, 204, 220),
+                       center=(r.centerx, r.y + 68))
+            pb = pygame.Rect(r.x + 8, r.bottom - 26, r.w - 16, 20)
+            if done:
+                pygame.draw.rect(self.screen, (50, 90, 60), pb, border_radius=6)
+                self._text("Bought", self.font_sb, (170, 230, 180), center=pb.center)
+            elif cost is None:
+                pygame.draw.rect(self.screen, (60, 150, 80), pb, border_radius=6)
+                self._text("FREE", self.font_sb, WHITE, center=pb.center)
+            else:
+                cur, n = cost
+                pygame.draw.rect(self.screen, (52, 120, 72) if ok else (70, 60, 64), pb,
+                                 border_radius=6)
+                t = "%d" % n
+                tw = self.font_sb.size(t)[0]
+                self._reward_icon(cur, pb.centerx - tw // 2 - 6, pb.centery, 7)
+                self._text(t, self.font_sb, WHITE if ok else (220, 160, 160),
+                           topleft=(pb.centerx - tw // 2 + 4, pb.centery - 9))
+        msg = getattr(self, "shop_msg", "")
+        if msg and self._now() - getattr(self, "shop_msg_t", 0) < 3.0:
+            self._text(msg, self.font_sb, (255, 220, 140),
+                       center=(cx, REAL_H - TAB_H - 14))

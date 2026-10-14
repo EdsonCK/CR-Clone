@@ -1446,7 +1446,7 @@ class LevelRun:
 
 
 def new_level_match(level, player_deck, card_levels=None, tower_level=None,
-                    evo_cards=None, hero_cards=None):
+                    evo_cards=None, hero_cards=None, king_level=None):
     """A Match set up for a level: no enemy towers, no clock. card_levels is
     your {card: level} (or one level for all); tower_level your towers';
     evo_cards / hero_cards your Evolutions and Hero."""
@@ -1454,6 +1454,7 @@ def new_level_match(level, player_deck, card_levels=None, tower_level=None,
     m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False,
               card_levels={PLAYER: card_levels} if card_levels is not None else None,
               tower_levels={PLAYER: tower_level} if tower_level is not None else None,
+              king_levels={PLAYER: king_level} if king_level is not None else None,
               evo_cards={PLAYER: evo_cards or []}, hero_cards={PLAYER: hero_cards or []})
     m.banned = set(BANNED)
     m.miasma = (miasma_damage(), MIASMA_TICK)
@@ -1551,11 +1552,12 @@ class EndlessRun(LevelRun):
 
 
 def new_endless_match(player_deck, card_levels=None, tower_level=None,
-                      evo_cards=None, hero_cards=None, seed=None):
+                      evo_cards=None, hero_cards=None, seed=None, king_level=None):
     from engine import Match
     m = Match(player_deck, cards.DEFAULT_AI_DECK, enemy_towers=False, timed=False,
               card_levels={PLAYER: card_levels} if card_levels is not None else None,
               tower_levels={PLAYER: tower_level} if tower_level is not None else None,
+              king_levels={PLAYER: king_level} if king_level is not None else None,
               evo_cards={PLAYER: evo_cards or []}, hero_cards={PLAYER: hero_cards or []})
     m.banned = set(BANNED)
     m.miasma = (miasma_damage(), MIASMA_TICK)

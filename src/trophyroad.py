@@ -112,7 +112,7 @@ class TrophyMixin:
     def _trophy_opponent(self):
         t = self.profile.trophies
         ai = trophy.bot_level(t)
-        lv = trophy.bot_card_level(t, self.profile.tower_level(self.player_deck))
+        lv = trophy.bot_card_level(t, self.profile.deck_level(self.player_deck))
         return ai, lv
 
     def _draw_trophy(self):
@@ -145,15 +145,15 @@ class TrophyMixin:
         else:
             pygame.draw.rect(self.screen, a.color, bar, border_radius=5)
         opp, olv = self._trophy_opponent()
-        self._text("Opponent: %d %s AI  -  cards Lv %d  -  1.0x elixir" % (
-            opp, cfg.AI_LEVELS[opp]["name"], olv), self.font_s,
+        self._text("Opponent: %d %s AI  -  cards Lv %d  -  %.2gx elixir" % (
+            opp, cfg.AI_LEVELS[opp]["name"], olv, trophy.bot_elixir(t)), self.font_s,
             self.LEVEL_COLORS.get(opp, WHITE), center=(cx, head.bottom - 14))
         # ---- the road (highest trophies at the top, like the real game) ----
         rows = trophy.road_rewards()
         view = self._trophy_view()
         self.screen.set_clip(pygame.Rect(0, view.y, cfg.WINDOW_W, view.h))
         next_tro = next((r[0] for r in rows if r[0] > t), None)
-        for i, (tro, label, gold, shards, tt) in enumerate(reversed(rows)):
+        for i, (tro, label, rw, tt) in enumerate(reversed(rows)):
             r = pygame.Rect(view.x, view.y + i * ROW_H - self.trophy_scroll, view.w, ROW_H - 4)
             if r.bottom < view.y or r.y > view.bottom:
                 continue
@@ -178,13 +178,7 @@ class TrophyMixin:
             if tt:
                 self.screen.blit(sprites.get_sprite(tt, 38), (x - 38, r.y + 1))
                 x -= 44
-            if shards:
-                self._text("+%d" % shards, self.font_sb, SHARD_COL, topleft=(x - 26, r.centery - 9))
-                self._shard(x - 34, r.centery, 7)
-                x -= 54
-            if gold:
-                self._text("+%d" % gold, self.font_sb, GOLD_COL, topleft=(x - 40, r.centery - 9))
-                self._coin(x - 48, r.centery, 7)
+            self._reward_row(rw, x, r.centery, gap=6)
             if paid:
                 pygame.draw.circle(self.screen, (90, 190, 110), (r.x + 76, r.centery), 6)
             if here:                         # next reward: a pointer on the left
@@ -225,7 +219,7 @@ class TrophyMixin:
             self.trophy_deck_name = "Random"
             ai_deck = cards.random_deck()
         ai_tower = rng.choice([k for k in towers.ORDER if trophy.tower_troop_unlocked(k, t)])
-        cfg.apply_ai_settings(ai, 1.0)
+        cfg.apply_ai_settings(ai, trophy.bot_elixir(t))
         self._arena_surf = None
         self.level_run = None
         self.mode = "trophy"
@@ -239,8 +233,7 @@ class TrophyMixin:
         self.match = Match(self.player_deck, ai_deck, **specials,
                            card_levels={PLAYER: self.profile.deck_levels(self.player_deck),
                                         ENEMY: alv},
-                           tower_levels={PLAYER: self.profile.tower_level(self.player_deck),
-                                         ENEMY: alv})
+                           **self._towers_kw(alv))
         self.match.record_events = True
         self._apply_tower_troops(self.match, ai_tower)
         self.ai = AIController(self.match, team=ENEMY, level=ai)
@@ -262,23 +255,23 @@ class TrophyMixin:
         old_best = pr.best_trophies
         pr.best_trophies = max(pr.best_trophies, pr.trophies)
         lbl = "%+d trophies  (%d)" % (delta, pr.trophies)
-        self.last_rewards.append((lbl, 0, 0))
+        self.last_rewards.append((lbl, {}))
         self._reward("Victory" if w == PLAYER else "Played",
                      profile_data.battle_gold(w == PLAYER, ai, 1.0, m.crowns[PLAYER]))
         if w == PLAYER:
-            got = pr.add_shard_points(ai)
+            kind, got = pr.add_shard_points(ai)
             if got:
-                self.last_rewards.append(("Shard from wins", 0, got))
+                self.last_rewards.append(("Battle wins bonus", {kind: got}))
         # rewards along the road (paid once, the first time you get there)
-        for tro, label, gold, shards, tt in trophy.road_rewards():
+        for tro, label, rw, tt in trophy.road_rewards():
             if pr.road_paid < tro <= pr.best_trophies:
-                self._reward(("Arena: " if shards else "Road: ") + label, gold, shards)
+                self._reward(("Arena: " if len(rw) > 1 else "Road: ") + label, **rw)
                 if tt:
-                    self.last_rewards.append(("Unlocked " + towers.get(tt).name, 0, 0))
+                    self.last_rewards.append(("Unlocked " + towers.get(tt).name, {}))
                 pr.road_paid = tro
         if trophy.arena_index(pr.best_trophies) > trophy.arena_index(old_best):
             a = trophy.arena(pr.best_trophies)
-            self.last_rewards.append(("New arena: " + a.name, 0, 0))
+            self.last_rewards.append(("New arena: " + a.name, {}))
         rec = self.stats.setdefault("L%d" % ai, self._blank_stats()["L1"])
         rec["cf"] += m.crowns[PLAYER]
         rec["ca"] += m.crowns[ENEMY]

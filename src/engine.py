@@ -967,9 +967,10 @@ class Entity:
         # go round on the side of the line the destination lies; once a side
         # is picked for this obstacle, stick with it (no dithering)
         mem = getattr(self, "_steer_mem", None)
-        marching = (target is not None and (target.is_tower or target.is_building)
+        marching = (best.is_king                # the King sits across both lanes
                     and getattr(self, "lane", None) is not None
-                    and best.is_king)          # the King sits across both lanes
+                    and (getattr(target, "is_tower", False)
+                         or getattr(target, "is_building", False)))
         if mem is not None and mem[0] == id(best):
             side = mem[1]
         elif marching and abs(oy) > 0.25 * od:
@@ -1699,7 +1700,8 @@ class Effect:
 # ===========================================================================
 class Match:
     def __init__(self, player_deck, ai_deck, enemy_towers=True, timed=True,
-                 card_levels=None, tower_levels=None, evo_cards=None, hero_cards=None):
+                 card_levels=None, tower_levels=None, evo_cards=None, hero_cards=None,
+                 king_levels=None):
         # sound / visual-effect events for the game layer (off in simulations)
         self.record_events = False
         self.events = []
@@ -1719,6 +1721,11 @@ class Match:
         self.tower_levels = {PLAYER: cards.LEVEL_BASE, ENEMY: cards.LEVEL_BASE}
         if tower_levels:
             self.tower_levels.update(tower_levels)
+        # the King Tower has its own level (your King level); by default the
+        # same as the Princess Towers'
+        self.king_levels = dict(self.tower_levels)
+        if king_levels:
+            self.king_levels.update(king_levels)
         self.banned = set()        # cards that can't be played (Levels: win
                                    #   conditions - there are no towers)
         # Levels: a weak permanent poison over the enemy half, so you can't
@@ -1798,23 +1805,24 @@ class Match:
         pdef = CardDef("princess_tower", "Princess Tower", 0, hp=cfg.PRINCESS_TOWER_HP)
         kdef = CardDef("king_tower", "King Tower", 0, hp=cfg.KING_TOWER_HP)
         tp = {t: (cards.level_mult(self.tower_levels[t]),) * 2 for t in (PLAYER, ENEMY)}
+        kp = {t: (cards.level_mult(self.king_levels[t]),) * 2 for t in (PLAYER, ENEMY)}
 
         # enemy (top)
         self.towers = {
             (ENEMY, "left"): Entity(pdef, ENEMY, px_l, py, is_tower=True, power=tp[ENEMY]),
             (ENEMY, "right"): Entity(pdef, ENEMY, px_r, py, is_tower=True, power=tp[ENEMY]),
             (ENEMY, "king"): Entity(kdef, ENEMY, kx, ky, is_tower=True, is_king=True,
-                                    power=tp[ENEMY]),
+                                    power=kp[ENEMY]),
             # player (bottom)
             (PLAYER, "left"): Entity(pdef, PLAYER, px_l, rows - py, is_tower=True,
                                      power=tp[PLAYER]),
             (PLAYER, "right"): Entity(pdef, PLAYER, px_r, rows - py, is_tower=True,
                                       power=tp[PLAYER]),
             (PLAYER, "king"): Entity(kdef, PLAYER, kx, rows - ky, is_tower=True, is_king=True,
-                                     power=tp[PLAYER]),
+                                     power=kp[PLAYER]),
         }
         for tw in self.towers.values():
-            tw.level = self.tower_levels[tw.team]
+            tw.level = (self.king_levels if tw.is_king else self.tower_levels)[tw.team]
             tw._match_ref = self
             self.entities.append(tw)
 

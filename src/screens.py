@@ -4,7 +4,7 @@
 ============================================================================
 
   * CARDS    -- your collection: card levels, upgrades (gold), Evolutions
-                and Heroes (shards), stats at this level and the next
+                and Heroes (Evo shards / Hero coins), stats at this level and the next
   * SETTINGS -- volumes, game speed, colour-blind teams, drag to deploy,
                 damage numbers, screen shake, sandbox, reset progress
   * DECKS    -- saved deck slots (see game.py deck editor)
@@ -27,6 +27,12 @@ from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE
 
 GOLD_COL = (250, 206, 92)
 SHARD_COL = (196, 120, 255)
+GEM_COL = (90, 220, 120)
+COIN_COL = (255, 200, 70)          # Hero coins
+XP_COL = (96, 170, 255)
+REWARD_COLS = {"gold": GOLD_COL, "shards": SHARD_COL, "coins": COIN_COL,
+               "gems": GEM_COL, "xp": XP_COL}
+REWARD_ORDER = ("xp", "gold", "gems", "shards", "coins")
 EVO_COL = (190, 110, 255)
 HERO_COL = (255, 196, 80)
 
@@ -34,10 +40,11 @@ HERO_COL = (255, 196, 80)
 class ScreensMixin:
     # screens drawn/handled by this mixin: _draw_<name>, _<name>_click
     EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats", "achievements",
-                     "trophy")
+                     "trophy", "king")
 
     def _extra_escape(self):
         back = {"cards": getattr(self, "cards_return", "menu"),
+                "king": getattr(self, "king_return", "menu"),
                 "draft": "modes"}.get(self.state, "menu")
         if self.state == "stats":
             back = getattr(self, "stats_return", "result")
@@ -154,19 +161,70 @@ class ScreensMixin:
                             [(x, y - r), (x + r * 0.35, y - r * 0.2), (x, y)], 0)
         pygame.draw.polygon(self.screen, (90, 40, 140), pts, 1)
 
-    def _wallet(self, cx, y):
-        """Gold + shards readout centred on cx."""
-        g = "%d" % self.profile.gold
-        sh = "%d" % self.profile.shards
-        w1 = self.font_m.size(g)[0]
-        w2 = self.font_m.size(sh)[0]
-        total = 20 + w1 + 28 + 20 + w2
+    def _gem(self, x, y, r=8):
+        """A gem: a green hexagon."""
+        pts = [(x + r * math.cos(math.pi / 6 + k * math.pi / 3),
+                y + r * math.sin(math.pi / 6 + k * math.pi / 3)) for k in range(6)]
+        pygame.draw.polygon(self.screen, (10, 50, 24), [(px + 1, py + 2) for px, py in pts])
+        pygame.draw.polygon(self.screen, GEM_COL, pts)
+        inner = [(x + (px - x) * 0.5, y + (py - y) * 0.5 - r * 0.1) for px, py in pts]
+        pygame.draw.polygon(self.screen, (170, 250, 190), inner)
+        pygame.draw.polygon(self.screen, (20, 110, 50), pts, 1)
+
+    def _hcoin(self, x, y, r=8):
+        """A Hero coin: a gold diamond."""
+        pts = [(x, y - r), (x + r * 0.8, y), (x, y + r), (x - r * 0.8, y)]
+        pygame.draw.polygon(self.screen, (90, 60, 10), [(px + 1, py + 2) for px, py in pts])
+        pygame.draw.polygon(self.screen, COIN_COL, pts)
+        pygame.draw.polygon(self.screen, (255, 244, 190),
+                            [(x, y - r), (x + r * 0.4, y - r * 0.2), (x, y)], 0)
+        pygame.draw.polygon(self.screen, (150, 100, 20), pts, 1)
+
+    def _xp_icon(self, x, y, r=8):
+        """XP: a blue disc with a perforated (notched) edge."""
+        pygame.draw.circle(self.screen, (14, 34, 70), (x + 1, y + 2), r)
+        pygame.draw.circle(self.screen, XP_COL, (x, y), r)
+        pygame.draw.circle(self.screen, (190, 222, 255), (x, y), max(2, int(r * 0.55)), 1)
+        n = 10 if r >= 8 else 8
+        hole = max(1, r // 6)
+        for k in range(n):
+            a = k * 2 * math.pi / n
+            pygame.draw.circle(self.screen, (24, 44, 90),
+                               (int(x + math.cos(a) * (r - hole)), int(y + math.sin(a) * (r - hole))),
+                               hole)
+        pygame.draw.circle(self.screen, (30, 70, 140), (x, y), r, 1)
+
+    def _reward_icon(self, kind, x, y, r=8):
+        {"gold": self._coin, "shards": self._shard, "coins": self._hcoin,
+         "gems": self._gem, "xp": self._xp_icon}[kind](int(x), int(y), r)
+
+    def _reward_row(self, rw, right, cy, font=None, r=7, gap=10):
+        """Draw a reward dict right-aligned at `right` (icon + "+n" each);
+        returns the x where it starts."""
+        font = font or self.font_sb
+        x = right
+        for kind in reversed(REWARD_ORDER):
+            n = rw.get(kind, 0) if rw else 0
+            if not n:
+                continue
+            t = "+%d" % n
+            w = font.size(t)[0]
+            self._text(t, font, REWARD_COLS[kind], topleft=(x - w, cy - font.get_height() // 2))
+            self._reward_icon(kind, x - w - r - 3, cy, r)
+            x -= w + 2 * r + 4 + gap
+        return x + gap
+
+    def _wallet(self, cx, y, kinds=("gold", "shards", "coins")):
+        """Currency readout centred on cx."""
+        vals = {"gold": self.profile.gold, "shards": self.profile.shards,
+                "coins": self.profile.hero_coins, "gems": self.profile.gems}
+        parts = [(k, "%d" % vals[k]) for k in kinds]
+        total = sum(20 + self.font_m.size(t)[0] for _, t in parts) + 20 * (len(parts) - 1)
         x = cx - total // 2
-        self._coin(x + 8, y, 9)
-        self._text(g, self.font_m, GOLD_COL, topleft=(x + 20, y - 12))
-        x += 20 + w1 + 28
-        self._shard(x + 8, y, 10)
-        self._text(sh, self.font_m, SHARD_COL, topleft=(x + 20, y - 12))
+        for k, t in parts:
+            self._reward_icon(k, x + 8, y, 9)
+            self._text(t, self.font_m, REWARD_COLS[k], topleft=(x + 20, y - 12))
+            x += 20 + self.font_m.size(t)[0] + 20
 
 
     # ================================================================ CARDS
@@ -266,7 +324,7 @@ class ScreensMixin:
             else:
                 b = Button((280, y, 124, 36), "Hero  %d" % profile_data.HERO_COST,
                            self._cards_unlock_hero, "primary")
-                b.enabled = p.shards >= profile_data.HERO_COST
+                b.enabled = p.hero_coins >= profile_data.HERO_COST
             b.kind = "hero"
             out.append(b)
         out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 42, 140, 34), "Back",
@@ -274,10 +332,18 @@ class ScreensMixin:
         return out
 
     def _cards_upgrade(self):
+        old = self.profile.level(self.cards_sel)
+        k_before = self.profile.king_level()
         if self.profile.upgrade(self.cards_sel):
             self.sfx.play("crown", 0.7, min_gap=0.0)
-            self.cards_msg = "%s is now level %d!" % (cards.CARDS[self.cards_sel].name,
-                                                      self.profile.level(self.cards_sel))
+            import king
+            self.cards_msg = "%s is now level %d!  +%d XP" % (
+                cards.CARDS[self.cards_sel].name, self.profile.level(self.cards_sel),
+                king.XP_PER_UPGRADE[old])
+            if self.profile.king_level() > k_before:
+                self.cards_msg = "King level %d!  %s" % (self.profile.king_level(),
+                                                        self.cards_msg)
+            self._king_toast(self.profile.last_king)
         else:
             self.cards_msg = "Not enough gold."
 
@@ -286,14 +352,14 @@ class ScreensMixin:
             self.sfx.play("ability", 0.8, min_gap=0.0)
             self.cards_msg = "Evolution unlocked! Put it in deck slots 1-3."
         else:
-            self.cards_msg = "Not enough shards."
+            self.cards_msg = "Not enough Evo shards."
 
     def _cards_unlock_hero(self):
         if self.profile.unlock_hero(self.cards_sel):
             self.sfx.play("ability", 0.8, min_gap=0.0)
             self.cards_msg = "Hero unlocked! Put it in the flex slot (deck slot 3)."
         else:
-            self.cards_msg = "Not enough shards."
+            self.cards_msg = "Not enough Hero coins."
 
     def _cards_click(self, pos):
         for r, k in self._cards_tab_rects():
@@ -709,13 +775,14 @@ class ScreensMixin:
                 if got:
                     self.sfx.play("crown", 0.8, min_gap=0.0)
                     self.ach_msg = "Claimed: %s" % got[1]
+                    self._king_toast(self.profile.last_king)
                 return
 
     def _draw_achievements(self):
         import achievements as ach
         mouse = pygame.mouse.get_pos()
         self._screen_title("Achievements", 26)
-        self._wallet(cfg.WINDOW_W // 2, 62)
+        self._wallet(cfg.WINDOW_W // 2, 62, ("gold", "gems", "shards", "coins"))
         v = self._ach_view()
         self.screen.set_clip(v)
         for r, (aid, title, desc, reward, cur, goal, done, claimed) in self._ach_rows():
@@ -740,15 +807,10 @@ class ScreensMixin:
             elif done:
                 Button(btn, "Claim", lambda: None, "gold").draw(self.screen, self.font_sb)
             else:
-                g, sh = reward
-                x = btn.x + 4
-                if g:
-                    self._coin(x + 6, btn.centery, 6)
-                    self._text("%d" % g, self.font_s, (250, 206, 92), topleft=(x + 14, btn.y + 7))
-                    x += 40
-                if sh:
-                    self._shard(x + 6, btn.centery, 6)
-                    self._text("%d" % sh, self.font_s, (196, 120, 255), topleft=(x + 14, btn.y + 7))
+                self._text("%d%%" % (100 * cur // max(goal, 1)), self.font_sb,
+                           (170, 176, 196), center=btn.center)
+            if not claimed:
+                self._reward_row(reward, btn.x - 6, r.y + 13, self.font_s, r=6, gap=5)
         self.screen.set_clip(None)
         if getattr(self, "ach_msg", ""):
             self._text(self.ach_msg, self.font_sb, (150, 240, 160),

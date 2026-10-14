@@ -21,6 +21,21 @@ The first launch generates all the unit sprites into `assets/sprites/`.
 
 ## What's in it (v1.4)
 
+**New in v1.4.3**: **King levels** - card upgrades and achievements give
+XP that levels up your King Tower (11-16), with 4 rewards on the way to each
+level; Princess Towers follow their Tower Troop, which you upgrade with gold
+(up to your King level). **Hero coins** (Heroes) and **gems** join gold and
+Evo shards, the **Shop** opens (gold, shards, coins and daily deals for
+gems), the Trophy Road runs to **10,000 trophies** (an arena every 500, the
+Legendary Arena at 6000, bots get +5% elixir per arena from 5500 and level-16
+cards from 5000) and there are 52 achievements. Deck slot 3 is now a **flex
+slot** (Evolution or Hero). Plus a big mechanics pass: Balloon / Giant
+Skeleton / Bomb Tower death bombs on a fuse, Skeleton Barrel pops on
+arrival, Rage hits like a Zap, shields soak a whole hit, heavy troops shrug
+off knockback (except The Log), the Electro Giant zaps back only who hit
+it, stuns reset targeting, crown tower HP numbers and more - see
+"v1.4.3 changes" below.
+
 **New in v1.4**: a tabbed home screen like the real game - **Shop**
 (placeholder), **Deck**, **Battle**, **Levels** and **Modes** along the bottom,
 with Settings, AI Deck, Records, Last Match and How To Play in the three-bar
@@ -32,7 +47,8 @@ Evolutions and Heroes the higher you climb.
 
 ## Home screen
 
-* **Shop** - a placeholder for now (cards are upgraded with the gold you win).
+* **Shop** - spend gems on gold, Evo shards and Hero coins, and grab the
+  three **daily deals** (one is always free; some are paid in gold).
 * **Deck** - the deck builder, saved as you go (deck slots 1-5, your Tower
   Troop chip, Clear / Default, and **Cards & Upgrades** for the collection).
 * **Battle** - your arena and trophies (click it for the Trophy Road), the
@@ -43,13 +59,52 @@ Evolutions and Heroes the higher you climb.
 * **Modes** - the Special Battles, Endless Survival and the Sandbox.
 * **Three-bar menu** (top right) - Settings, AI Deck, Records, Last Match,
   How To Play and Quit. Esc goes back to the Battle tab.
+* **Top bar** - your King level (the blue badge, with its XP ring: click it
+  for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.4.3 changes
+
+* **Towers** reach 8.25 tiles (outranging Furnace and Firecracker) and
+  2-shot Goblins; their HP is shown as a number.
+* **Targeting**: troops prefer an enemy already in their range; when their
+  target walks off they follow only if nothing else is in range; a stun
+  (Zap, Electro Wizard...) makes them pick again - building-targeters
+  still only pick buildings. Troops placed behind the King go straight to
+  their lane.
+* **Rage** deals a Zap's damage where it lands (so does the Lumberjack's
+  dropped Rage): it kills Bats, Skeletons and Spear Goblins.
+* **Evo Elite Barbarians** throw their Rage spear (0.6x damage) at ground
+  troops, buildings or crown towers 3.5-5 tiles away, every 5s. **Hero Ice
+  Wizard**'s Snowman also works on crown towers.
+* **Skeleton Barrel** pops the moment it reaches its building (balloon pop,
+  falling barrel, 6 Skeletons).
+* **Balloon, Bomb Tower** (1s) and **Giant Skeleton** (2s) drop a bomb on
+  death that explodes after a fuse - time to run.
+* **Inferno** Dragon / Tower burn much hotter at full ramp (x9 after ~5s).
+* **Stats**: Mini P.E.K.K.A +16% damage, Electro Wizard -25%, Ice Wizard
+  -10%, flying Spirit Empress -8%, Valkyrie's spin 1.8 tiles, Guards' HP =
+  a Skeleton's (their shields stay).
+* **Knockback**: Golem, Giant, Royal Giant, Goblin Giant, Electro Giant,
+  P.E.K.K.A, Mega Knight, Lava Hound, Skeleton King, Goblin Machine, Mighty
+  Miner, Prince, Tomb Queen and Minion Giant can't be pushed - except by The
+  Log. Giant Skeleton and Rune Giant still can.
+* **Bandit / Boss Bandit** dash from 3.5-5 tiles (a tower lands one shot on
+  the way in, the next one mid-dash); after Getaway Grenade the Boss Bandit
+  recovers for 1s before dashing back.
+* **Shields** take the whole hit that breaks them (no spill-over), and the
+  shield bar shows how much is left.
+* **Electro Giant** zaps back only the unit that hit it, and only within
+  its reach.
+* **Buildings** can't be placed on top of other buildings.
+* **AI**: no wasted spell on a tower its troops are about to take anyway;
+  X-Bow / Mortar / Hog-style pushes only go down a lane with a tower.
 
 ## Earlier versions
 
-* **Trophy Road**: a ranked ladder through 16 arenas (Goblin Stadium ->
-  Legendary Arena). Win trophies, lose some, and your trophy count picks the
-  bot: the higher you climb, the smarter it plays and the higher its cards.
-  Gold and shards line the road.
+* **Trophy Road**: a ranked ladder through 21 arenas (Goblin Stadium ->
+  Clash Fest at 10,000). Win trophies, lose some, and your trophy count picks
+  the bot: the higher you climb, the smarter it plays and the higher its
+  cards. Gold, gems, shards and Hero coins line the road.
 * **Tower Troops**: Tower Princess, Cannoneer, Dagger Duchess and Royal Chef
   man your Princess Towers, unlocked along the Trophy Road.
 * **Battle** the AI: 5 intelligence levels, a 0.5x-2x elixir handicap
@@ -58,9 +113,10 @@ Evolutions and Heroes the higher you climb.
 * **Levels**: 30 themed wave challenges, unlocked by stars.
 * **Special Modes**: Triple Elixir, Sudden Death, Mirror Match, Draft, Rage
   Battle, Random Decks, Double Trouble and **Endless Survival**.
-* **Progression**: gold and shards, card levels 11-16, all 43 **Evolutions**
-  and all 18 **Heroes** of the real game (as of the Minion Giant update), 5
-  saved decks, 28 achievements, a daily first-win bonus.
+* **Progression**: gold, gems, Evo shards and Hero coins, card levels 11-16,
+  King levels 11-16, all 43 **Evolutions** and all 18 **Heroes** of the real
+  game (as of the Minion Giant update), 5 saved decks, 52 achievements, a
+  Shop and a daily first-win bonus.
 * 123 cards (8 Champions) - the whole roster up to the Minion Giant - each
   with a one-line description, original art, procedural music and a unique
   sound, collisions, path-finding around buildings, card animations and a
@@ -78,29 +134,33 @@ and Hero slots).
 the road) is the ranked ladder. You play your current deck against a bot chosen by your
 trophy count:
 
-| Trophies | Arenas | Bot |
+| Trophies | Arenas (one every 500) | Bot |
 |---|---|---|
-| 0-599 | Goblin Stadium, Bone Pit | Novice |
-| 600-1299 | Barbarian Bowl, Spell Valley | Casual |
-| 1300-2299 | Builder's Workshop, P.E.K.K.A's Playhouse, Royal Arena | Skilled |
-| 2300-3399 | Frozen Peak, Jungle Arena, Hog Mountain | Expert |
-| 3400+ | Electro Valley, Spooky Town, Rascal's Hideout, Serenity Peak, Miner's Mine, Legendary Arena (5500) | Master |
+| 0-999 | Goblin Stadium, Bone Pit | Novice |
+| 1000-1999 | Barbarian Bowl, Spell Valley | Casual |
+| 2000-3499 | Builder's Workshop, P.E.K.K.A's Playhouse, Royal Arena | Skilled |
+| 3500-4999 | Frozen Peak, Jungle Arena, Hog Mountain | Expert |
+| 5000+ | Electro Valley, Spooky Town, **Legendary Arena (6000)**, Rascal's Hideout, Serenity Peak, Miner's Mine, Executioner's Kitchen, Royal Crypt, Silent Sanctuary, Dragon Spa, Clash Fest (10,000) | Master |
 
 * A win is **+60 trophies** (+4 per crown you won by), a loss **-20**, a
   draw 0. You never drop below the gate of an arena you've reached.
-* The bot's cards are level 11 + 1 per 1000 trophies (up to 16), but never
-  more than **one level above your crown towers**.
+* The bot's cards are level 11 + 1 per 1000 trophies, but never more than
+  **one level above your deck's average** - until 5000 trophies, where they
+  are always **level 16**.
+* From **5500** trophies every arena gives the bot **+5% elixir** (x1.5 at
+  10,000).
 * The bot plays a **variation** of one of the 22 archetype decks (sometimes a
   random deck): a few cards may be swapped for on-theme alternatives (a Log
   Bait with a Cannon instead of the Inferno Tower, a Prince instead of the
   Knight...), and which cards are its Evolutions and Hero changes every game.
   It brings no Evolutions or Heroes at the start of the road, then 1 Evo
-  (from ~920 trophies), 1 Evo + its Hero (~1830) and the full 2 Evos + Hero
-  from 2750 on. It also brings a Tower Troop you could have unlocked by then.
+  (from ~1670 trophies), 1 Evo + its Hero (~3340) and the full 2 Evos + Hero
+  from 5000 on. It also brings a Tower Troop you could have unlocked by then.
   The decks and their swaps are `AI_DECK_PRESETS` / `AI_DECK_VARIANTS` in
   `src/cards.py`.
-* **Road rewards** every 100 trophies (gold, and 3 shards at every new
-  arena) are paid once, the first time you reach them. The Trophy Road
+* **Road rewards** every 100 trophies (gold; every new arena adds gems and
+  3 Evo shards or 3 Hero coins, taking turns) are paid once, the first time
+  you reach them. The Trophy Road
   screen shows the whole road and points at your next reward.
 
 Tune it in `src/trophy.py` (arenas, trophies per win/loss, rewards).
@@ -114,9 +174,9 @@ are the real game's ratios against the Tower Princess.
 | Troop | Unlock | What it does |
 |---|---|---|
 | Tower Princess | start | the default: long-range arrows, hits air and ground |
-| Cannoneer | 2300 (Frozen Peak) | slow, very heavy cannonballs; a little less HP |
-| Dagger Duchess | 3400 (Electro Valley) | a magazine of 8 fast daggers; once it's empty she throws slowly, and reloads one dagger every 0.9s while idle |
-| Royal Chef | 4200 (Rascal's Hideout) | cooks a pancake (a dial on the tower) and serves it to your strongest troop for **+1 level**; cooks slower while his towers are fighting |
+| Cannoneer | 3500 (Frozen Peak) | slow, very heavy cannonballs; a little less HP |
+| Dagger Duchess | 5000 (Electro Valley) | a magazine of 8 fast daggers; once it's empty she throws slowly, and reloads one dagger every 0.9s while idle |
+| Royal Chef | 6500 (Rascal's Hideout) | cooks a pancake (a dial on the tower) and serves it to your strongest troop for **+1 level**; cooks slower while his towers are fighting |
 
 The AI uses Tower Troops in Trophy Road battles. Mirror Match copies yours.
 
@@ -167,27 +227,46 @@ progress, to start over).
   +1 shard). Spend it in **Cards** to upgrade a card: 11->12 costs 100,
   then 250, 600, 1200 and 2500 (to 16). Each level is +10% HP and damage
   (spells and the troops spells drop too).
-* **Crown towers** are as strong as your deck: their level is the average
-  level of the 8 cards you take into the match.
-* **Shards** - first clears and 3-star clears of Levels, a trickle from
-  Battle wins (more against smarter AIs), the first win in each Special
-  Battle, every 5 Endless waves, and achievements. Spend them on
-  **Evolutions** (5 shards) and **Heroes** (8 shards).
+* **King level** (11-16) is your King Tower's level. Card upgrades give
+  **XP** (10, 25, 60, 120 and 250 for the five upgrades - a tenth of the
+  gold) and so do achievements. Each level needs twice the XP of the one
+  before (360, 720, 1440, 2880, 5760): upgrading 24 cards to level 16 is
+  just enough for King level 16. The road to each level pays **4 rewards**
+  (gold, Evo shards, Hero coins, then gems and gold for the level-up) -
+  see them on the **King Tower** screen (click the blue badge).
+* **Princess Towers** are as strong as the **Tower Troop** manning them.
+  Tower Troops are upgraded with gold on the King Tower screen (same costs
+  as cards, no XP) and can't go above your King level.
+* **Evo shards** - first clears and 3-star clears of Levels, Battle wins
+  (taking turns with Hero coins), arenas, achievements and King rewards.
+  **Evolutions** cost 5.
+* **Hero coins** - Battle wins, arenas, every 5 Endless waves, first wins
+  in Special Battles, achievements and King rewards. **Heroes** cost 8.
+  (Saves from before 1.4.3 keep their shards and get 16 Hero coins, plus
+  the XP / coins / gems of achievements already claimed.)
+* **Gems** - big achievements (up to 1000 for 10,000 trophies), arenas and
+  King level-ups. Spend them in the **Shop**: 1000 gold for 60 gems, an Evo
+  shard for 40, a Hero coin for 30 (bigger packs a bit cheaper), plus three
+  daily deals.
 * **Cards screen** - filter by type / Evos / Heroes, read what each card
   does, see its stats
   now and at the next level, upgrade, and unlock its Evolution / Hero.
-* **Achievements** - 28 milestones across every mode (win 10/50 battles,
-  beat Expert/Master at even elixir, clear Level 10/20/30, 30/60/90 stars,
-  Endless wave 10/20, 1000/2300/5500 trophies, max a card...). Claim the reward on the Achievements screen;
+* **Achievements** - 52 milestones across every mode (battles, three-crown
+  wins, crowns, arenas up to 10,000 trophies, Levels and stars, Endless,
+  Special Battles, upgrades, maxed cards, King levels, Tower Troops,
+  Evolutions and Heroes, the Shop...). Each pays some mix of gold, Evo
+  shards, Hero coins, gems and King XP - the biggest pay the most gems.
+  Claim the reward on the Achievements screen;
   the Battle tab (and its Achievements button) shows how many are waiting.
 * **Sandbox** (Settings) unlocks every Level, Evolution and Hero for free
   play without touching your saved progress.
 
 ## Evolutions & Heroes
 
-Your deck's first two slots are **EVO slots** and the third is the **HERO
-slot** (the deck editor labels them; use the < > arrows on a card to move
-it).
+Your deck's first two slots are **EVO slots** and the third is a **flex
+slot**: an Evolution OR a Hero (the deck editor labels them; use the < >
+arrows on a card to move it). A card with both unlocked comes as its Hero
+in the flex slot - click its "use EVO" chip to bring the Evolution instead.
 
 **Evolutions** - an unlocked Evolution in an EVO slot comes out *evolved*
 whenever its charge is full: its card glows purple in your hand, and the
@@ -242,7 +321,7 @@ and the Evolution only comes out once you've cycled it.
 | Wizard | 1 | Fire Shield: when it breaks, enemies within 3 tiles take heavy damage and are blown back 3 tiles. |
 | Zap | 2 | The zap lingers and strikes a second time, 0.5 tiles wider. |
 
-**Heroes** - an unlocked Hero in the HERO slot is always the Hero version
+**Heroes** - an unlocked Hero in the flex slot is the Hero version
 (gold star). Once it's on the field, the gold button at the bottom-right of
 the arena fires its one-time ability for a little elixir. The Hero Goblins'
 button lights up once their banner is planted:
@@ -303,7 +382,7 @@ buildings like the Cannon and X-Bow).
 Special Battles are 3-minute battles with a twist. The AI's cards are always
 **level 12** (so upgrading your cards makes them easier); pick its
 intelligence at the top of the screen. Each pays gold, and your first win in
-each pays a shard.
+each pays a Hero coin.
 
 | Mode | Twist |
 |---|---|
@@ -319,7 +398,7 @@ each pays a shard.
 the miasma) with waves that never end: each wave has a growing elixir budget
 spent on stronger and stronger troops (and the odd spell), enemy levels rise
 from 11 to 16, and every 5th wave is a boss. You earn gold per wave and a
-shard every 5 waves; your best wave is saved.
+Hero coin every 5 waves; your best wave is saved.
 
 ### Levels
 
@@ -442,7 +521,8 @@ New levels are plain data: see the docstring at the top of `src/levels.py`.
 
 **5 saved deck slots** (the 1-5 tabs at the top; the selected one is your
 battle deck). Your 8 cards sit at the top in two rows of four - slots 1-2
-are EVO slots, slot 3 the HERO slot; hover a card and use < > to move it.
+are EVO slots, slot 3 the flex slot (Evo or Hero); hover a card and use < >
+to move it.
 The info line shows average elixir, the 4-card cycle cost and the average
 card level. Below is the full collection.
 
@@ -715,10 +795,12 @@ src/
   ui.py       shared text / gradient / button helpers
   screens.py  Cards, Settings, Match Stats, Achievements screens
   home.py     the tabbed home screen (Shop / Deck / Battle / Levels / Modes)
+  king.py     King levels: XP curve, reward track;  kingscreen.py  its screen
+  shop.py     Shop offers and prices
   sandbox.py  the Training Sandbox
   modes.py    Special Battles, Draft and Endless Survival
   levels.py   the 30 Levels, the wave runner and the Endless generator
-  profile_data.py  gold, shards, card levels, unlocks (profile.json)
+  profile_data.py  currencies, card / King / Tower Troop levels, unlocks (profile.json)
   evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do
   achievements.py  milestones + daily first-win bonus
   trophy.py   Trophy Road arenas, trophies and rewards;  trophyroad.py  its screen

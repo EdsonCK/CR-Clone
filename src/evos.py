@@ -6,8 +6,8 @@
 EVOLUTIONS
 ----------
 An Evolution upgrades a card with an extra mechanic. Unlock it (Cards
-screen, shards), then put the card in one of your deck's two EVO SLOTS (the
-first two deck slots). In a match the card has to "cycle": each time you play
+screen, Evo shards), then put the card in one of your deck's EVO SLOTS (the
+first two deck slots, or the third - the flex slot). In a match the card has to "cycle": each time you play
 it normally it gains a charge, and once it has `cycles` charges the next copy
 you play comes out EVOLVED (glowing purple card in your hand, purple aura on
 the troop). Then it starts charging again. Charges start EMPTY, so your
@@ -16,9 +16,9 @@ first copy is always the normal card - just like the real game.
 HEROES
 ------
 A Hero is a special version of a card with a one-time activatable ability
-(paid with extra elixir, using the ability button). Unlock it with shards,
-then put the card in your deck's HERO SLOT (the third deck slot). Every copy
-you play from that slot is the Hero. Max one Hero per deck.
+(paid with extra elixir, using the ability button). Unlock it with Hero
+coins, then put the card in your deck's FLEX SLOT (the third deck slot).
+Every copy you play from that slot is the Hero. Max one Hero per deck.
 
 Everything here mirrors the real game's Evolutions and Heroes as of the
 Minion Giant update (Sept 2026); numbers are scaled into this game's units

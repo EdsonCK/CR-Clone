@@ -163,16 +163,18 @@ class ModesMixin:
         self._arena_surf = None
         self.level_run = None
         alv = profile_data.SPECIAL_AI_LEVEL
-        tl = {PLAYER: self.profile.tower_level(deck), ENEMY: alv}
-        if key == "double":
-            tl = {PLAYER: tl[PLAYER] + 7, ENEMY: alv + 7}       # ~ x2 tower hp
+        tk = self._towers_kw(alv)
+        if key == "double":                                     # ~ x2 tower hp
+            for d in tk.values():
+                for t in d:
+                    d[t] += 7
         specials = self._match_specials(deck, ai_deck)
         if key == "mirror":
             specials["evo_cards"][ENEMY] = list(specials["evo_cards"][PLAYER])
             specials["hero_cards"][ENEMY] = list(specials["hero_cards"][PLAYER])
         self.match = Match(deck, ai_deck,
                            card_levels={PLAYER: self.profile.deck_levels(deck), ENEMY: alv},
-                           tower_levels=tl, **specials)
+                           **tk, **specials)
         m = self.match
         if key == "triple":
             m.elixir_rate = 3.0
@@ -206,7 +208,8 @@ class ModesMixin:
         self._arena_surf = None
         ev, he = self._special_cards(deck)
         self.match, self.level_run = levels.new_endless_match(
-            deck, self.profile.deck_levels(deck), self.profile.tower_level(deck), ev, he)
+            deck, self.profile.deck_levels(deck), self._towers_kw()["tower_levels"][PLAYER],
+            ev, he, king_level=self.profile.king_level())
         self.match.record_events = True
         self._apply_tower_troops(self.match)
         self.level_key = None
@@ -239,10 +242,10 @@ class ModesMixin:
             self._reward("Survived %d waves" % n, profile_data.endless_gold(n))
             for mark in range(5, n + 1, 5):
                 if mark > rec.get("best", 0):
-                    self._reward("Reached wave %d" % mark, 0, 1)
+                    self._reward("Reached wave %d" % mark, coins=1)
             rec["best"] = max(rec.get("best", 0), n)
             if new_best and n:
-                self.last_rewards.append(("New best!", 0, 0))
+                self.last_rewards.append(("New best!", {}))
             return
         win = w == PLAYER
         self._reward("Victory" if win else "Played",
@@ -250,7 +253,7 @@ class ModesMixin:
         if win:
             rec["wins"] += 1
             if rec["wins"] == 1:
-                self._reward("First %s win" % MODE_NAMES[k], 0, 1)
+                self._reward("First %s win" % MODE_NAMES[k], coins=1)
 
     # ================================================================ draft
     def _start_draft(self):

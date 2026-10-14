@@ -512,10 +512,31 @@ class AIController:
                 continue
             dmg = self._spell_damage_total(c, tower=True)
             for tw in self._towers(self.opp):
-                if tw.hp <= dmg * 0.95:
+                if tw.hp <= dmg * 0.95 and not self._troops_will_take(tw):
                     if self._place(i, tw.x, self.L(tw.y), c, exact=True):
                         return True
         return False
+
+    def _troops_will_take(self, tw):
+        """True if my units already hitting tower `tw` will bring it down on
+        their own (and before the clock runs out) - no spell needed."""
+        m = self.match
+        hitters = [u for u in m.entities
+                   if u.team == self.me and u.alive and u.target is tw and not u.is_tower
+                   and dist(u.x, u.y, tw.x, tw.y) <= u.range + tw.radius + 0.6]
+        if not hitters:
+            return False
+        dps = sum(u.dmg / max(u.hit_speed, 0.2) for u in hitters)
+        if dps <= 0:
+            return False
+        ttk = tw.hp / dps
+        # how long the hitters last against the tower and nearby defenders
+        tower_dps = tw.dmg / max(tw.hit_speed, 0.2) if tw.active or not tw.is_king else 0.0
+        foes = [e for e in self._opp_units()
+                if dist(e.x, e.y, tw.x, tw.y) < 5.0 and e.dmg > 0]
+        threat = tower_dps + sum(e.dmg / max(e.hit_speed, 0.2) for e in foes)
+        last = sum(u.hp + u.shield for u in hitters) / max(threat, 1.0)
+        return ttk < min(last * 0.8, 4.0) and ttk + 1.0 < m.time_left
 
     def _try_inferno_reset(self):
         """Zap / stun an Inferno that is melting one of my big units."""
@@ -620,6 +641,16 @@ class AIController:
         return self._lane_x(lane), RIVER_TOP - 0.9    # bridge
 
     def _play_wincon(self, i, c, lane, from_back=False):
+        bridge = ((c.category == "building" and c.siege)
+                  or (c.category == "troop" and c.attacks == "buildings" and not from_back))
+        if bridge:
+            # X-Bow / Mortar / Hog-style pushes at the bridge go down a lane
+            # that still has a Princess Tower, never an empty one
+            m = self.match
+            here = m.towers[(self.opp, "left" if lane == 0 else "right")]
+            there = m.towers[(self.opp, "right" if lane == 0 else "left")]
+            if not here.alive and there.alive:
+                lane = 1 - lane
         x, ly = self._wincon_spot(c, lane, from_back)
         exact = c.category == "spell" and self.lv(3)
         return self._place(i, x, ly, c, exact=exact)

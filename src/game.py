@@ -33,6 +33,7 @@ import sounds
 import fx as fxmod
 import levels
 import profile_data
+import king
 from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
 from ai import AIController
@@ -41,6 +42,7 @@ from modes import ModesMixin
 from sandbox import SandboxMixin
 from home import HomeMixin
 from trophyroad import TrophyMixin
+from kingscreen import KingMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -132,7 +134,7 @@ CHAIN_COLORS = {
 }
 
 
-class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
+class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -174,7 +176,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         self.profile = profile_data.Profile()
         self.sandbox = False           # Settings: unlock everything (free play)
         self.ai_card_mode = "ladder"   # Battles: AI card level "ladder" | "match"
-        self.last_rewards = []         # [(label, gold, shards)] for the result screen
+        self.last_rewards = []         # [(label, reward dict)] for the result screen
 
         self.state = "menu"
         self.running = True
@@ -224,6 +226,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         self.deck_drag = False      # dragging the deck-builder scrollbar
         self.aideck_return = "menu" # where the AI Deck screen goes back to
         self.stats = self._load_stats()   # per-intelligence crown/win records
+        self._king_startup()              # old saves -> King levels; due rewards
 
         self._build_menu_buttons()
 
@@ -506,8 +509,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                            **self._match_specials(self.player_deck, ai_deck),
                            card_levels={PLAYER: self.profile.deck_levels(self.player_deck),
                                         ENEMY: ai_lv},
-                           tower_levels={PLAYER: self.profile.tower_level(self.player_deck),
-                                         ENEMY: ai_lv})
+                           **self._towers_kw(ai_lv))
         self.match.record_events = True
         self._apply_tower_troops(self.match)
         self.ai = AIController(self.match, team=ENEMY, level=self.ai_level)
@@ -568,7 +570,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         """AI card level in Battles: its ladder level vs this intelligence,
         or (Battle Setup option) the same level as your towers."""
         if self.ai_card_mode == "match":
-            return self.profile.tower_level(self.player_deck)
+            return self.profile.deck_level(self.player_deck)
         return self.profile.ladder_level(self.ai_level)
 
     # ---- Levels ----
@@ -607,7 +609,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         ev, he = self._special_cards(self.level_deck)
         self.match, self.level_run = levels.new_level_match(
             lv, self.level_deck, self.profile.deck_levels(self.level_deck),
-            self.profile.tower_level(self.level_deck), ev, he)
+            self._towers_kw()["tower_levels"][PLAYER], ev, he,
+            king_level=self.profile.king_level())
         self.match.record_events = True
         self._apply_tower_troops(self.match)
         self.ai = None
@@ -940,7 +943,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                           if levels.stars_needed(i) > before
                           and levels.stars_needed(i) <= self._total_stars()]
                 for nm in opened:
-                    self.last_rewards.append(("Unlocked: " + nm, 0, 0))
+                    self.last_rewards.append(("Unlocked: " + nm, {}))
                 self._daily(True)
             self._save_progress()
             self.profile.save()
@@ -956,6 +959,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         else:
             self.result_text = "DRAW"
         self.last_rewards = []
+        if w == PLAYER and self.mode in (None, "trophy") and self.match.crowns[PLAYER] >= 3:
+            self.profile.totals["three_crowns"] = self.profile.totals.get("three_crowns", 0) + 1
         if self.mode == "trophy":
             if w == PLAYER:
                 self.profile.totals["battle_wins"] = self.profile.totals.get("battle_wins", 0) + 1
@@ -980,13 +985,13 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             if w == PLAYER:
                 before = self.profile.ladder_level(self.ai_level)
                 self.profile.add_ladder_win(self.ai_level)
-                got = self.profile.add_shard_points(self.ai_level)
+                kind, got = self.profile.add_shard_points(self.ai_level)
                 if got:
-                    self.last_rewards.append(("Shard from wins", 0, got))
+                    self.last_rewards.append(("Battle wins bonus", {kind: got}))
                 if self.profile.ladder_level(self.ai_level) > before:
                     self.last_rewards.append(("AI %s is now Lv %d" % (
                         cfg.AI_LEVELS[self.ai_level]["name"],
-                        self.profile.ladder_level(self.ai_level)), 0, 0))
+                        self.profile.ladder_level(self.ai_level)), {}))
         self._daily(w == PLAYER)
         self.profile.save()
         self._handle_events(self.match.take_events())
@@ -1000,9 +1005,14 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         if won and ach.daily_bonus(self):
             self._reward("First win of the day", ach.DAILY_GOLD, ach.DAILY_SHARDS)
 
-    def _reward(self, label, gold=0, shards=0):
-        self.profile.add(gold, shards)
-        self.last_rewards.append((label, gold, shards))
+    def _reward(self, label, gold=0, shards=0, coins=0, gems=0, xp=0):
+        rw = {k: v for k, v in (("gold", gold), ("shards", shards), ("coins", coins),
+                                ("gems", gems), ("xp", xp)) if v}
+        self.profile.add(gold, shards, coins, gems)
+        self.last_rewards.append((label, rw))
+        if xp:
+            for i, krw in self.profile.add_xp(xp):
+                self.last_rewards.append(("King Lv %d reward" % king.chunk_level(i), krw))
 
     # ================================================================= EVENTS
     def _events(self, dt):
@@ -1647,6 +1657,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
 
     # ================================================================= DRAW
     def _draw(self):
+        self._draw_screen()
+        self._draw_toast()
+
+    def _draw_screen(self):
         if self._home_active():
             self._draw_home()
             return
@@ -1893,8 +1907,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             self.profile.ladder_level(self.ai_level), wins, info["name"], nxt)
             if self.ai_card_mode == "ladder" and self.profile.ladder_level(self.ai_level)
             < profile_data.MAX_LEVEL else
-            "AI cards Lv %d   -   your towers Lv %d" % (
-                self._ai_card_level(), self.profile.tower_level(self.player_deck)))
+            "AI cards Lv %d   -   your deck Lv %d" % (
+                self._ai_card_level(), self.profile.deck_level(self.player_deck)))
         self._text(tip, self.font_s, (200, 204, 220), center=(cx, self.PM_SLIDER_Y + 128))
 
         # ---- decks ----
@@ -1910,7 +1924,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         y = self.PM_SLIDER_Y + 88
         w = (cfg.WINDOW_W - 24 - 8) // 2
         lad = "Ladder: AI Lv %d" % self.profile.ladder_level(self.ai_level)
-        mat = "Match my level: Lv %d" % self.profile.tower_level(self.player_deck)
+        mat = "Match my level: Lv %d" % self.profile.deck_level(self.player_deck)
         return [(pygame.Rect(12, y, w, 28), "ladder", lad),
                 (pygame.Rect(20 + w, y, w, 28), "match", mat)]
 
@@ -1998,9 +2012,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             "Sandbox: place any card for either side, pause, slow",
             "time, toggle an AI and inspect units.",
             "",
-            "Gold (wins, stars) upgrades cards in Cards: Lv 11-16,",
-            "+10% HP & damage per level. Towers = deck average.",
-            "Shards (first clears, milestones) unlock Evos & Heroes.",
+            "Gold upgrades cards (Lv 11-16, +10% per level) and",
+            "gives King XP; King level = King Tower (tap the blue",
+            "badge). Gold upgrades Tower Troops up to King level.",
+            "Evo shards unlock Evos, Hero coins Heroes; gems: Shop.",
             "",
             "Deck slots 1-2 are EVO slots: an unlocked Evolution",
             "glows purple in your hand when its charge is full.",
@@ -2010,13 +2025,13 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             "",
             "Friendly Battle: AI intelligence 1-5, elixir 0.5x-2x,",
             "AI card level: ladder (+1 per 3 wins) or yours.",
-            "Achievements pay gold & shards; first win of the",
-            "day gives a bonus. Settings: speed, volumes, sandbox.",
+            "Achievements pay gold, shards, coins, gems & XP; first",
+            "win of the day gives a bonus. Settings: speed, sound.",
             "",
             "M = music   N = sound   F11 = borderless fullscreen",
             "Click anywhere / Esc to return to the menu.",
         ]
-        y = 86
+        y = 80
         for ln in lines:
             self._text(ln, self.font_s, cfg.COLOR_TEXT, center=(cx, y))
             y += 22
@@ -3796,20 +3811,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                        self.font_l, center=(cx, mid - 6))
         # rewards
         y = mid + 46
-        for label, gold, shards in self.last_rewards:
+        for label, rw in self.last_rewards:
             self._text(label, self.font_sb, (230, 232, 240), topleft=(panel.x + 24, y))
-            x = panel.right - 24
-            if shards:
-                t = "+%d" % shards
-                w = self.font_sb.size(t)[0]
-                self._text(t, self.font_sb, (196, 120, 255), topleft=(x - w, y))
-                self._shard(x - w - 12, y + 9, 7)
-                x -= w + 30
-            if gold:
-                t = "+%d" % gold
-                w = self.font_sb.size(t)[0]
-                self._text(t, self.font_sb, (250, 206, 92), topleft=(x - w, y))
-                self._coin(x - w - 12, y + 9, 7)
+            self._reward_row(rw, panel.right - 24, y + 9)
             y += 22
         for b in self._result_buttons():
             b.draw(self.screen, self.font_m if b.rect.h > 38 else self.font_sb)
