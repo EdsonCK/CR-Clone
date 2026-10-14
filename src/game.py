@@ -2583,9 +2583,11 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         key = (side, team)
         if key not in cache:
             pad = pygame.Surface((side, side), pygame.SRCALPHA)
-            pygame.draw.rect(pad, (60, 56, 50, 120), pad.get_rect(), border_radius=4)
+            pygame.draw.rect(pad, (96, 86, 70, 175), pad.get_rect(), border_radius=4)
+            inner = pad.get_rect().inflate(-6, -6)
+            pygame.draw.rect(pad, (122, 110, 90, 150), inner, 1, border_radius=3)
             col = self._team_color(team)
-            pygame.draw.rect(pad, col + (110,), pad.get_rect(), 2, border_radius=4)
+            pygame.draw.rect(pad, col + (210,), pad.get_rect(), 2, border_radius=4)
             cache[key] = pad
         return cache[key]
 

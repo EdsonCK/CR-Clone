@@ -19,7 +19,34 @@ python src/main.py
 
 The first launch generates all the unit sprites into `assets/sprites/`.
 
+### Your progress carries over to new versions
+
+Since 1.4.4 your saves (profile, Level stars, records, settings, decks) live
+in a folder **outside** the game folder, so a new version picks them up:
+
+| System | Save folder |
+|---|---|
+| Windows | `%APPDATA%\ClashClone` |
+| macOS | `~/Library/Application Support/ClashClone` |
+| Linux | `~/.local/share/clash-clone` |
+
+(Settings shows the folder and has an **Open save folder** button; set the
+`CLASH_CLONE_SAVE_DIR` environment variable to use another one.)
+
+**Coming from 1.4.3 or older?** Unzip 1.4.4 into the same folder as your old
+version (so `clash-clone-v1.4.3` and `clash-clone-v1.4.4` sit side by side)
+and start it: the first launch imports your old progress automatically. Or
+copy `profile.json`, `progress.json` (and any other `.json` saves) from the
+old game folder into the save folder by hand. From now on just unzip new
+versions anywhere - nothing to copy.
+
 ## What's in it (v1.4)
+
+**New in v1.4.4**: real-game **stat ratios** (towers, Hog Rider and the
+staple cards follow the real level-11 numbers exactly, everything else was
+rebalanced around them), **grid snapping** for every placement, real
+**building sizes** (3x3, the Tesla 2x2), lane-true **pathing**, deck slots
+**Evo | Flex | Hero**, and saves that survive updates. See "v1.4.4 changes".
 
 **New in v1.4.3**: **King levels** - card upgrades and achievements give
 XP that levels up your King Tower (11-16), with 4 rewards on the way to each
@@ -61,6 +88,38 @@ Evolutions and Heroes the higher you climb.
   How To Play and Quit. Esc goes back to the Battle tab.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.4.4 changes
+
+* **Real stat ratios.** Every hp and damage number is the real game's
+  level-11 stat x 0.506 (before, damage used x0.544 - a 7% mismatch that
+  flipped breakpoints like Fireball vs Musketeer). The crown towers are the
+  real level-11 Tower Princess (3052 hp, 109 damage -> 1544 / 55) and King
+  Tower (4824 -> 2441 / 55), so a Hog Rider takes 16 tower shots and needs
+  10 hits on a tower, like in Clash Royale. Pinned to the exact ratio
+  (`cards.ANCHORS`): Hog Rider, Knight, Giant, Valkyrie, Musketeer, Archers,
+  Goblins, Skeletons, Baby Dragon, Wizard, Fireball, Zap and Arrows - then a
+  new balancing run tuned the other cards around them (see "Card balance").
+* **By hand**: Musketeer damage -17% (to the real ratio), Mortar damage to
+  the real ratio (about half), Little Prince +16% hp, +5% damage and a
+  faster ramp (full speed after 4s instead of 5s).
+* **Pathing**: a troop with nothing in sight marches down ITS side of the
+  arena: its lane's Princess Tower, then the King - it never wanders over
+  to the other lane's tower (only an enemy in sight can draw it across).
+* **Grid snapping**: every card - troop, building or spell - lands on the
+  tile grid (troops / spells / 3x3 buildings on a tile centre, the 2x2
+  Tesla on a tile corner); the placement preview shows the exact tiles.
+* **Building sizes** as in the real game: every building is 3x3 except the
+  Tesla (2x2), drawn on a stone pad showing its tiles. A building can sit
+  right against a tower (the exclusion is just the tower's own tiles) but
+  takes more room; spawners, the Elixir Collector and the Goblin Cage have
+  a bigger hitbox than defensive buildings.
+* **Goblinstein's Monster** targets buildings only; **Tornado** has the real
+  5.5-tile radius and pulls harder.
+* **Deck slots**: slot 1 Evolution, slot 2 **flex** (Evolution or Hero),
+  slot 3 Hero - at most 2 Evolutions or 2 Heroes, never 3.
+* **Saves** outside the game folder, imported automatically from your old
+  version (see Quick start).
 
 ## v1.4.3 changes
 
@@ -218,8 +277,8 @@ The AI uses Tower Troops in Trophy Road battles. Mirror Match copies yours.
 
 ## Progression
 
-Everything is saved in `profile.json` (delete it, or use Settings > Reset
-progress, to start over).
+Everything is saved in `profile.json` in your save folder (see Quick start;
+use Settings > Reset progress to start over).
 
 * **Gold** - from every win (Battles pay more against smarter AIs, higher
   elixir boosts and for crowns), Level wins and new stars, Special Battles,
@@ -263,10 +322,11 @@ progress, to start over).
 
 ## Evolutions & Heroes
 
-Your deck's first two slots are **EVO slots** and the third is a **flex
-slot**: an Evolution OR a Hero (the deck editor labels them; use the < >
-arrows on a card to move it). A card with both unlocked comes as its Hero
-in the flex slot - click its "use EVO" chip to bring the Evolution instead.
+Your deck's slot 1 is the **EVO slot**, slot 2 the **flex slot** (an
+Evolution OR a Hero) and slot 3 the **HERO slot** (the deck editor labels
+them; use the < > arrows on a card to move it) - so a deck brings at most 2
+Evolutions or 2 Heroes. A card with both unlocked comes as its Hero in the
+flex slot - click its "use EVO" chip to bring the Evolution instead.
 
 **Evolutions** - an unlocked Evolution in an EVO slot comes out *evolved*
 whenever its charge is full: its card glows purple in your hand, and the
@@ -371,6 +431,9 @@ touches your progress):
 
 ## Placement previews
 
+Every placement **snaps to the tile grid**: the preview shows the exact
+tiles the card will land on (1 tile for troops and spells, 3x3 for
+buildings, 2x2 for the Tesla), green where it's allowed, red where not.
 While you place a **building** its attack range is drawn around it (and the
 Mortar's blind spot). While you place a troop or building, every **enemy
 building** that could shoot it there lights up red with a pulsing red **!**
@@ -520,9 +583,9 @@ New levels are plain data: see the docstring at the top of `src/levels.py`.
 ### Deck editor
 
 **5 saved deck slots** (the 1-5 tabs at the top; the selected one is your
-battle deck). Your 8 cards sit at the top in two rows of four - slots 1-2
-are EVO slots, slot 3 the flex slot (Evo or Hero); hover a card and use < >
-to move it.
+battle deck). Your 8 cards sit at the top in two rows of four - slot 1 is
+the EVO slot, slot 2 the flex slot (Evo or Hero), slot 3 the HERO slot;
+hover a card and use < > to move it.
 The info line shows average elixir, the 4-card cycle cost and the average
 card level. Below is the full collection.
 
@@ -634,8 +697,8 @@ Music and sound volume, **game speed** (1x / 1.5x / 2x), **colour-blind team
 colours** (blue vs orange), **drag cards to deploy**, **floating damage
 numbers**, **screen shake**, **borderless fullscreen** (also **F11** or
 **Alt+Enter** anywhere; remembered between launches - the game scales up to
-fill your screen, keeping its shape), **Sandbox** and **Reset progress**
-(asks twice).
+fill your screen, keeping its shape), **Sandbox**, **Reset progress**
+(asks twice) and **Open save folder** (the folder is shown below it).
 
 ## Battlefield feel
 
@@ -801,6 +864,7 @@ src/
   modes.py    Special Battles, Draft and Endless Survival
   levels.py   the 30 Levels, the wave runner and the Endless generator
   profile_data.py  currencies, card / King / Tower Troop levels, unlocks (profile.json)
+  savedata.py the save folder outside the game + importing old saves
   evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do
   achievements.py  milestones + daily first-win bonus
   trophy.py   Trophy Road arenas, trophies and rewards;  trophyroad.py  its screen
