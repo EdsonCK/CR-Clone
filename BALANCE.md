@@ -178,3 +178,98 @@ Power factor applied on top of the v1.2 stats (see README, "v1.3 rebalance").
 | wizard | x1.05 | hp 371->378; damage 153->158 |
 | xbow | x1.31 | hp 1260->1440; damage 33->38 |
 | zappies | x1.07 | hp 148->153; damage 51->53 |
+
+
+## v1.4.4 rebalance (real-ratio anchors, hybrid run, all cards)
+
+All hp / damage are real level-11 stats x 0.506; the towers and 13 anchors
+(Hog Rider, Knight, Giant, Valkyrie, Musketeer, Archers, Goblins, Skeletons,
+Baby Dragon, Wizard, Fireball, Zap, Arrows) sit exactly on that ratio and
+were not tuned, nor were Mortar (damage -25% by hand) and Little Prince
+(+16% hp, +5% damage, faster ramp, by hand). Win rates are full-game win
+rates (Bradley-Terry, random decks): before = the first measurement of the
+run, after = an independent 6,000-game check of the final stats.
+
+| Card | Win rate before | after | Power | Stat changes |
+|---|---|---|---|---|
+| balloon | 57% | 55% | x0.84 | hp 734->656; damage 460->433 |
+| bandit | 52% | 49% | x0.89 | hp 472->445; damage 94->89 |
+| barbarian_barrel | 48% | 48% | x1.12 | spell_damage 65->73; tower_damage 26->29; sub_hp_mult 0.76->0.80; sub_dmg_mult 0.76->0.80 |
+| barbarian_hut | 47% | 51% | x1.11 | hp 1790->1889; sub_hp_mult 1.38->1.46; sub_dmg_mult 1.38->1.46 |
+| barbarians | 51% | 48% | x0.80 | hp 253->226; damage 79->71 |
+| bats | 46% | 47% | x1.17 | hp 32->34; damage 31->34 |
+| battle_healer | 52% | 52% | x0.89 | hp 1021->961; damage 82->77; heal_on_attack 69->65 |
+| battle_ram | 49% | 49% | x0.88 | hp 657->606; damage 115->110; sub_hp_mult 1.26->1.16; sub_dmg_mult 1.14->1.09 |
+| berserker | 52% | 50% | x0.96 | hp 453->444; damage 51->50 |
+| bomb_tower | 54% | 52% | x0.91 | hp 957->915; damage 153->146 |
+| boss_bandit | 46% | 51% | x1.14 | hp 1156->1233; damage 126->134 |
+| bowler | 55% | 52% | x0.91 | hp 1096->1046; damage 157->150 |
+| cannon | 44% | 50% | x1.54 | hp 791->982; damage 126->156 |
+| cannon_cart | 54% | 51% | x0.86 | hp 507->470; shield_hp 371->344; damage 102->95 |
+| clone | 47% | 43% | x1.18 | (no stat fields) |
+| dark_prince | 54% | 55% | x0.86 | hp 565->525; shield_hp 150->139; damage 108->100 |
+| electro_dragon | 54% | 53% | x0.93 | hp 591->570; damage 86->83 |
+| electro_giant | 31% | 41% | x1.59 | hp 1102->1490; damage 78->92 |
+| electro_spirit | 45% | 48% | x1.18 | hp 115->122; damage 58->65 |
+| electro_wizard | 44% | 44% | x1.20 | hp 318->339; damage 62->70; spawn_damage 83->93 |
+| elite_barbarians | 51% | 47% | x0.86 | hp 550->511; damage 176->163 |
+| elixir_golem | 38% | 56% | x1.21 | hp 1201->1362; damage 128->137; sub_hp_mult 0.86->0.98; sub_dmg_mult 0.92->0.98 |
+| executioner | 52% | 53% | x0.92 | hp 485->464; damage 76->73 |
+| fire_spirit | 45% | 47% | x1.31 | hp 89->98; damage 174->207; death_damage 174->207 |
+| firecracker | 47% | 50% | x1.12 | hp 154->160; damage 33->36 |
+| flying_machine | 50% | 54% | x1.12 | hp 313->326; damage 76->82 |
+| goblin_barrel | 47% | 57% | x1.05 | sub_hp_mult 1.37->1.41; sub_dmg_mult 1.37->1.41 |
+| goblin_cage | 45% | 46% | x1.23 | hp 395->438; sub_hp_mult 1.00->1.11; sub_dmg_mult 1.00->1.11 |
+| goblin_curse | 55% | 51% | x0.82 | spell_damage 18->15; tower_damage 5->4 |
+| goblin_demolisher | 61% | 52% | x0.69 | hp 658->548; damage 94->78 |
+| goblin_drill | 34% | 43% | x1.48 | hp 664->807; spawn_damage 43->52; sub_hp_mult 1.29->1.57; sub_dmg_mult 1.38->1.68 |
+| goblin_gang | 63% | 55% | x0.70 | hp 88->73; damage 51->43; sub_hp_mult 1.29->1.08; sub_dmg_mult 1.38->1.15 |
+| goblin_giant | 55% | 45% | x0.80 | hp 1957->1693; damage 91->84; sub_hp_mult 0.82->0.71; sub_dmg_mult 0.90->0.83 |
+| goblin_machine | 56% | 50% | x0.80 | hp 1088->973; damage 107->96 |
+| golden_knight | 57% | 56% | x0.82 | hp 845->766; damage 96->87 |
+| golem | 67% | 57% | x0.66 | hp 3076->2358; damage 220->191; sub_hp_mult 0.73->0.56; sub_dmg_mult 0.85->0.74 |
+| graveyard | 54% | 57% | x0.82 | sub_hp_mult 1.26->1.14; sub_dmg_mult 1.26->1.14 |
+| guards | 53% | 56% | x0.89 | hp 38->37; shield_hp 175->168; damage 74->69 |
+| heal_spirit | 43% | 43% | x1.46 | hp 109->124; damage 56->72; death_damage 56->72 |
+| ice_golem | 50% | 50% | x0.89 | hp 1212->1127; damage 39->38 |
+| ice_spirit | 43% | 44% | x1.35 | hp 86->96; damage 58->70; death_damage 58->70 |
+| lava_hound | 61% | 52% | x0.74 | hp 2630->2157; damage 34->31; sub_hp_mult 0.88->0.72; sub_dmg_mult 0.93->0.84 |
+| lightning | 54% | 56% | x0.90 | spell_damage 521->467; tower_damage 209->187 |
+| lumberjack | 57% | 49% | x0.74 | hp 564->484; damage 139->119; sub_hp_mult 0.85->0.73; sub_dmg_mult 0.85->0.73 |
+| mega_knight | 53% | 56% | x0.85 | hp 1493->1373; damage 115->106; spawn_damage 163->150; dash_damage 163->150 |
+| mega_minion | 47% | 51% | x1.11 | hp 349->362; damage 139->149 |
+| mighty_miner | 48% | 47% | x0.97 | hp 1033->1017 |
+| miner | 55% | 51% | x0.84 | hp 988->906; damage 76->70 |
+| mini_pekka | 50% | 47% | x0.84 | hp 587->539; damage 335->308 |
+| minion_giant | 48% | 49% | x1.02 | hp 919->930; damage 96->97 |
+| minion_horde | 40% | 50% | x1.53 | hp 81->100; damage 35->43 |
+| minions | 42% | 45% | x1.27 | hp 95->103; damage 44->51 |
+| mirror | 40% | 40% | x1.60 | (no stat fields) |
+| monk | 49% | 54% | x0.89 | hp 942->889; damage 73->69 |
+| mother_witch | 46% | 53% | x1.17 | hp 268->283; damage 67->74 |
+| phoenix | 55% | 52% | x0.92 | hp 532->511; damage 110->106; sub_hp_mult 1.00->0.96; sub_dmg_mult 1.00->0.96 |
+| poison | 52% | 49% | x0.89 | spell_damage 55->49; tower_damage 22->19 |
+| prince | 51% | 48% | x0.90 | hp 783->743; damage 182->173 |
+| princess | 50% | 47% | x0.88 | hp 107->102; damage 92->84 |
+| ram_rider | 48% | 50% | x0.98 | hp 894->881; damage 126->125; sub_hp_mult 1.00->0.99; sub_dmg_mult 1.00->0.99 |
+| rascals | 72% | 55% | x0.60 | hp 403->312; damage 79->61; sub_hp_mult 1.00->0.77; sub_dmg_mult 1.00->0.77 |
+| ronin | 53% | 48% | x0.78 | hp 900->794; damage 188->166 |
+| royal_ghost | 56% | 50% | x0.72 | hp 612->520; damage 132->112 |
+| royal_giant | 54% | 48% | x0.83 | hp 2268->2002; damage 175->164 |
+| royal_hogs | 43% | 49% | x1.25 | hp 424->490; damage 37->40 |
+| royal_recruits | 69% | 50% | x0.49 | hp 277->195; shield_hp 121->85; damage 67->47 |
+| rune_giant | 35% | 50% | x1.54 | hp 1347->1786; damage 60->70 |
+| skeleton_army | 46% | 42% | x1.14 | hp 22->23; damage 22->24 |
+| skeleton_barrel | 46% | 57% | x1.18 | hp 489->544; sub_hp_mult 1.57->1.75; sub_dmg_mult 1.28->1.36 |
+| skeleton_dragons | 65% | 46% | x0.60 | hp 283->219; damage 82->63 |
+| skeleton_king | 52% | 49% | x0.84 | hp 933->853; damage 110->101 |
+| snowball | 47% | 48% | x1.09 | spell_damage 81->88; tower_damage 33->36 |
+| spear_goblins | 42% | 54% | x1.28 | hp 51->56; damage 28->33 |
+| spirit_empress | 62% | 46% | x0.58 | hp 567->432; damage 162->123 |
+| spirit_empress_air | - | - | x0.58 | hp 910->693; damage 144->110 |
+| tesla | 55% | 50% | x0.92 | hp 788->756; damage 121->116 |
+| three_musketeers | 50% | 50% | x0.92 | hp 282->270; damage 92->88 |
+| vines | 47% | 53% | x1.19 | spell_damage 77->92; tower_damage 20->24 |
+| void | 46% | 46% | x1.08 | (no stat fields) |
+| witch | 57% | 49% | x0.68 | hp 372->325; damage 67->52; sub_hp_mult 0.81->0.71; sub_dmg_mult 0.81->0.63 |
+| xbow | 58% | 50% | x0.67 | hp 1440->1183; damage 35->29 |
