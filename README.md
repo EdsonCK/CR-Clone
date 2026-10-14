@@ -841,6 +841,36 @@ ranged troops average 51% (50% in a 2,400-game check with Expert AIs).
 `tools/balance_data/v2/` keeps the final factors (`snap3.json`), the
 before/after reports and the per-card changes (`applied.txt`).
 
+### v1.4.4 rebalance (around real-ratio anchors)
+
+v1.4.4 put every hp and damage number on one scale (real level-11 x 0.506),
+made the crown towers the real level-11 towers and pinned 13 staple cards
+to their exact real ratios (`cards.ANCHORS`: Hog Rider, Knight, Giant,
+Valkyrie, Musketeer, Archers, Goblins, Skeletons, Baby Dragon, Wizard,
+Fireball, Zap, Arrows). The same hybrid run then tuned the other 104 cards
+around them - this time including the v1.1 cards - for 5 rounds; Mortar and
+Little Prince were set by hand and left alone.
+
+* The spread of card strength fell from 0.277 to 0.156 (0.18 in an
+  independent 6,000-game check of the final stats); champions average 53%,
+  single-target ranged troops 50%.
+* Biggest cuts: Royal Recruits x0.49, Rascals x0.60, Skeleton Dragons x0.60,
+  Spirit Empress x0.58, Golem x0.66, X-Bow x0.67, Witch x0.68, Goblin Gang
+  x0.70. Biggest buffs: Electro Giant x1.59, Rune Giant / Cannon x1.54,
+  Minion Horde x1.53, Goblin Drill x1.48, Heal Spirit x1.46.
+* The balancer now scales mixed squads (Rascals, Goblin Gang) and the
+  Spirit Empress' dragon form too (before, their changes never reached the
+  units on the field).
+* Still off, by design: the anchors play as the real cards do in THIS
+  engine - Valkyrie ~62% and Knight ~59% are strong, Hog Rider and Giant
+  ~41% weak - and the hand-set cards: Little Prince ~59%, Mortar ~37%.
+* Levels were re-tuned to their 1.4.3 difficulty (enemy waves x1.12, plus a
+  few per-level corrections): the defend-only AI wins as often as before.
+
+`tools/balance_data/v3/` keeps the final factors (`final_factors.json`),
+the before / after / verification reports and the per-card changes
+(`applied.txt`).
+
 ## Project layout
 
 ```

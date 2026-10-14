@@ -1,0 +1,8 @@
+games 6000 (draws 184)
+  champions              mean win rate  52.9%  (8 cards)
+  ranged single-target   mean win rate  50.3%  (14 cards)
+  everything else        mean win rate  49.7%  (101 cards)
+  spread (sd of beta) 0.180
+  spread before        0.277
+  top:    valkyrie 64%, knight 59%, little_prince 59%, golem 57%, goblin_barrel 57%, graveyard 57%, skeleton_barrel 57%, wizard 56%
+  bottom: skeleton_army 42%, giant 42%, freeze 42%, hog_rider 41%, electro_giant 41%, elixir_collector 40%, mirror 40%, mortar 37%
