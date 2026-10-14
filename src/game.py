@@ -33,6 +33,7 @@ import sounds
 import fx as fxmod
 import levels
 import profile_data
+import savedata
 import king
 from engine import (Match, PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM,
                     BRIDGE_X, RIVER_CENTER, dist)
@@ -46,13 +47,13 @@ from kingscreen import KingMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DECK_FILE = os.path.join(_ROOT, "player_deck.json")
-AI_DECK_FILE = os.path.join(_ROOT, "ai_custom_deck.json")
-STATS_FILE = os.path.join(_ROOT, "records.json")
-SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
-PROGRESS_FILE = os.path.join(_ROOT, "progress.json")
-LEVEL_DECK_FILE = os.path.join(_ROOT, "level_deck.json")
+# saves live in the save folder (savedata.py), outside the game folder
+DECK_FILE = savedata.path("player_deck.json")
+AI_DECK_FILE = savedata.path("ai_custom_deck.json")
+STATS_FILE = savedata.path("records.json")
+SETTINGS_FILE = savedata.path("settings.json")
+PROGRESS_FILE = savedata.path("progress.json")
+LEVEL_DECK_FILE = savedata.path("level_deck.json")
 
 # Colors for spell telegraphs & detonations, roughly matching each spell.
 SPELL_FX_COLORS = {
@@ -172,6 +173,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         self.level_key = None
         self.levels_scroll = 0         # Levels screen list scroll (pixels)
         self.levels_drag = None        # (mouse_y, scroll) while dragging the list
+        # first run with the save folder: bring in the old saves (game folder
+        # or the previous version's folder next to this one)
+        self.imported_from = savedata.migrate()
         self.progress = self._load_progress()
         self.profile = profile_data.Profile()
         self.sandbox = False           # Settings: unlock everything (free play)
@@ -227,6 +231,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         self.aideck_return = "menu" # where the AI Deck screen goes back to
         self.stats = self._load_stats()   # per-intelligence crown/win records
         self._king_startup()              # old saves -> King levels; due rewards
+        if self.imported_from:
+            self._toast([("Progress imported from %s" % os.path.basename(
+                os.path.normpath(self.imported_from)), {})])
 
         self._build_menu_buttons()
 
@@ -520,7 +527,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         self.state = "match"
 
     def _flex_kind(self, key, owned=True, allow_evo=True, allow_hero=True):
-        """What the flex slot (deck slot 3) turns `key` into: "evo", "hero"
+        """What the flex slot (deck slot 2) turns `key` into: "evo", "hero"
         or None. A card with both unlocked comes as a Hero unless you
         switched it to its Evolution (deck editor)."""
         import evos
@@ -533,22 +540,28 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         return "evo" if can_e else ("hero" if can_h else None)
 
     def _special_cards(self, deck, owned=True, n_evo=None, n_hero=None):
-        """(evo card keys, hero card keys) a deck brings: Evolutions in deck
-        slots 1-2 and an Evolution OR a Hero in the flex slot 3 - your
-        unlocked ones, or (AI) whatever its deck has there, at most
-        n_evo + n_hero specials (n_evo of them from slots 1-2)."""
+        """(evo card keys, hero card keys) a deck brings: an Evolution in
+        slot 1, an Evolution OR a Hero in the flex slot 2 and a Hero in slot
+        3 - so at most 2 Evolutions or 2 Heroes. Your unlocked ones, or (AI)
+        whatever its deck has there, at most n_evo + n_hero specials in all
+        (n_evo from slot 1, n_hero from slot 3, the flex slot uses what's
+        left)."""
         import evos
         ev, he = [], []
-        for i, k in enumerate(deck[:evos.EVO_SLOTS]):
-            if k in evos.EVOS and (self._evo_owned(k) if owned else True):
-                ev.append(k)
-        if n_evo is not None:
-            ev = ev[:n_evo]
+
+        def got(k, unlocked):
+            return unlocked(k) if owned else True
+        k = deck[evos.EVO_SLOT] if len(deck) > evos.EVO_SLOT else None
+        if k in evos.EVOS and got(k, self._evo_owned) and (n_evo is None or n_evo > 0):
+            ev.append(k)
+        k = deck[evos.HERO_SLOT] if len(deck) > evos.HERO_SLOT else None
+        if k in evos.HEROES and got(k, self._hero_owned) and (n_hero is None or n_hero > 0):
+            he.append(k)
         if len(deck) > evos.FLEX_SLOT:
             k = deck[evos.FLEX_SLOT]
-            left = None if n_evo is None else (n_evo or 0) + (n_hero or 0) - len(ev)
+            left = None if n_evo is None else (n_evo or 0) + (n_hero or 0) - len(ev) - len(he)
             if left is None or left > 0:
-                kind = self._flex_kind(k, owned, allow_hero=n_hero is None or n_hero > 0)
+                kind = self._flex_kind(k, owned)
                 if kind == "evo":
                     ev.append(k)
                 elif kind == "hero":
@@ -1271,8 +1284,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         """('EVO'|'HERO', colour) if deck slot i makes this card special."""
         import evos
         owned = self.deck_mode != "ai"
-        if i < evos.EVO_SLOTS and key in evos.EVOS and (not owned or self._evo_owned(key)):
+        if i == evos.EVO_SLOT and key in evos.EVOS and (not owned or self._evo_owned(key)):
             return ("EVO", (190, 110, 255))
+        if i == evos.HERO_SLOT and key in evos.HEROES and (not owned or self._hero_owned(key)):
+            return ("HERO", (255, 196, 80))
         if i == evos.FLEX_SLOT:
             kind = self._flex_kind(key, owned)
             if kind == "evo":
@@ -1282,8 +1297,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         return None
 
     def _flex_switch(self, i, key):
-        """Deck slot 3 holding a card with BOTH an Evolution and a Hero
-        unlocked: (label, rect-maker) of the chip that switches between them."""
+        """The flex slot holding a card with BOTH an Evolution and a Hero
+        unlocked: the label of the chip that switches between them."""
         import evos
         if (i != evos.FLEX_SLOT or self.deck_mode == "ai" or key not in evos.EVOS
                 or key not in evos.HEROES or not self._evo_owned(key)
@@ -1583,7 +1598,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
                         else:
                             fe.append(deck[i])
                         self.profile.save()
-                        self.deck_msg = "Slot 3 brings %s %s" % (
+                        self.deck_msg = "Flex slot brings %s %s" % (
                             "Evo" if deck[i] in fe else "Hero", cards.CARDS[deck[i]].name)
                         return
                     left, right = self._deck_arrow_rects(r)
@@ -2017,10 +2032,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             "badge). Gold upgrades Tower Troops up to King level.",
             "Evo shards unlock Evos, Hero coins Heroes; gems: Shop.",
             "",
-            "Deck slots 1-2 are EVO slots: an unlocked Evolution",
-            "glows purple in your hand when its charge is full.",
-            "Slot 3 is a FLEX slot: an Evolution OR a Hero (tap the",
-            "gold button, bottom right, for a Hero's one-time ability).",
+            "Deck slot 1 = EVO, slot 2 = FLEX (Evo or Hero), slot 3 =",
+            "HERO. An Evolution glows purple in hand when charged;",
+            "a Hero's one-time ability is the gold button (bottom",
+            "right).",
             "Champions (max 1): yellow button bottom-left.",
             "",
             "Friendly Battle: AI intelligence 1-5, elixir 0.5x-2x,",
@@ -2146,8 +2161,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         # empty-slot labels for the special slots
         for i, r in enumerate(self._deck_slot_rects()):
             if i >= len(deck) and i < 3:
-                self._text("EVO" if i < 2 else "EVO / HERO", self.font_s,
-                           (150, 110, 200) if i < 2 else (200, 160, 80),
+                self._text(("EVO", "EVO / HERO", "HERO")[i], self.font_s,
+                           ((150, 110, 200), (190, 150, 140), (200, 160, 80))[i],
                            center=(r.centerx, r.bottom - 12))
         # ---- info line: message > hovered card > controls hint ----
         top, bottom = self._deck_viewport()
@@ -2171,7 +2186,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             self._text(self._fit(line, self.font_s, cfg.WINDOW_W - 20), self.font_s,
                        (225, 225, 200), center=(cx, info_y))
         else:
-            self._text("Slots 1-2: EVO   Slot 3: EVO or HERO   < > move   click: remove",
+            self._text("Slot 1: EVO   2: EVO or HERO   3: HERO   < > move   click: remove",
                        self.font_s, (150, 158, 178), center=(cx, info_y))
         pygame.draw.line(self.screen, (60, 66, 88), (12, top - 4),
                          (cfg.WINDOW_W - 12, top - 4), 1)
@@ -2563,6 +2578,17 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
                 if not self.match.can_place(PLAYER, key, c + 0.5, r + 0.5):
                     self.screen.blit(tint, tile_to_px(c, r))
 
+    def _building_pad(self, side, team):
+        cache = self.__dict__.setdefault("_pad_cache", {})
+        key = (side, team)
+        if key not in cache:
+            pad = pygame.Surface((side, side), pygame.SRCALPHA)
+            pygame.draw.rect(pad, (60, 56, 50, 120), pad.get_rect(), border_radius=4)
+            col = self._team_color(team)
+            pygame.draw.rect(pad, col + (110,), pad.get_rect(), 2, border_radius=4)
+            cache[key] = pad
+        return cache[key]
+
     def _team_color(self, team):
         return cfg.COLOR_TEAM_PLAYER if team == PLAYER else cfg.COLOR_TEAM_ENEMY
 
@@ -2571,7 +2597,16 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         if e.is_tower:
             self._draw_tower(e, px, py)
             return
-        base = (2.6 if e.is_building else 1.5) * cfg.TILE_SIZE
+        if e.is_building and e.card.deployable:
+            # placed buildings fill their footprint (3x3, Tesla 2x2): a stone
+            # pad marks the tiles they take, the art sits on top of it
+            f = cards.footprint(e.card)
+            side = f * cfg.TILE_SIZE
+            pad = self._building_pad(side, e.team)
+            self.screen.blit(pad, (int(px) - side // 2, int(py) - side // 2))
+            base = (f + 0.3) * cfg.TILE_SIZE
+        else:
+            base = (2.6 if e.is_building else 1.5) * cfg.TILE_SIZE
         size = int(base * sprites.render_scale(e.key))
         if getattr(e, "general", False):
             size = int(size * 1.35)
@@ -3463,7 +3498,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         mx, my = pygame.mouse.get_pos()
         if my > cfg.ARENA_Y0 + cfg.ARENA_PX_H:
             return
-        tx, ty = px_to_tile(mx, my)
+        # every placement snaps to the tile grid: preview where it will land
+        tx, ty = self.match.snap(card, *px_to_tile(mx, my))
+        sx, sy = (int(v) for v in tile_to_px(tx, ty))
         ok = (cost is not None and self.match.elixir[PLAYER] >= cost
               and self.match.can_place(PLAYER, pkey, tx, ty))
         color = (90, 220, 90) if ok else (220, 80, 80)
@@ -3471,15 +3508,21 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             rad = int(card.spell_radius * cfg.TILE_SIZE)
             surf = pygame.Surface((rad * 2, rad * 2), pygame.SRCALPHA)
             pygame.draw.circle(surf, color + (70,), (rad, rad), rad)
-            self.screen.blit(surf, (mx - rad, my - rad))
+            self.screen.blit(surf, (sx - rad, sy - rad))
         if card.category == "building" and card.range > 0:
             # the building's attack range (and the Mortar's blind spot)
-            self._range_ring((mx, my), card.range, (255, 255, 255), 34, 150)
+            self._range_ring((sx, sy), card.range, (255, 255, 255), 34, 150)
             if card.min_range:
-                self._range_ring((mx, my), card.min_range, (40, 40, 40), 46, 120)
+                self._range_ring((sx, sy), card.min_range, (40, 40, 40), 46, 120)
+        # the tiles it will occupy
+        f = cards.footprint(card)
+        side = f * cfg.TILE_SIZE
+        foot = pygame.Surface((side, side), pygame.SRCALPHA)
+        foot.fill(color + (70,))
+        pygame.draw.rect(foot, color + (220,), foot.get_rect(), 2)
+        self.screen.blit(foot, (sx - side // 2, sy - side // 2))
         if card.category != "spell":
             self._draw_threat_warnings(card, tx, ty)
-        pygame.draw.circle(self.screen, color, (mx, my), 8, 2)
 
     def _range_ring(self, center, tiles, rgb, fill_a, line_a):
         """A translucent filled circle with an outline, `tiles` in radius."""

@@ -3,7 +3,8 @@
   PROFILE_DATA.PY  --  Your progression: gold, card levels, unlocks
 ============================================================================
 
-Everything you earn is saved in profile.json next to the game:
+Everything you earn is saved in profile.json, in your save folder outside
+the game folder (savedata.py) so it carries over to new versions:
 
   * GOLD      - earned by winning Levels, Battles, Special Battles and
                 Endless Survival. Spent on card upgrades.
@@ -41,10 +42,10 @@ import os
 
 import cards
 import king
+import savedata
 import towers
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROFILE_FILE = os.path.join(_ROOT, "profile.json")
+PROFILE_FILE = savedata.path("profile.json")   # outside the game folder
 
 START_LEVEL = cards.LEVEL_MIN        # 11
 MAX_LEVEL = cards.LEVEL_MAX          # 16

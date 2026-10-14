@@ -30,11 +30,11 @@ RIVER_CENTER = (RIVER_TOP + RIVER_BOTTOM) / 2.0
 BRIDGE_X = [c + 0.5 for c in cfg.BRIDGE_COLS]
 
 PROJECTILE_RANGE_MIN = 2.5   # attack range at/above which a shot flies as a projectile
-# Crown tower footprints (half the side of their square, in tiles) and the
-# footprint of a building: nothing can be deployed on a standing tower's
-# tiles, and a building's tiles can't overlap them either.
+# Crown tower footprints (half the side of their square, in tiles):
+# nothing can be deployed on a standing tower's tiles, and a building's
+# tiles (cards.footprint: 3x3, the Tesla 2x2) can't overlap them either.
+# Every placement snaps to the tile grid (Match.snap).
 TOWER_HALF = {False: 1.5, True: 2.0}         # princess 3x3, king 4x4
-BUILDING_HALF = 1.0                          # buildings take 2x2 tiles
 GETAWAY_DASH_CD = 1.0       # Boss Bandit: wait after Getaway before dashing
 MELEE_RANGE = 1.75           # below this a unit is "melee" (first-hit delay applies)
 
@@ -159,6 +159,13 @@ class Entity:
         # body size + weight for unit-vs-unit collisions
         if is_tower:
             self.crad, self.mass = (1.75 if is_king else 1.4), 0.0
+        elif self.is_building and card.deployable:
+            # a placed building fills its footprint (3x3 / Tesla 2x2); passive
+            # ones (spawners, Collector, Cage) have the bigger hitbox
+            half = cards.footprint(card) / 2.0
+            self.radius = half - 0.05
+            self.crad = half - (0.1 if cards.passive_building(card) else 0.35)
+            self.mass = 0.0
         elif self.is_building:
             self.crad, self.mass = 0.9, 0.0
         else:
@@ -1947,7 +1954,7 @@ class Match:
         if card.category != "spell" and self.on_tower(x, y, card):
             return False
         # ...and a building can't go on top of another building
-        if card.category == "building" and self.on_building(x, y):
+        if card.category == "building" and self.on_building(x, y, card):
             return False
         # no placing in the river
         if RIVER_TOP - 0.2 <= y <= RIVER_BOTTOM + 0.2:
@@ -1976,10 +1983,25 @@ class Match:
                 return y < RIVER_BOTTOM + 6
             return False
 
+    def snap(self, card, x, y):
+        """Where a card placed at (x, y) actually lands: on the tile grid.
+        Odd-sized footprints (troops, spells, 3x3 buildings) centre on a
+        tile, the 2x2 Tesla on a tile corner; a building stays inside the
+        arena."""
+        f = cards.footprint(card)
+        if f % 2:
+            sx, sy = math.floor(x) + 0.5, math.floor(y) + 0.5
+        else:
+            sx, sy = float(round(x)), float(round(y))
+        h = f / 2.0
+        sx = min(max(sx, h), cfg.GRID_COLS - h)
+        sy = min(max(sy, h), cfg.GRID_ROWS - h)
+        return sx, sy
+
     def on_tower(self, x, y, card):
         """True if deploying `card` at (x, y) would overlap a standing crown
         tower (a destroyed tower's spot is free to build on)."""
-        pad = BUILDING_HALF if card.category == "building" else 0.0
+        pad = cards.footprint(card) / 2.0 if card.category == "building" else 0.0
         for tw in self.towers.values():
             if not tw.alive:
                 continue
@@ -1988,13 +2010,15 @@ class Match:
                 return True
         return False
 
-    def on_building(self, x, y):
-        """True if a building at (x, y) would overlap a standing building
-        (2x2 footprints, either team's)."""
-        h = 2 * BUILDING_HALF
+    def on_building(self, x, y, card):
+        """True if `card` placed at (x, y) would overlap a standing building's
+        footprint (either team's)."""
+        mine = cards.footprint(card) / 2.0
         for e in self.entities:
-            if (e.alive and e.is_building and not e.is_tower
-                    and abs(x - e.x) < h and abs(y - e.y) < h):
+            if not (e.alive and e.is_building and not e.is_tower):
+                continue
+            h = mine + (cards.footprint(e.card) / 2.0 if e.card.deployable else e.crad)
+            if abs(x - e.x) < h - 1e-6 and abs(y - e.y) < h - 1e-6:
                 return True
         return False
 
@@ -2029,6 +2053,7 @@ class Match:
         dkey = self.play_key(team, key)
         if cost is None or dkey is None or self.elixir[team] < cost:
             return False
+        x, y = self.snap(cards.CARDS[dkey], x, y)     # every placement snaps
         if not self.can_place(team, dkey, x, y):
             return False
         mirrored = cards.CARDS[key].spell_kind == "mirror"
@@ -2756,8 +2781,15 @@ class Match:
         near = None                           # nearest within attack range
         near_d = 1e9
         sight = ent.sight
+        mid = cfg.GRID_COLS / 2
+        my_side = (ent.lane if abs(ent.x - mid) <= 0.3 else (0 if ent.x < mid else 1))
         for e in self.entities:
             if not ent.can_attack(e):
+                continue
+            # a troop never takes the OTHER lane's Princess Tower as a target
+            # (towers don't lure it over the centre line - troops do)
+            if (e.is_tower and not e.is_king and not ent.is_building
+                    and (0 if e.x < mid else 1) != my_side):
                 continue
             # don't chase a sleeping king while either of its princess towers stand
             if e.is_king and not e.active and any(
@@ -2783,17 +2815,21 @@ class Match:
         # no one in sight: buildings/towers just wait
         if ent.is_tower or ent.is_building:
             return None
-        # nothing in sight: march down OUR lane to its Princess Tower (the
-        # side of the centre line we were placed on); once that one is down,
-        # head for the nearest tower still standing
+        # nothing in sight: march down OUR side of the centre line to its
+        # Princess Tower, and once that one is down to the King - never over
+        # to the other lane's tower (only an enemy in sight may draw a unit
+        # across the centre line). Our side is where we stand now (a unit
+        # that chased something across stays on that side).
+        if abs(ent.x - cfg.GRID_COLS / 2) > 0.3:
+            ent.lane = 0 if ent.x < cfg.GRID_COLS / 2 else 1
         lane_tw = self.towers.get((1 - ent.team, "left" if ent.lane == 0 else "right"))
         if lane_tw is not None and lane_tw.alive:
             return lane_tw
-        for key, tw in self.towers.items():
+        king = self.towers.get((1 - ent.team, "king"))
+        if king is not None and king.alive:
+            return king
+        for key, tw in self.towers.items():         # (Levels: no King)
             if tw.team == ent.team or not tw.alive:
-                continue
-            if tw.is_king and not tw.active and any(
-                    self.towers[(tw.team, s)].alive for s in ("left", "right")):
                 continue
             d = dist(ent.x, ent.y, tw.x, tw.y)
             if d < best_d:

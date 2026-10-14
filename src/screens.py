@@ -322,14 +322,14 @@ class ScreensMixin:
     def _cards_unlock_evo(self):
         if self.profile.unlock_evo(self.cards_sel):
             self.sfx.play("ability", 0.8, min_gap=0.0)
-            self.cards_msg = "Evolution unlocked! Put it in deck slots 1-3."
+            self.cards_msg = "Evolution unlocked! Put it in deck slot 1 (or the flex slot 2)."
         else:
             self.cards_msg = "Not enough Evo shards."
 
     def _cards_unlock_hero(self):
         if self.profile.unlock_hero(self.cards_sel):
             self.sfx.play("ability", 0.8, min_gap=0.0)
-            self.cards_msg = "Hero unlocked! Put it in the flex slot (deck slot 3)."
+            self.cards_msg = "Hero unlocked! Put it in deck slot 3 (or the flex slot 2)."
         else:
             self.cards_msg = "Not enough Hero coins."
 
@@ -583,9 +583,15 @@ class ScreensMixin:
         cx = cfg.WINDOW_W // 2
         y = 78 + len(self.SETTINGS_ROWS) * 62 + 6
         lbl = "Really reset? Click again" if self.settings_confirm else "Reset progress"
-        return [Button((cx - 130, y, 260, 40), lbl, self._settings_reset, "danger"),
+        return [Button((cx - 250, y, 240, 40), lbl, self._settings_reset, "danger"),
+                Button((cx + 10, y, 240, 40), "Open save folder", self._open_saves, "primary"),
                 Button((cx - 70, cfg.WINDOW_H - 54, 140, 40), "Back",
                        lambda: self._goto("menu"), "dark")]
+
+    def _open_saves(self):
+        import savedata
+        if not savedata.open_folder():
+            self.settings_msg = "Couldn't open it - see the path below."
 
     def _settings_reset(self):
         if not self.settings_confirm:
@@ -705,6 +711,12 @@ class ScreensMixin:
         self._text("Sandbox never changes your saved progress or rewards.",
                    self.font_s, (160, 166, 186),
                    center=(cfg.WINDOW_W // 2, cfg.WINDOW_H - 70))
+        import savedata
+        y = 78 + len(self.SETTINGS_ROWS) * 62 + 6 + 50
+        self._text("Progress is saved outside the game folder (kept across updates):",
+                   self.font_s, (190, 196, 214), center=(cfg.WINDOW_W // 2, y))
+        self._text(self._fit(savedata.SAVE_DIR, self.font_s, cfg.WINDOW_W - 24), self.font_s,
+                   (150, 220, 160), center=(cfg.WINDOW_W // 2, y + 17))
 
     # ======================================================== ACHIEVEMENTS
     ACH_ROW = 66

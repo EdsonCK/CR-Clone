@@ -81,13 +81,13 @@ OVERTIME_LENGTH     = 120.0  # sudden-death overtime in seconds (2:00)
 # win (3 crowns). The King Tower "wakes up" and fires once one of its
 # Princess Towers is destroyed OR once it is itself hit.
 
-PRINCESS_TOWER_HP     = 1400
-PRINCESS_TOWER_DMG    = 51    # 2 shots kill a same-level Goblin (100 hp)
+PRINCESS_TOWER_HP     = 1544   # real level-11 Tower Princess (3052) x 0.506
+PRINCESS_TOWER_DMG    = 55     # 109 x 0.506: 16 shots for a Hog Rider, 2 for Goblins
 PRINCESS_TOWER_RANGE  = 8.25   # tiles (outranges Firecracker & Furnace)
 PRINCESS_TOWER_HITSPD = 0.8    # seconds between shots
 
-KING_TOWER_HP         = 2400
-KING_TOWER_DMG        = 50
+KING_TOWER_HP         = 2441   # real level-11 King Tower (4824) x 0.506
+KING_TOWER_DMG        = 55
 KING_TOWER_RANGE      = 8.25   # tiles
 KING_TOWER_HITSPD     = 1.0    # seconds between shots
 KING_ACTIVATES_ALLIES = True   # King wakes when a princess tower falls

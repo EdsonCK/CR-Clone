@@ -1090,7 +1090,7 @@ class AIController:
             use = len(near) >= 2 or (near and hpf < 0.5)
         elif k == "mega_minion":
             weak = [e for e in m.entities if e.alive and e.team == self.opp
-                    and not e.is_tower and e.hp <= 399 * 0.544 * h.power[1]]
+                    and not e.is_tower and e.hp <= 399 * 0.506 * h.power[1]]
             use = bool(weak) or hpf < 0.4
         elif k == "barbarian":
             use = hpf < 0.5 or len(ground_close) >= 2

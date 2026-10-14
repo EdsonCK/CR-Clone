@@ -9,7 +9,7 @@ resolving, every frame for evolved / hero units). Each checks `e.evo` /
 `e.hero` and the card key, so cards without an Evolution are untouched.
 
 All numbers are the real game's level-11 values converted into this game's
-scale (hp x0.506, damage x0.544 - the same conversion used for the cards),
+scale (hp and damage x0.506 - the same conversion used for the cards),
 and every one of them is multiplied by the unit's level power (e.power), so
 upgrades carry over. Distances and timings are the real ones.
 
@@ -30,7 +30,7 @@ PLAYER, ENEMY = 0, 1
 
 # real-game numbers -> this game's scale
 HP = 0.506
-DMG = 0.544
+DMG = 0.506          # one scale for hp and damage (real level-11 x 0.506)
 
 
 def _d(a, b):

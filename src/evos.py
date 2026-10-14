@@ -6,8 +6,8 @@
 EVOLUTIONS
 ----------
 An Evolution upgrades a card with an extra mechanic. Unlock it (Cards
-screen, Evo shards), then put the card in one of your deck's EVO SLOTS (the
-first two deck slots, or the third - the flex slot). In a match the card has to "cycle": each time you play
+screen, Evo shards), then put the card in your deck's EVO SLOT (slot 1) or
+its FLEX SLOT (slot 2). In a match the card has to "cycle": each time you play
 it normally it gains a charge, and once it has `cycles` charges the next copy
 you play comes out EVOLVED (glowing purple card in your hand, purple aura on
 the troop). Then it starts charging again. Charges start EMPTY, so your
@@ -17,8 +17,8 @@ HEROES
 ------
 A Hero is a special version of a card with a one-time activatable ability
 (paid with extra elixir, using the ability button). Unlock it with Hero
-coins, then put the card in your deck's FLEX SLOT (the third deck slot).
-Every copy you play from that slot is the Hero. Max one Hero per deck.
+coins, then put the card in your deck's HERO SLOT (slot 3) or its FLEX
+SLOT (slot 2). Every copy you play from there is the Hero.
 
 Everything here mirrors the real game's Evolutions and Heroes as of the
 Minion Giant update (Sept 2026); numbers are scaled into this game's units
@@ -220,9 +220,10 @@ HEROES = {
                            "(-50% vs Crown Towers).", 3.0),
 }
 
-EVO_SLOTS = 2          # deck slots 1-2: Evolution only
-FLEX_SLOT = 2          # deck slot 3 (0-based index): an Evolution OR a Hero
-HERO_SLOT = FLEX_SLOT
+# deck slots (0-based): 1 = Evolution, 2 = flex (Evolution OR Hero), 3 = Hero
+EVO_SLOT = 0
+FLEX_SLOT = 1
+HERO_SLOT = 2
 
 
 def evo_cards():

@@ -90,6 +90,10 @@ FIXED = {"berserker", "firecracker", "goblin_gang", "skeleton_dragons", "rascals
          "goblin_curse", "clone", "vines", "goblin_drill", "rune_giant", "void",
          "fisherman", "royal_ghost", "mother_witch", "phoenix", "goblin_machine",
          "ram_rider", "ronin", "spirit_empress"}
+# v1.4.4: the anchors (real-ratio staples, cards.ANCHORS) and cards set by
+# hand are never tuned either; FREEZE=a,b,c adds more for one run
+FIXED |= set(cards.ANCHORS) | {"mortar", "little_prince"}
+FIXED |= {k for k in os.environ.get("FREEZE", "").split(",") if k}
 BACKUP_SPELLS = ("zap", "arrows", "fireball")
 PARTNERS = os.environ.get("PARTNERS", "0") == "1"   # off: 2-v-1 pushes swamped the signal
 BACKUPS = os.environ.get("BACKUPS", "1") == "1"
