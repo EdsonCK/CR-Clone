@@ -92,7 +92,8 @@ FIXED = {"berserker", "firecracker", "goblin_gang", "skeleton_dragons", "rascals
          "ram_rider", "ronin", "spirit_empress"}
 # v1.4.4: the anchors (real-ratio staples, cards.ANCHORS) and cards set by
 # hand are never tuned either; FREEZE=a,b,c adds more for one run
-FIXED |= set(cards.ANCHORS) | {"mortar", "little_prince"}
+FIXED = set(cards.ANCHORS) | {"mortar", "little_prince"}   # the newer
+# real-stat cards above are tuned too from v1.4.4 on (some were outliers)
 FIXED |= {k for k in os.environ.get("FREEZE", "").split(",") if k}
 BACKUP_SPELLS = ("zap", "arrows", "fireball")
 PARTNERS = os.environ.get("PARTNERS", "0") == "1"   # off: 2-v-1 pushes swamped the signal

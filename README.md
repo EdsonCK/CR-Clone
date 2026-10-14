@@ -100,8 +100,8 @@ Evolutions and Heroes the higher you climb.
   (`cards.ANCHORS`): Hog Rider, Knight, Giant, Valkyrie, Musketeer, Archers,
   Goblins, Skeletons, Baby Dragon, Wizard, Fireball, Zap and Arrows - then a
   new balancing run tuned the other cards around them (see "Card balance").
-* **By hand**: Musketeer damage -17% (to the real ratio), Mortar damage to
-  the real ratio (about half), Little Prince +16% hp, +5% damage and a
+* **By hand**: Musketeer damage -17% (to the real ratio), Mortar damage
+  -25%, Little Prince +16% hp, +5% damage and a
   faster ramp (full speed after 4s instead of 5s).
 * **Pathing**: a troop with nothing in sight marches down ITS side of the
   arena: its lane's Princess Tower, then the King - it never wanders over

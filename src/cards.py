@@ -490,7 +490,7 @@ _CARD_LIST = [
             hp=957, damage=153, hit_speed=1.6, range=6.0, attacks=G,
             splash=1.5, lifetime=35.0, death_damage=(2.0, 233), death_bomb=1.0),
     CardDef("mortar", "Mortar", 4, category="building", rarity="common",
-            hp=885, damage=135, hit_speed=5.0, range=11.5, attacks=G,
+            hp=885, damage=200, hit_speed=5.0, range=11.5, attacks=G,
             splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5, siege=True),
             # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
