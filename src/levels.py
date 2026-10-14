@@ -44,6 +44,7 @@ Append a Level(...) to LEVELS. Each Wave lists Spawn entries:
 ============================================================================
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -1203,8 +1204,12 @@ LEVEL_POWER = {
     "fishers_wharf": 1.47, "dragon_roost": 0.88, "machine_works": 1.17,
     "grand_finale": 0.89,
 }
+# v1.4.4: the crown towers became the real Tower Princess (+10% hp, +8%
+# damage) and the cards were rebalanced; this brings every level back to
+# its 1.4.3 difficulty (measured with the defend-only AI)
+WAVE_POWER = float(os.environ.get("LEVEL_WAVE_POWER", "1.0"))
 for _lv in LEVELS:
-    _lv.power = LEVEL_POWER.get(_lv.key, 1.0)
+    _lv.power = LEVEL_POWER.get(_lv.key, 1.0) * WAVE_POWER
 
 
 def recommended_level(level):
