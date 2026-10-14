@@ -88,7 +88,6 @@ class AIController:
         self.clock = 0.0
         # memory
         self.seen_opp = set()              # opponent cards seen (card tracking)
-        self._seen_ids = set()
         self._prev = {}                    # entity id -> (x, y)
         self.vel = {}                      # entity id -> (vx, vy) tiles/s
         self._noise = 0.0
@@ -1154,9 +1153,7 @@ class AIController:
             if e.team != self.opp or e.is_tower:
                 continue
             eid = id(e)
-            if eid not in self._seen_ids:
-                self._seen_ids.add(eid)
-                self.seen_opp.add(e.key)
+            self.seen_opp.add(e.key)      # (not keyed by id(): ids get reused)
             px, py = self._prev.get(eid, (e.x, e.y))
             if dt > 0:
                 vx, vy = (e.x - px) / dt, (e.y - py) / dt

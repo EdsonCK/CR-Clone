@@ -425,11 +425,18 @@ class FX:
         return (gx, gy - h), (gx, gy)
 
     def _data(self, fx, maker):
-        d = self._fx_data.get(id(fx))
-        if d is None:
-            if len(self._fx_data) > 200:
-                self._fx_data.clear()
-            d = self._fx_data[id(fx)] = maker()
+        """Shapes cached per engine effect (and per kind of shape). The entry
+        keeps a reference to its effect: Python reuses id() numbers once an
+        object is gone, so without that check a new effect could pick up a
+        dead one's data of a different shape (it crashed the Graveyard)."""
+        key = (id(fx), maker.__code__)
+        hit = self._fx_data.get(key)
+        if hit is not None and hit[0] is fx:
+            return hit[1]
+        if len(self._fx_data) > 200:
+            self._fx_data.clear()
+        d = maker()
+        self._fx_data[key] = (fx, d)
         return d
 
     def draw_spell(self, surf, fx):
