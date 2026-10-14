@@ -200,7 +200,7 @@ def scaled_card(c, f):
         ch["dash_damage"] = (c.dash_damage[0], c.dash_damage[1] * fd)
     if c.heal_on_attack:
         ch["heal_on_attack"] = (c.heal_on_attack[0], c.heal_on_attack[1] * fd)
-    if c.spawner or c.death_spawn or c.companion or c.back_riders:
+    if c.spawner or c.death_spawn or c.companion or c.back_riders or c.mixed:
         ch["sub_hp_mult"] = c.sub_hp_mult * fh
         ch["sub_dmg_mult"] = c.sub_dmg_mult * fd
     return dataclasses.replace(c, **ch)
