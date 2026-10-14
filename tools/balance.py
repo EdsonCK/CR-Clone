@@ -208,11 +208,19 @@ def scaled_card(c, f):
 
 def install(snapshot, override=None):
     """Load a stats snapshot {key: factor} into cards.CARDS (+ one override)."""
+    alts = {b.alt_form[1] for b in BASE.values() if b.alt_form}
     for key, base in BASE.items():
+        if key in alts:
+            continue                       # set together with its card below
         f = snapshot.get(key, 1.0)
         if override and key == override[0]:
             f = override[1]
         cards.CARDS[key] = scaled_card(base, f) if abs(f - 1) > 1e-9 else base
+        if base.alt_form and base.alt_form[1] in BASE:
+            # a second form (Spirit Empress riding her dragon) is the same
+            # card: it follows the card's factor
+            ak = base.alt_form[1]
+            cards.CARDS[ak] = scaled_card(BASE[ak], f) if abs(f - 1) > 1e-9 else BASE[ak]
 
 
 BASE = {k: v for k, v in cards.CARDS.items()}

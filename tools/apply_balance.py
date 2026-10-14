@@ -114,6 +114,10 @@ def apply(factors):
 if __name__ == "__main__":
     data = json.load(open(sys.argv[1]))
     factors = {k: (v["f"] if isinstance(v, dict) else v) for k, v in data.items()}
+    for k, f in list(factors.items()):        # second forms follow their card
+        alt = B.BASE[k].alt_form if k in B.BASE else None
+        if alt and alt[1] in B.BASE:
+            factors[alt[1]] = f
     rows = apply(factors)
     for key, f, ch in rows:
         print("%-18s x%.2f  %s" % (key, f, "; ".join(ch)))
