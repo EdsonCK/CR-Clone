@@ -253,7 +253,7 @@ def before_attack(e, match, dmg):
         if getattr(e, "ma_triple", False):
             dmg = 48 * DMG * p1                             # 3 long arrows
         if getattr(e, "frosty", False) and t is not None and t.alive \
-                and not t.is_tower and t.slow_timer > 0:
+                and t.slow_timer > 0:
             _snowman(match, e, t)
     return dmg
 
@@ -773,9 +773,15 @@ def tick(e, dt, match):
                 e.pulse_t = 6.0
                 _drain_pulse(e, match)
     if k == "snowman":
-        for o in _enemies(match, e, 2.5):
-            if not o.is_tower:
-                o.freeze_timer = max(o.freeze_timer, 0.25)
+        # freezes everything nearby while it stands; a Crown Tower or building
+        # only for its first 2 seconds (a 2-elixir ability isn't a Freeze)
+        e.age_t = getattr(e, "age_t", 0.0) + dt
+        for o in _enemies(match, e, 2.5 + 1.0):
+            if _d(e, o) - (o.radius if o.is_tower else 0.0) > 2.5:
+                continue
+            if (o.is_tower or o.is_building) and e.age_t > 2.0:
+                continue
+            o.freeze_timer = max(o.freeze_timer, 0.25)
     if e.hero:
         _hero_tick(e, dt, match)
 
@@ -841,21 +847,23 @@ def _rage_spear(e, dt, match):
     e.spear_cd = getattr(e, "spear_cd", 0.0) - dt
     if e.spear_cd > 0 or e.deploy_timer > 0:
         return
-    for o in _enemies(match, e, 5.0, ground_only=True, troops_only=True, targetable=True):
-        d = _d(e, o)
-        if d >= 3.5:
-            e.spear_cd = 5.0
-            _hit(match, e, o, e.dmg)
-            for i in range(1, 4):                    # trail of Rage behind the spear
-                t = i / 4.0
-                match.effects.append(Effect("rage", e.team, e.x + (o.x - e.x) * t,
-                                            e.y + (o.y - e.y) * t, 1.2, 3.0,
-                                            card_key="rage"))
-            match.effects.append(Effect("chain", e.team, e.x, e.y, 0, 0.3,
-                                        card_key="rune_giant",
-                                        points=[(e.x, e.y), (o.x, o.y)]))
-            match.emit("attack", "spear_goblin", e.x, e.y, e.team)
-            return
+    # ground troops first, else a building or Crown Tower 3.5-5 tiles away
+    # (5s cooldown, so they keep throwing). 60% of a swing: kills a Goblin,
+    # not a Firecracker.
+    cands = [o for o in _enemies(match, e, 5.0 + 1.5, ground_only=True, targetable=True)
+             if 3.5 <= _d(e, o) - (o.radius if (o.is_tower or o.is_building) else 0.0) <= 5.0]
+    if not cands:
+        return
+    o = min(cands, key=lambda o: (o.is_tower or o.is_building, _d(e, o)))
+    e.spear_cd = 5.0
+    _hit(match, e, o, e.dmg * 0.6)
+    for i in range(1, 4):                            # trail of Rage behind the spear
+        t = i / 4.0
+        match.effects.append(Effect("rage", e.team, e.x + (o.x - e.x) * t,
+                                    e.y + (o.y - e.y) * t, 1.2, 3.0, card_key="rage"))
+    match.effects.append(Effect("chain", e.team, e.x, e.y, 0, 0.3, card_key="rune_giant",
+                                points=[(e.x, e.y), (o.x, o.y)]))
+    match.emit("attack", "spear_goblin", e.x, e.y, e.team)
 
 
 def _souldiers(e, match):
@@ -920,7 +928,12 @@ def _snowman(match, e, t):
     """Hero Ice Wizard: a Snowman pops up behind the slowed target."""
     e.frosty = False
     d = _d(e, t) or 1.0
-    x, y = _clamp(t.x + (t.x - e.x) / d * 1.0, t.y + (t.y - e.y) / d * 1.0)
+    if t.is_tower or t.is_building:
+        # can't stand inside a tower: it pops up at the tower's foot, facing him
+        off = -(t.radius + 0.7)
+    else:
+        off = 1.0                                 # behind the target
+    x, y = _clamp(t.x + (t.x - e.x) / d * off, t.y + (t.y - e.y) / d * off)
     _blast(match, e, x, y, 1.0, 89 * DMG * e.power[1], air=False, key="freeze")
     sm = match.spawn_units(e.team, "snowman", 1, x, y, deploy=0.0, power=e.power,
                            level=e.level)[0]

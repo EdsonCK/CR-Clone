@@ -53,8 +53,8 @@ EVOS = {
                           "After its 3-target chain, the bolt keeps bouncing between "
                           "troops (33% less damage, no stun)."),
     "elite_barbarians": Evo("Evolved Elite Barbarians", 1,
-                            "Throw Rage-tipped spears at ground units 3.5-5 tiles away, "
-                            "leaving a trail of Rage (5s cooldown)."),
+                            "Throw Rage-tipped spears at ground units, buildings or towers "
+                            "3.5-5 tiles away, leaving a trail of Rage (every 5s)."),
     "executioner": Evo("Evolved Executioner", 1,
                        "Enemies within 2.5 tiles when he throws take 75% extra axe "
                        "damage and are knocked back."),
@@ -220,8 +220,9 @@ HEROES = {
                            "(-50% vs Crown Towers).", 3.0),
 }
 
-EVO_SLOTS = 2          # deck slots 1-2
-HERO_SLOT = 2          # deck slot 3 (0-based index)
+EVO_SLOTS = 2          # deck slots 1-2: Evolution only
+FLEX_SLOT = 2          # deck slot 3 (0-based index): an Evolution OR a Hero
+HERO_SLOT = FLEX_SLOT
 
 
 def evo_cards():

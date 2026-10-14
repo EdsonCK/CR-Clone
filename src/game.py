@@ -517,23 +517,40 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         self.selected = None
         self.state = "match"
 
+    def _flex_kind(self, key, owned=True, allow_evo=True, allow_hero=True):
+        """What the flex slot (deck slot 3) turns `key` into: "evo", "hero"
+        or None. A card with both unlocked comes as a Hero unless you
+        switched it to its Evolution (deck editor)."""
+        import evos
+        can_e = allow_evo and key in evos.EVOS and (self._evo_owned(key) if owned else True)
+        can_h = allow_hero and key in evos.HEROES and (self._hero_owned(key) if owned else True)
+        if can_e and can_h:
+            if owned:
+                return "evo" if key in self.profile.flex_evo else "hero"
+            return "hero"
+        return "evo" if can_e else ("hero" if can_h else None)
+
     def _special_cards(self, deck, owned=True, n_evo=None, n_hero=None):
         """(evo card keys, hero card keys) a deck brings: Evolutions in deck
-        slots 1-2 and a Hero in slot 3 - your unlocked ones, or (AI) up to
-        n_evo / n_hero of whatever its deck has there."""
+        slots 1-2 and an Evolution OR a Hero in the flex slot 3 - your
+        unlocked ones, or (AI) whatever its deck has there, at most
+        n_evo + n_hero specials (n_evo of them from slots 1-2)."""
         import evos
         ev, he = [], []
         for i, k in enumerate(deck[:evos.EVO_SLOTS]):
             if k in evos.EVOS and (self._evo_owned(k) if owned else True):
                 ev.append(k)
-        if len(deck) > evos.HERO_SLOT:
-            k = deck[evos.HERO_SLOT]
-            if k in evos.HEROES and (self._hero_owned(k) if owned else True):
-                he.append(k)
         if n_evo is not None:
             ev = ev[:n_evo]
-        if n_hero is not None:
-            he = he[:n_hero]
+        if len(deck) > evos.FLEX_SLOT:
+            k = deck[evos.FLEX_SLOT]
+            left = None if n_evo is None else (n_evo or 0) + (n_hero or 0) - len(ev)
+            if left is None or left > 0:
+                kind = self._flex_kind(k, owned, allow_hero=n_hero is None or n_hero > 0)
+                if kind == "evo":
+                    ev.append(k)
+                elif kind == "hero":
+                    he.append(k)
         return ev, he
 
     def _match_specials(self, player_deck, ai_deck=None):
@@ -1243,13 +1260,30 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
     def _slot_tag(self, i, key):
         """('EVO'|'HERO', colour) if deck slot i makes this card special."""
         import evos
-        if i < evos.EVO_SLOTS and key in evos.EVOS and (
-                self.deck_mode == "ai" or self._evo_owned(key)):
+        owned = self.deck_mode != "ai"
+        if i < evos.EVO_SLOTS and key in evos.EVOS and (not owned or self._evo_owned(key)):
             return ("EVO", (190, 110, 255))
-        if i == evos.HERO_SLOT and key in evos.HEROES and (
-                self.deck_mode == "ai" or self._hero_owned(key)):
-            return ("HERO", (255, 196, 80))
+        if i == evos.FLEX_SLOT:
+            kind = self._flex_kind(key, owned)
+            if kind == "evo":
+                return ("EVO", (190, 110, 255))
+            if kind == "hero":
+                return ("HERO", (255, 196, 80))
         return None
+
+    def _flex_switch(self, i, key):
+        """Deck slot 3 holding a card with BOTH an Evolution and a Hero
+        unlocked: (label, rect-maker) of the chip that switches between them."""
+        import evos
+        if (i != evos.FLEX_SLOT or self.deck_mode == "ai" or key not in evos.EVOS
+                or key not in evos.HEROES or not self._evo_owned(key)
+                or not self._hero_owned(key)):
+            return None
+        return "use HERO" if self._flex_kind(key) == "evo" else "use EVO"
+
+    def _flex_switch_rect(self, r, label):
+        w = self.font_s.size(label)[0] + 8
+        return pygame.Rect(r.x + 22, r.y + 3, w, 15)
 
     def _deck_card_level(self, k, deck):
         if deck is self.player_deck or deck is self.level_deck:
@@ -1530,6 +1564,18 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         for i, r in enumerate(self._deck_slot_rects()):
             if r.collidepoint(pos):
                 if i < len(deck):
+                    sw = self._flex_switch(i, deck[i])
+                    if (button == 1 and sw
+                            and self._flex_switch_rect(r, sw).collidepoint(pos)):
+                        fe = self.profile.flex_evo
+                        if deck[i] in fe:
+                            fe.remove(deck[i])
+                        else:
+                            fe.append(deck[i])
+                        self.profile.save()
+                        self.deck_msg = "Slot 3 brings %s %s" % (
+                            "Evo" if deck[i] in fe else "Hero", cards.CARDS[deck[i]].name)
+                        return
                     left, right = self._deck_arrow_rects(r)
                     if button == 1 and left.collidepoint(pos) and i > 0:
                         deck[i - 1], deck[i] = deck[i], deck[i - 1]
@@ -1958,8 +2004,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             "",
             "Deck slots 1-2 are EVO slots: an unlocked Evolution",
             "glows purple in your hand when its charge is full.",
-            "Slot 3 is the HERO slot: tap the gold button (bottom",
-            "right) for the Hero's one-time ability.",
+            "Slot 3 is a FLEX slot: an Evolution OR a Hero (tap the",
+            "gold button, bottom right, for a Hero's one-time ability).",
             "Champions (max 1): yellow button bottom-left.",
             "",
             "Friendly Battle: AI intelligence 1-5, elixir 0.5x-2x,",
@@ -2061,6 +2107,13 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
                 pygame.draw.rect(self.screen, col, tr, 1, border_radius=5)
                 self._text(txt, self.font_s, col, center=tr.center)
                 pygame.draw.rect(self.screen, col, r, 2, border_radius=9)
+            sw = self._flex_switch(i, card.key)
+            if sw:
+                sr = self._flex_switch_rect(r, sw)
+                sc = (255, 196, 80) if sw.endswith("HERO") else (190, 110, 255)
+                pygame.draw.rect(self.screen, (20, 16, 30), sr, border_radius=5)
+                pygame.draw.rect(self.screen, sc, sr, 1, border_radius=5)
+                self._text(sw, self.font_s, sc, center=sr.center)
             if hover:
                 for k_, ar in enumerate(self._deck_arrow_rects(r)):
                     if (k_ == 0 and i == 0) or (k_ == 1 and i == len(deck) - 1):
@@ -2078,7 +2131,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         # empty-slot labels for the special slots
         for i, r in enumerate(self._deck_slot_rects()):
             if i >= len(deck) and i < 3:
-                self._text("EVO" if i < 2 else "HERO", self.font_s,
+                self._text("EVO" if i < 2 else "EVO / HERO", self.font_s,
                            (150, 110, 200) if i < 2 else (200, 160, 80),
                            center=(r.centerx, r.bottom - 12))
         # ---- info line: message > hovered card > controls hint ----
@@ -2103,7 +2156,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
             self._text(self._fit(line, self.font_s, cfg.WINDOW_W - 20), self.font_s,
                        (225, 225, 200), center=(cx, info_y))
         else:
-            self._text("Slots 1-2: EVO   Slot 3: HERO   < > move   click: remove",
+            self._text("Slots 1-2: EVO   Slot 3: EVO or HERO   < > move   click: remove",
                        self.font_s, (150, 158, 178), center=(cx, info_y))
         pygame.draw.line(self.screen, (60, 66, 88), (12, top - 4),
                          (cfg.WINDOW_W - 12, top - 4), 1)
@@ -3072,6 +3125,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         frac = min(1.0, frac)
         w = width
         h = 6 if getattr(e, "boss", False) else 4
+        if e.is_tower:
+            h = 9                            # room for the hitpoints number
+            top -= 4
         x = px - w // 2
         pygame.draw.rect(self.screen, (30, 30, 30), (x, top, w, h))
         col = cfg.COLOR_HP_GOOD if frac > 0.35 else cfg.COLOR_HP_BAD
@@ -3080,8 +3136,17 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         pygame.draw.rect(self.screen, col, (x, top, int(w * frac), h))
         if over > 0:
             pygame.draw.rect(self.screen, (230, 170, 255), (x, top, int(w * min(1.0, over * 2)), h))
+        if e.is_tower:
+            self._text(str(int(math.ceil(max(0.0, e.hp)))), self.font_s, WHITE,
+                       center=(px, top + h // 2), outline=True)
         if e.shield > 0:
-            pygame.draw.rect(self.screen, (150, 200, 255), (x, top - 3, w, 2))
+            # shield bar: its own length shows how much of the shield is left
+            peak = max(getattr(e, "_shield_peak", 0), e.shield,
+                       e.card.shield_hp * e.power[0])
+            e._shield_peak = peak
+            sw = max(2, int(w * min(1.0, e.shield / max(peak, 1e-6))))
+            pygame.draw.rect(self.screen, (24, 30, 46), (x, top - 4, w, 3))
+            pygame.draw.rect(self.screen, (150, 200, 255), (x, top - 4, sw, 3))
 
     def _draw_effect(self, fx):
         if self.fx.draw_spell(self.screen, fx):
@@ -3093,7 +3158,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         if fx.kind == "blast":
             self._draw_blast(fx, px, py)
             return
-        if fx.kind == "timed_bomb":
+        if fx.kind in ("timed_bomb", "death_bomb"):
             self._draw_timed_bomb(fx, px, py)
             return
         if fx.kind == "pancake":
@@ -3167,7 +3232,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         self.screen.blit(surf, (px - rad, py - rad))
 
     def _draw_timed_bomb(self, fx, px, py):
-        """Mighty Miner's dropped bomb: fuse sparks + countdown ring."""
+        """Mighty Miner's dropped bomb / a death bomb: fuse sparks + countdown
+        ring (a Balloon's bomb falls in first)."""
         prog = min(1.0, fx.elapsed / fx.duration)
         rad = int(fx.radius * cfg.TILE_SIZE)
         surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
@@ -3175,14 +3241,23 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, SandboxMixin):
         pygame.draw.circle(surf, (255, 120, 60, 30 + int(50 * prog)), c, rad)
         pygame.draw.circle(surf, (255, 140, 70, 200), c, rad, 2)
         self.screen.blit(surf, (px - rad - 2, py - rad - 2))
+        br = 11 if fx.card_key == "giant_skeleton" else 8      # bomb size
+        drop = getattr(fx, "drop", 0.0)
+        if drop and fx.elapsed < drop:                         # still falling
+            f = 1.0 - fx.elapsed / drop
+            pygame.draw.ellipse(self.screen, (20, 20, 26),
+                                (int(px) - br, int(py) - 2, br * 2, 6))
+            py -= 40 * f * f
         flash = int(prog * 10) % 2 == 0
         body = (70, 70, 82) if flash else (120, 60, 50)
-        pygame.draw.circle(self.screen, (20, 20, 26), (int(px) + 1, int(py) + 2), 8)
-        pygame.draw.circle(self.screen, body, (int(px), int(py)), 8)
-        pygame.draw.circle(self.screen, (170, 170, 185), (int(px) - 3, int(py) - 3), 2)
-        pygame.draw.line(self.screen, (150, 110, 70), (px + 4, py - 6), (px + 7, py - 11), 2)
+        px, py = int(px), int(py)
+        pygame.draw.circle(self.screen, (20, 20, 26), (px + 1, py + 2), br)
+        pygame.draw.circle(self.screen, body, (px, py), br)
+        pygame.draw.circle(self.screen, (170, 170, 185), (px - br // 3, py - br // 3), max(2, br // 4))
+        tip = (px + br // 2 + 3, py - br - 3)
+        pygame.draw.line(self.screen, (150, 110, 70), (px + br // 2, py - br + 2), tip, 2)
         spark = 2 + int(2 * math.sin(self._now() * 30))
-        pygame.draw.circle(self.screen, (255, 220, 90), (int(px) + 7, int(py) - 11), spark)
+        pygame.draw.circle(self.screen, (255, 220, 90), tip, spark)
 
     def _draw_incoming(self, fx, px, py):
         """Telegraph shown while a spell is inbound (before it detonates)."""

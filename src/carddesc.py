@@ -33,7 +33,7 @@ DESC = {
     "dark_prince": "Shielded splash charger: clears small troops in his path.",
     "giant_skeleton": "Big tank that drops a giant bomb when he dies.",
     "lumberjack": "Very fast axeman; drops a Rage spell when he dies.",
-    "bandit": "Dashes onto targets 3.5-6 tiles away for double damage, untouchable mid-dash.",
+    "bandit": "Dashes onto targets 3.5-5 tiles away for double damage, untouchable mid-dash.",
     "giant": "Massive tank that only attacks buildings.",
     "hog_rider": "Very fast building hunter that jumps the river.",
     "royal_giant": "Building-targeting giant that fires his cannon from long range.",

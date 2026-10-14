@@ -82,13 +82,13 @@ OVERTIME_LENGTH     = 120.0  # sudden-death overtime in seconds (2:00)
 # Princess Towers is destroyed OR once it is itself hit.
 
 PRINCESS_TOWER_HP     = 1400
-PRINCESS_TOWER_DMG    = 50
-PRINCESS_TOWER_RANGE  = 7.5    # tiles
+PRINCESS_TOWER_DMG    = 51    # 2 shots kill a same-level Goblin (100 hp)
+PRINCESS_TOWER_RANGE  = 8.25   # tiles (outranges Firecracker & Furnace)
 PRINCESS_TOWER_HITSPD = 0.8    # seconds between shots
 
 KING_TOWER_HP         = 2400
 KING_TOWER_DMG        = 50
-KING_TOWER_RANGE      = 7.0    # tiles
+KING_TOWER_RANGE      = 8.25   # tiles
 KING_TOWER_HITSPD     = 1.0    # seconds between shots
 KING_ACTIVATES_ALLIES = True   # King wakes when a princess tower falls
 
@@ -182,8 +182,10 @@ PROJECTILE_SPEED     = 9.0   # tiles/sec for ranged shots (visual + timing)
 # Inferno-style ramping attacks (Inferno Tower / Inferno Dragon).
 # Damage multiplier grows by INFERNO_RAMP_RATE per second of continuous
 # attacking, capped at INFERNO_MAX_MULT. Lower either to nerf infernos.
-INFERNO_RAMP_RATE    = 1.0   # was 1.6 (nerfed)
-INFERNO_MAX_MULT     = 5.0   # was 8.0 (nerfed)
+INFERNO_RAMP_RATE    = 1.0   # x1 -> x5 over the first 4s of a beam
+INFERNO_LATE_AT      = 5.0   # past this multiplier the beam heats up faster...
+INFERNO_LATE_RATE    = 4.0   # ...(per second)...
+INFERNO_MAX_MULT     = 9.0   # ...to its full burn after ~5s
 
 # Spell "cast delay": how long after a spell is played before it detonates.
 # During this window a target marker is shown (red = enemy, blue = you) so you

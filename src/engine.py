@@ -35,6 +35,7 @@ PROJECTILE_RANGE_MIN = 2.5   # attack range at/above which a shot flies as a pro
 # tiles, and a building's tiles can't overlap them either.
 TOWER_HALF = {False: 1.5, True: 2.0}         # princess 3x3, king 4x4
 BUILDING_HALF = 1.0                          # buildings take 2x2 tiles
+GETAWAY_DASH_CD = 1.0       # Boss Bandit: wait after Getaway before dashing
 MELEE_RANGE = 1.75           # below this a unit is "melee" (first-hit delay applies)
 
 TROOP_R = 0.45
@@ -191,6 +192,7 @@ class Entity:
         self.dist_since_attack = 0.0   # for charge cards
         self.charged = False
         self._reflect_pending = False  # Electro Giant counter-zap latch
+        self._reflect_at = set()       # ...and who it zaps back
         self.reflect_cd = 0.0
         # champion / status
         self.invis_timer = 0.0     # untargetable (Archer Queen cloak)
@@ -391,16 +393,20 @@ class Entity:
             amount *= (1.0 - self.card.ability_value)
         if self.is_king:
             self.active = True
-        if self.card.reflect:
-            self._reflect_pending = True   # counter-zap fires in Match.update
+        if self.card.reflect and m is not None:
+            # counter-zap (fires in Match.update) at whoever hit him; spells
+            # (no source unit) don't trigger it
+            src = m._src_ent
+            if src is not None and src is not self and src.team != self.team:
+                self._reflect_pending = True
+                self._reflect_at.add(src)
         if self.shield > 0:
-            if amount <= self.shield:
-                self.shield -= amount
-                return
-            amount -= self.shield
-            self.shield = 0
-            if self.evo and m is not None:
+            # a shield soaks the WHOLE hit that breaks it - nothing spills
+            # over onto the hitpoints underneath
+            self.shield = max(0, self.shield - amount)
+            if self.shield <= 0 and self.evo and m is not None:
                 evo_engine.after_damaged(self, m, shield_before)
+            return
         dealt = min(amount, self.hp)
         self.hp -= amount
         if amount > 0:
@@ -492,6 +498,10 @@ class Entity:
         if self.stun_timer > 0:
             self.stun_timer -= dt
             self.reset_charge()
+            # a stun (Zap, E-Wiz...) breaks the lock: on recovering, the unit
+            # or tower picks the closest valid target again
+            if getattr(self, "_taunt", 0) <= 0:
+                self.target = None
             # a stun interrupts the attack: the wind-up starts over (and
             # Sparky has to charge her whole shot again)
             self._rewind = True
@@ -580,6 +590,14 @@ class Entity:
         # unit attacking a tower from abandoning it to chase newly-placed troops.
         if not self._keep_target(match):
             self.target = match.find_target(self)
+        elif (self.target is not None and getattr(self, "_taunt", 0) <= 0
+              and dist(self.x, self.y, self.target.x, self.target.y)
+              > self.range + self.target.radius):
+            # our target is stepping out of reach: only follow it if nothing
+            # else is in attack range right now
+            alt = match.find_target(self, in_range=True)
+            if alt is not None:
+                self.target = alt
         # inferno-style / drill ramp resets the moment the target changes
         if self.card.ramp or (self.card.ramp_stages
                               and self.card.ramp_kind == "damage"):
@@ -616,6 +634,12 @@ class Entity:
                                 immune=self.card.dash_immune,
                                 speed=9.0 if self.card.dash_damage else 13.0)
                 return
+
+        if getattr(self, "_getaway_hold", 0) > 0 and d > reach:
+            # Boss Bandit just landed her Getaway: she gathers herself on
+            # the spot, then dashes back in (instead of walking up)
+            self._getaway_hold -= dt
+            return
 
         if d <= reach:
             # every unit needs its real-game wind-up ("first hit speed")
@@ -943,8 +967,17 @@ class Entity:
         # go round on the side of the line the destination lies; once a side
         # is picked for this obstacle, stick with it (no dithering)
         mem = getattr(self, "_steer_mem", None)
+        marching = (target is not None and (target.is_tower or target.is_building)
+                    and getattr(self, "lane", None) is not None
+                    and best.is_king)          # the King sits across both lanes
         if mem is not None and mem[0] == id(best):
             side = mem[1]
+        elif marching and abs(oy) > 0.25 * od:
+            # marching up our lane (no enemy in sight): go round on our own
+            # lane's side - never the long way round the other side of it
+            want = -1.0 if self.lane == 0 else 1.0
+            side = 1.0 if (-oy / od) * want > 0 else -1.0
+            self._steer_mem = (id(best), side)
         else:
             cross = ox * dy - oy * dx
             if abs(cross) < 0.05 * dd * od:
@@ -965,9 +998,10 @@ class Entity:
         if ((self.evo or self.hero) and self.atk_t != before
                 and not self.card.kamikaze):
             evo_engine.after_attack(self, match, getattr(self, "_last_dmg", self.dmg))
-        # Battle Ram: breaks on its first hit on a building and the riders
-        # step out (only the Evolution keeps ramming)
-        if (self.card.breaks_on_hit and self.atk_t != before and not self.evo
+        # Battle Ram / Skeleton Barrel: break on their first hit on a building
+        # and drop what they carry (only the Evolved Battle Ram keeps ramming)
+        if (self.card.breaks_on_hit and self.atk_t != before
+                and not (self.evo and self.key == "battle_ram")
                 and tgt is not None and (tgt.is_building or tgt.is_tower)):
             self.hp = 0
             self.alive = False
@@ -1094,8 +1128,11 @@ class Entity:
         # inferno-style ramp: continuous beam, no projectile, direct damage
         if self.card.ramp:
             self.ramp_time += self.effective_hitspeed()
-            mult = min(1.0 + self.ramp_time * cfg.INFERNO_RAMP_RATE,
-                       cfg.INFERNO_MAX_MULT)
+            mult = 1.0 + self.ramp_time * cfg.INFERNO_RAMP_RATE
+            if mult > cfg.INFERNO_LATE_AT:
+                mult = cfg.INFERNO_LATE_AT + (mult - cfg.INFERNO_LATE_AT) * (
+                    cfg.INFERNO_LATE_RATE / cfg.INFERNO_RAMP_RATE)
+            mult = min(mult, cfg.INFERNO_MAX_MULT)
             mult *= evo_engine.ramp_bonus(self)
             match.apply_hit(self, self.target, self.dmg * mult, 0)
             return
@@ -1200,7 +1237,16 @@ class Entity:
             match.add_elixir(1 - self.team, c.death_gives_elixir)
         # kamikaze units already exploded on their attack; if they were killed
         # before attacking they simply die with no blast
-        if c.death_damage and (not c.kamikaze or c.blast_on_death) and not self.sacrificed:
+        if c.death_damage and c.death_bomb > 0 and not self.sacrificed:
+            # Balloon / Giant Skeleton / Bomb Tower: the bomb drops and its
+            # fuse burns for a moment before it goes off (dodge it!)
+            radius, ddmg = c.death_damage
+            bomb = Effect("death_bomb", self.team, self.x, self.y, radius, c.death_bomb,
+                          damage=ddmg * self.power[1], knockback=c.death_knockback,
+                          slow=c.death_slow, card_key=self.key)
+            bomb.drop = 0.3 if self.flying else 0.0      # falls from the sky
+            match.effects.append(bomb)
+        elif c.death_damage and (not c.kamikaze or c.blast_on_death) and not self.sacrificed:
             radius, ddmg = c.death_damage
             ddmg *= self.power[1]
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
@@ -1222,6 +1268,12 @@ class Entity:
             if ukey == "rage_pickup":
                 rr, rd = evo_engine.lumberjack_rage(self)
                 match.effects.append(Effect("rage", self.team, self.x, self.y, rr, rd))
+                # the dropped Rage lands with the Rage spell's hit (his level)
+                rc = cards.CARDS["rage"]
+                if rc.spell_damage:
+                    match.area_damage(self.team, self.x, self.y, rr,
+                                      rc.spell_damage * self.power[1], hit_air=True,
+                                      tower_damage=rc.tower_dmg() * self.power[1])
             elif ukey in cards.CARDS and ucount > 0:
                 self._death_spawned = match.spawn_units(
                     self.team, ukey, ucount, self.x, self.y, deploy=0.0,
@@ -1439,7 +1491,7 @@ class Effect:
                  dps=0, slow=None, direction=0, speed=0, damage=0, knockback=0,
                  card_key=None, building_mult=0.4, points=None, ends=None):
         self.kind = kind    # incoming|blast|aoe|poison|rage|log|tornado|graveyard|
-                            #   chain|timed_bomb|link
+                            #   chain|timed_bomb|death_bomb|link
         self.card_key = card_key
         self.building_mult = building_mult
         self.spawn_t = 0.0
@@ -1496,6 +1548,20 @@ class Effect:
                 match.area_damage(self.team, self.x, self.y, self.radius,
                                   self.damage, hit_air=False,
                                   tower_damage=int(self.damage * 0.35))
+                self.alive = False
+            return
+        if self.kind == "death_bomb":
+            # bomb left by a dead Balloon / Giant Skeleton / Bomb Tower
+            if self.elapsed >= self.duration:
+                match.effects.append(Effect("blast", self.team, self.x, self.y,
+                                            self.radius, 0.45, card_key="fireball"))
+                match.effects.append(Effect("aoe", self.team, self.x, self.y,
+                                            self.radius, 0.35, card_key=self.card_key))
+                prev, match._src = match._src, (self.team, self.card_key)
+                match.area_damage(self.team, self.x, self.y, self.radius, self.damage,
+                                  hit_air=False, slow=self.slow, knockback=self.knockback)
+                match._src = prev
+                match.emit("impact", "fireball", self.x, self.y, self.team, radius=self.radius)
                 self.alive = False
             return
         if self.kind == "link":
@@ -1617,7 +1683,9 @@ class Effect:
                         and abs(e.y - self.y) <= 0.8 + e.radius):
                     e.take_damage(getattr(self, "tower_damage", self.damage)
                                   if e.is_tower else self.damage)
-                    if not (e.is_tower or e.is_building):
+                    if not (e.is_tower or e.is_building) and (
+                            self.card_key == "the_log" or not e.card.no_knockback):
+                        # only The Log rolls back even the heavyweights
                         e.y += self.direction * self.knockback
                         if self.knockback:
                             e.reset_charge()
@@ -1870,6 +1938,9 @@ class Match:
         # troops and buildings can't go on a standing tower's tiles
         if card.category != "spell" and self.on_tower(x, y, card):
             return False
+        # ...and a building can't go on top of another building
+        if card.category == "building" and self.on_building(x, y):
+            return False
         # no placing in the river
         if RIVER_TOP - 0.2 <= y <= RIVER_BOTTOM + 0.2:
             return False
@@ -1906,6 +1977,16 @@ class Match:
                 continue
             h = TOWER_HALF[tw.is_king] + pad
             if abs(x - tw.x) < h and abs(y - tw.y) < h:
+                return True
+        return False
+
+    def on_building(self, x, y):
+        """True if a building at (x, y) would overlap a standing building
+        (2x2 footprints, either team's)."""
+        h = 2 * BUILDING_HALF
+        for e in self.entities:
+            if (e.alive and e.is_building and not e.is_tower
+                    and abs(x - e.x) < h and abs(y - e.y) < h):
                 return True
         return False
 
@@ -2193,6 +2274,9 @@ class Match:
             return
         if card.rage:
             self.effects.append(Effect("rage", team, x, y, card.spell_radius, card.duration))
+            if card.spell_damage:
+                self.area_damage(team, x, y, card.spell_radius, card.spell_damage * lp[1],
+                                 hit_air=True, tower_damage=card.tower_dmg() * lp[1])
             return
         if card.dot:
             # crown-tower multiplier from the card's tower_damage
@@ -2266,6 +2350,24 @@ class Match:
             self.effects.append(fx)
 
     # ---- combat helpers ----------------------------------------------------
+    def _counter_zap(self, e):
+        rad, rdmg, rstun = e.card.reflect
+        hit = [a for a in e._reflect_at
+               if a.alive and dist(e.x, e.y, a.x, a.y) <= rad + a.radius]
+        e._reflect_pending = False
+        e._reflect_at = set()
+        if not e.alive or not hit:
+            return
+        prev = self._src, self._src_ent
+        self._src, self._src_ent = (e.team, e.key), e
+        for a in hit:
+            self.effects.append(Effect("chain", e.team, e.x, e.y, 0.3, 0.25,
+                                       card_key="zap", points=[(e.x, e.y), (a.x, a.y)]))
+            a.take_damage(rdmg * e.power[1])
+            a.stun_timer = max(a.stun_timer, rstun)
+        self.emit("impact", "zap", e.x, e.y, e.team, radius=rad)
+        self._src, self._src_ent = prev
+
     def apply_hit(self, source, target, dmg, splash, stun=0.0, slow=None):
         if splash > 0:
             # Valkyrie-style spin: splash centered on the attacker, not target
@@ -2524,7 +2626,7 @@ class Match:
                                        ends=(champ, champ.partner)))
         elif typ == "getaway":
             # Boss Bandit: teleport straight back from her target to a spot
-            # inside her dash window, so she can dash in again right away
+            # inside her dash window; she dashes in again after a recovery
             t = self._getaway_anchor(champ)
             nx, ny = self.getaway_point(champ, t, card.ability_value)
             for (ex, ey) in ((champ.x, champ.y), (nx, ny)):
@@ -2532,7 +2634,8 @@ class Match:
                                            card_key="tornado"))
             champ.x, champ.y = nx, ny
             champ.target = t
-            champ.dash_cd = 0.0
+            champ.dash_cd = GETAWAY_DASH_CD
+            champ._getaway_hold = GETAWAY_DASH_CD
             champ.ramp_time = 0.0
 
     def _getaway_anchor(self, champ):
@@ -2636,10 +2739,14 @@ class Match:
         tw = self.towers[(ENEMY, side)]
         return tw.x, tw.y
 
-    def find_target(self, ent):
-        """Nearest attackable enemy in sight; else march to nearest enemy tower."""
+    def find_target(self, ent, in_range=False):
+        """Nearest attackable enemy in sight (an enemy already within attack
+        range beats one that's only in sight); else march to the nearest
+        enemy tower. in_range=True: only enemies within attack range."""
         best = None
         best_d = 1e9
+        near = None                           # nearest within attack range
+        near_d = 1e9
         sight = ent.sight
         for e in self.entities:
             if not ent.can_attack(e):
@@ -2657,6 +2764,12 @@ class Match:
             else:
                 if d <= sight + e.radius and d < best_d:
                     best, best_d = e, d
+                if d <= ent.range + e.radius and d < near_d:
+                    near, near_d = e, d
+        if in_range:
+            return near if not (ent.is_tower or ent.is_building) else best
+        if near is not None:
+            return near
         if best is not None:
             return best
         # no one in sight: buildings/towers just wait
@@ -2697,17 +2810,10 @@ class Match:
             self._src = (e.team, e.key)
             self._src_ent = e
             e.update(dt, self)
-            # Electro Giant counter-zap: took a hit -> zap everything nearby
-            if e.card.reflect:
-                e.reflect_cd = max(0.0, e.reflect_cd - dt)
-                if e.alive and e._reflect_pending and e.reflect_cd <= 0:
-                    rad, rdmg, rstun = e.card.reflect
-                    self.effects.append(Effect("aoe", e.team, e.x, e.y,
-                                               rad, 0.3, card_key=e.key))
-                    self.area_damage(e.team, e.x, e.y, rad, rdmg,
-                                     hit_air=True, stun=rstun)
-                    e.reflect_cd = 0.6
-                    e._reflect_pending = False
+            # Electro Giant counter-zap: whoever just hit him gets zapped
+            # and stunned back - but only if it's within his reach
+            if e.card.reflect and e._reflect_pending:
+                self._counter_zap(e)
         self._src = None
         self._src_ent = None
         self._resolve_collisions(dt)

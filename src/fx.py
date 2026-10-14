@@ -135,6 +135,16 @@ class FX:
                                5 if big else 3.5, (196, 170, 120), "dust", grow=10)
                     if c.is_champion:
                         self.burst(x, y, 18, 90, 0.8, 2.5, (255, 220, 110), "spark")
+            elif k == "death" and ev.get("key") in ("skeleton_barrel", "balloon"):
+                # the balloon pops: a ring, shreds of fabric - and the
+                # Skeleton Barrel's barrel falls and smashes
+                yy = y - 12
+                self.add(P(x, yy, 0, 0, 0.28, 5, (255, 244, 220), "ring", grow=110))
+                fab = TEAM_COL.get(ev.get("team"), (200, 80, 70))
+                self.burst(x, yy, 12, 130, 0.55, 4, fab, "shard", grav=260, drag=2.0)
+                self.burst(x, yy, 5, 60, 0.45, 5, (235, 235, 235), "smoke", grow=10)
+                if ev.get("key") == "skeleton_barrel":
+                    self.add(P(x, yy, 0, 30, 0.3, 7, (132, 88, 48), "barrel", grav=520))
             elif k == "death":
                 if ev.get("tower"):
                     self.burst(x, y, 40, 160, 1.2, 4, (150, 146, 136), "debris",
@@ -250,9 +260,12 @@ class FX:
         self.now += dt
         self.flash = max(0.0, self.flash - dt * 2.5)
         keep = []
+        smashed = []
         for p in self.parts:
             p.life -= dt
             if p.life <= 0:
+                if p.kind == "barrel":
+                    smashed.append(p)
                 continue
             p.vy += p.grav * dt
             if p.drag:
@@ -265,6 +278,10 @@ class FX:
             p.rot += p.vr * dt
             keep.append(p)
         self.parts = keep
+        for p in smashed:                      # a dropped barrel hits the ground
+            self.burst(p.x, p.y, 10, 90, 0.6, 3.5, (138, 92, 50), "debris",
+                       grav=320, up=70)
+            self.burst(p.x, p.y, 6, 35, 0.6, 7, (190, 170, 140), "dust", grow=10)
         for pp in self.popups:
             pp["age"] += dt
         self.popups = [pp for pp in self.popups if pp["age"] < pp["life"]]
@@ -393,6 +410,17 @@ class FX:
                 pygame.draw.line(surf, p.col, (p.x - dx, p.y - dy), (p.x + dx, p.y + dy), 2)
             elif k == "bubble":
                 pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(1, int(p.size)), 1)
+            elif k == "ring":
+                pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(2, int(p.size)),
+                                   max(1, int(3 * f)))
+            elif k == "barrel":
+                r = pygame.Rect(0, 0, int(p.size * 1.6), int(p.size * 2))
+                r.center = (int(p.x), int(p.y))
+                pygame.draw.ellipse(surf, p.col, r)
+                pygame.draw.ellipse(surf, (70, 44, 22), r, 1)
+                for dy in (-r.h // 4, r.h // 4):
+                    pygame.draw.line(surf, (90, 90, 96), (r.x + 1, r.centery + dy),
+                                     (r.right - 2, r.centery + dy), 1)
             elif k == "ghost":
                 a = int(170 * f)
                 gx, gy, r = int(p.x + math.sin((1 - f) * 9) * 3), int(p.y), int(p.size)

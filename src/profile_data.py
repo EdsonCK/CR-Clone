@@ -93,6 +93,7 @@ class Profile:
         self.levels = {}             # card key -> level (missing = 11)
         self.evos = []               # card keys with an unlocked Evolution
         self.heroes = []             # card keys with an unlocked Hero
+        self.flex_evo = []           # flex slot: cards you'd rather bring as Evo
         self.ladder = {}             # "L3" -> wins vs that intelligence level
         self.endless_best = 0
         self.endless_runs = 0
@@ -119,6 +120,7 @@ class Profile:
                        for k, v in d.get("levels", {}).items() if k in cards.CARDS}
         self.evos = [k for k in d.get("evos", []) if k in cards.CARDS]
         self.heroes = [k for k in d.get("heroes", []) if k in cards.CARDS]
+        self.flex_evo = [k for k in d.get("flex_evo", []) if k in cards.CARDS]
         self.ladder = {k: int(v) for k, v in d.get("ladder", {}).items()}
         self.endless_best = int(d.get("endless_best", 0))
         self.endless_runs = int(d.get("endless_runs", 0))
@@ -136,7 +138,8 @@ class Profile:
                 json.dump({
                     "gold": self.gold, "shards": self.shards,
                     "shard_points": self.shard_points, "levels": self.levels,
-                    "evos": self.evos, "heroes": self.heroes, "ladder": self.ladder,
+                    "evos": self.evos, "heroes": self.heroes, "flex_evo": self.flex_evo,
+                    "ladder": self.ladder,
                     "endless_best": self.endless_best, "endless_runs": self.endless_runs,
                     "decks": self.decks, "active_slot": self.active_slot,
                     "totals": self.totals, "special": self.special,
@@ -151,7 +154,7 @@ class Profile:
         decks, slot = self.decks, self.active_slot
         self.levels, self.ladder, self.special = {}, {}, {}
         self.gold = self.shards = self.shard_points = 0
-        self.evos, self.heroes = [], []
+        self.evos, self.heroes, self.flex_evo = [], [], []
         self.endless_best = self.endless_runs = 0
         self.trophies = self.best_trophies = self.road_paid = 0
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}

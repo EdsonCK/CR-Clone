@@ -284,14 +284,14 @@ class ScreensMixin:
     def _cards_unlock_evo(self):
         if self.profile.unlock_evo(self.cards_sel):
             self.sfx.play("ability", 0.8, min_gap=0.0)
-            self.cards_msg = "Evolution unlocked! Put it in an EVO slot (deck slots 1-2)."
+            self.cards_msg = "Evolution unlocked! Put it in deck slots 1-3."
         else:
             self.cards_msg = "Not enough shards."
 
     def _cards_unlock_hero(self):
         if self.profile.unlock_hero(self.cards_sel):
             self.sfx.play("ability", 0.8, min_gap=0.0)
-            self.cards_msg = "Hero unlocked! Put it in the HERO slot (deck slot 3)."
+            self.cards_msg = "Hero unlocked! Put it in the flex slot (deck slot 3)."
         else:
             self.cards_msg = "Not enough shards."
 
