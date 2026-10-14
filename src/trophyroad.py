@@ -22,6 +22,7 @@ import sprites
 import towers
 import trophy
 import profile_data
+import icons
 from engine import Match, PLAYER, ENEMY
 from ai import AIController
 from ui import lt_c, dk_c, Button, WHITE
@@ -192,14 +193,7 @@ class TrophyMixin:
 
     def _trophy_icon(self, x, y, r):
         """A little gold trophy cup."""
-        x, y = int(x), int(y)
-        pygame.draw.rect(self.screen, (150, 110, 30), (x - r // 2, y + r // 2, r, r // 2))
-        pygame.draw.rect(self.screen, GOLD_COL, (x - r, y - r, 2 * r, int(r * 1.2)),
-                         border_bottom_left_radius=r, border_bottom_right_radius=r)
-        pygame.draw.rect(self.screen, (150, 110, 30), (x - r, y - r, 2 * r, int(r * 1.2)), 1,
-                         border_bottom_left_radius=r, border_bottom_right_radius=r)
-        pygame.draw.line(self.screen, GOLD_COL, (x - r - 3, y - r + 2), (x - r, y), 2)
-        pygame.draw.line(self.screen, GOLD_COL, (x + r + 3, y - r + 2), (x + r, y), 2)
+        icons.blit(self.screen, "trophy", x, y, r)
 
     # ================================================================ battle
     def _start_trophy_battle(self):

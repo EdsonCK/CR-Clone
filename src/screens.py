@@ -23,6 +23,7 @@ import cards
 import sprites
 import evos
 import profile_data
+import icons
 from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE
 
 GOLD_COL = (250, 206, 92)
@@ -147,52 +148,23 @@ class ScreensMixin:
             b.draw(self.screen, self.font_m)
 
     # ================================================================ icons
+    # currency icons: drawn in the real game's style by icons.py
     def _coin(self, x, y, r=8):
-        pygame.draw.circle(self.screen, (120, 80, 10), (x + 1, y + 2), r)
-        pygame.draw.circle(self.screen, GOLD_COL, (x, y), r)
-        pygame.draw.circle(self.screen, (255, 236, 160), (x - r // 3, y - r // 3), max(1, r // 3))
-        pygame.draw.circle(self.screen, (150, 100, 20), (x, y), r, 1)
+        icons.blit(self.screen, "gold", x, y, r)
 
     def _shard(self, x, y, r=8):
-        pts = [(x, y - r), (x + r * 0.7, y), (x, y + r), (x - r * 0.7, y)]
-        pygame.draw.polygon(self.screen, (40, 10, 60), [(px + 1, py + 2) for px, py in pts])
-        pygame.draw.polygon(self.screen, SHARD_COL, pts)
-        pygame.draw.polygon(self.screen, (240, 210, 255),
-                            [(x, y - r), (x + r * 0.35, y - r * 0.2), (x, y)], 0)
-        pygame.draw.polygon(self.screen, (90, 40, 140), pts, 1)
+        icons.blit(self.screen, "shards", x, y, r)
 
     def _gem(self, x, y, r=8):
-        """A gem: a green hexagon."""
-        pts = [(x + r * math.cos(math.pi / 6 + k * math.pi / 3),
-                y + r * math.sin(math.pi / 6 + k * math.pi / 3)) for k in range(6)]
-        pygame.draw.polygon(self.screen, (10, 50, 24), [(px + 1, py + 2) for px, py in pts])
-        pygame.draw.polygon(self.screen, GEM_COL, pts)
-        inner = [(x + (px - x) * 0.5, y + (py - y) * 0.5 - r * 0.1) for px, py in pts]
-        pygame.draw.polygon(self.screen, (170, 250, 190), inner)
-        pygame.draw.polygon(self.screen, (20, 110, 50), pts, 1)
+        icons.blit(self.screen, "gems", x, y, r)
 
     def _hcoin(self, x, y, r=8):
-        """A Hero coin: a gold diamond."""
-        pts = [(x, y - r), (x + r * 0.8, y), (x, y + r), (x - r * 0.8, y)]
-        pygame.draw.polygon(self.screen, (90, 60, 10), [(px + 1, py + 2) for px, py in pts])
-        pygame.draw.polygon(self.screen, COIN_COL, pts)
-        pygame.draw.polygon(self.screen, (255, 244, 190),
-                            [(x, y - r), (x + r * 0.4, y - r * 0.2), (x, y)], 0)
-        pygame.draw.polygon(self.screen, (150, 100, 20), pts, 1)
+        """A Hero coin."""
+        icons.blit(self.screen, "coins", x, y, r)
 
     def _xp_icon(self, x, y, r=8):
-        """XP: a blue disc with a perforated (notched) edge."""
-        pygame.draw.circle(self.screen, (14, 34, 70), (x + 1, y + 2), r)
-        pygame.draw.circle(self.screen, XP_COL, (x, y), r)
-        pygame.draw.circle(self.screen, (190, 222, 255), (x, y), max(2, int(r * 0.55)), 1)
-        n = 10 if r >= 8 else 8
-        hole = max(1, r // 6)
-        for k in range(n):
-            a = k * 2 * math.pi / n
-            pygame.draw.circle(self.screen, (24, 44, 90),
-                               (int(x + math.cos(a) * (r - hole)), int(y + math.sin(a) * (r - hole))),
-                               hole)
-        pygame.draw.circle(self.screen, (30, 70, 140), (x, y), r, 1)
+        """King XP / level badge: the blue 12-point star."""
+        icons.blit(self.screen, "xp", x, y, r)
 
     def _reward_icon(self, kind, x, y, r=8):
         {"gold": self._coin, "shards": self._shard, "coins": self._hcoin,
