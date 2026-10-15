@@ -142,6 +142,11 @@ CHAIN_COLORS = {
 }
 
 
+# the heaviest hits nudge the camera (attack / splash-impact key -> shake)
+HIT_SHAKE = {"pekka": 1.6, "mini_pekka": 1.4, "mega_knight": 1.8, "golem": 1.4,
+             "giant_skeleton": 1.2, "goblin_monster": 1.2, "tomb_queen": 1.2}
+IMPACT_SHAKE = {"sparky": 3.0, "mortar": 1.6}
+
 # towers (and tower troops) shoot a lot: their attack sounds play quieter
 TOWER_SHOOTERS = frozenset(("princess_tower", "king_tower", "tower_princess", "cannoneer",
                             "dagger_duchess", "royal_chef"))
@@ -867,8 +872,12 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             if kind == "attack":
                 tower = key in TOWER_SHOOTERS
                 self.sfx.play_var(key + "_attack", 0.32 if tower else 0.5, pan, min_gap=0.07)
+                if key in HIT_SHAKE:
+                    self.shake = max(getattr(self, "shake", 0.0), HIT_SHAKE[key])
             elif kind == "hit":
                 self.sfx.play_var(key + "_hit", 0.5, pan, min_gap=0.07)
+                if key in IMPACT_SHAKE:
+                    self.shake = max(getattr(self, "shake", 0.0), IMPACT_SHAKE[key])
             elif kind == "deploy":
                 c = cards.CARDS.get(key)
                 if c is not None and c.category == "spell":

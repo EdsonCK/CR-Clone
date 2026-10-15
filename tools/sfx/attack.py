@@ -117,9 +117,9 @@ def heavy_blade(p=0.0, clash=K.CLASH, plate=K.PLATE, boom=-3.0, ring=0.5, shing=
     return f
 
 
-reg(ATTACK, "pekka", heavy_blade(0.0, boom=-6), loud=-13)
-reg(ATTACK, "mini_pekka", heavy_blade(3.0, boom=-7, ring=0.35, shing=False), loud=-14)
-reg(ATTACK, "mega_knight", heavy_blade(-2.0, clash=K.MACE, boom=-1, ring=0.4,
+reg(ATTACK, "pekka", heavy_blade(-1.0, boom=-3, ring=0.6), loud=-13)
+reg(ATTACK, "mini_pekka", heavy_blade(1.5, boom=-3, ring=0.45, shing=True), loud=-13)
+reg(ATTACK, "mega_knight", heavy_blade(-1.0, clash=K.CLASH, boom=-1, ring=0.4,
                                        shing=False), loud=-13)
 reg(ATTACK, "boss_bandit", heavy_blade(2.0, clash=K.BLADE_ON_BLADE, plate=K.PUNCH_MED,
                                        boom=-8, ring=0.3, shing=False), loud=-14)
@@ -703,3 +703,44 @@ def firework_burst(v, key):
 
 
 reg(HIT, "firecracker", firework_burst, loud=-16)
+
+
+# ======================================================================
+#  THE BIGGEST HITS: extra weight (sub punch, crack, debris, a harder
+#  transient and a touch of saturation) and more volume, scaled by w
+# ======================================================================
+HEAVY_HITS = {
+    "pekka": 1.0, "mini_pekka": 1.0, "mega_knight": 1.0, "golem": 0.9, "golemite": 0.5,
+    "giant": 0.8, "goblin_giant": 0.6, "giant_skeleton": 0.8, "electro_giant": 0.7,
+    "rune_giant": 0.7, "goblin_monster": 0.8, "elixir_golem": 0.6, "tomb_queen": 0.8,
+    "skeleton_king": 0.8, "boss_bandit": 0.6, "prince": 0.8, "dark_prince": 0.7,
+    "hog_rider": 0.7, "ram_rider": 0.6, "battle_ram": 0.8, "royal_guardian": 0.6,
+    "valkyrie": 0.6, "elite_barbarians": 0.5, "lumberjack": 0.4, "goblin_brawler": 0.6,
+    "bowler": 0.7, "ronin": 0.5, "royal_ghost": 0.5, "rhino": 0.6, "royal_giant": 0.6,
+    "goblin_machine": 0.6, "executioner": 0.4,
+}
+HEAVY_IMPACTS = {"sparky": 1.0, "mortar": 0.8, "bomb_tower": 0.5, "bomber": 0.4,
+                 "goblin_demolisher": 0.5}
+
+
+def enhance(y, w, v):
+    """Add impact_core at the main hit and make the hit hit harder."""
+    env = D.envelope(y, 0.002)
+    i = int(np.argmax(env > 0.5 * env.max())) if len(env) else 0
+    t = max(0.0, i * 0.002 - 0.003)
+    y = D.mix((y, 0.0, 0.0), (K.impact_core(v, w), t, -5.0 + 3.0 * w))
+    y = D.transient(y, attack_db=3.0 + 5.0 * w)
+    y = D.normalize(y, 0.9)
+    return D.saturate(y, 1.5 + 1.5 * w, 0.4 * w)
+
+
+def _heavy(table, key, w):
+    fn = table[key]
+    table[key] = (lambda v, fn=fn, w=w: enhance(fn(v), w, v))
+    LOUD[key] = LOUD.get(key, -15.0) + 2.5 * w
+
+
+for _k, _w in HEAVY_HITS.items():
+    _heavy(ATTACK, _k, _w)
+for _k, _w in HEAVY_IMPACTS.items():
+    _heavy(HIT, _k, _w)

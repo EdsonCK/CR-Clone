@@ -413,3 +413,18 @@ CREAK = [(KR, "creak1.ogg"), (KR, "creak2.ogg"), (KR, "creak3.ogg")]
 ARMOR = [(RPG, "armor-light.wav"), (RPG, "chainmail1.wav"), (RPG, "chainmail2.wav")]
 SLIME = [(RPG, "slime1.wav"), (RPG, "slime3.wav"), (RPG, "slime5.wav"), (RPG, "slime7.wav"),
          (C2, "slime_02.ogg"), (C2, "slime_05.ogg")]
+
+
+# ===================================================================== impact
+def impact_core(v=0, w=1.0):
+    """The weight of a big hit: a short sub punch, a recorded body blow, a
+    saturated mid 'crack' and a little debris. w (0..1) = how heavy."""
+    j = (v % 3) - 1
+    sub = thump(62 * (1 + 0.06 * j) * (1.15 - 0.2 * w), 0.2 + 0.08 * w, 0.42, v)
+    punch = D.hp(tk(pick(PUNCH_HEAVY, v + 2)), 70)
+    punch = D.decay_env(head(punch, 0.22), 0.07)
+    crack = D.bp(D.noise(0.035, "white", v + 40), 900, 5200)
+    crack = D.saturate(D.decay_env(crack, 0.009) * 3.0, 3.0)
+    debris = head(D.hp(tk(pick(STONE, v)), 300), 0.3)
+    return D.mix((sub, 0.0, 0.0), (punch, 0.0, -2.0), (crack, 0.0, -7.0),
+                 (debris, 0.015, -14.0 + 4.0 * w))
