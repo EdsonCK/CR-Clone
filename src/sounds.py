@@ -409,146 +409,8 @@ def s_brass(f=220, dur=0.5, notes=(0, 4, 7)):
     return out
 
 
-# ---------------------------------------------------------------------------
-# Spells: a distinct cast + impact for each one
-# ---------------------------------------------------------------------------
-def make_spell(c):
-    k = c.key
-    sd = zlib.crc32(k.encode()) % 100000
-    if k == "fireball":
-        cast = s_whoosh(0.5, 200, 1200, sd, 1.0)
-        mix_into(cast, s_fire(0.5, sd, 400), 0, 0.6)
-        hit = s_explosion(1.1, sd, 0.7)
-        mix_into(hit, s_fire(0.6, sd + 1, 500), 0.05, 0.6)
-    elif k == "arrows":
-        cast = []
-        for i in range(6):
-            mix_into(cast, s_twang(220 + 30 * i, 0.25, sd + i), i * 0.03, 0.5)
-        hit = []
-        r = random.Random(sd)
-        for i in range(14):
-            mix_into(hit, s_thud(r.uniform(180, 320), 0.08, sd + i, 0.6), r.uniform(0, 0.25), 0.5)
-    elif k == "rocket":
-        cast = lowpass(noise(0.9, attack=0.3, decay=0.8, seed=sd, color="brown"), 1500, 3000)
-        cast = gain(cast, 2.5)
-        mix_into(cast, tone(120, 0.9, 260, wave_="saw", attack=0.2, decay=0.8, vol=0.2), 0)
-        hit = s_explosion(1.8, sd, 0.9)
-    elif k == "zap":
-        cast = s_zap(1800, 0.12, sd)
-        hit = s_zap(900, 0.35, sd + 1)
-        mix_into(hit, s_explosion(0.4, sd, 1.0), 0, 0.5)
-    elif k == "the_log":
-        cast = s_thud(110, 0.3, sd)
-        hit = gain(lowpass(noise(1.3, attack=0.05, decay=1.2, seed=sd, color="brown"), 350), 3)
-        r = random.Random(sd)
-        for i in range(8):
-            mix_into(hit, s_thud(r.uniform(70, 120), 0.12, sd + i, 0.7), i * 0.15, 0.5)
-    elif k == "lightning":
-        cast = gain(lowpass(noise(0.8, attack=0.4, decay=0.7, seed=sd, color="brown"), 300), 3)
-        hit = []
-        for i in range(3):
-            mix_into(hit, s_zap(1500, 0.15, sd + i), i * 0.18, 0.9)
-            mix_into(hit, s_explosion(0.7, sd + i, 1.0), i * 0.18, 0.7)
-    elif k == "freeze":
-        cast = s_whoosh(0.35, 1500, 6000, sd, 0.6)
-        hit = s_shimmer(1600, 1.0, sd, 8)
-        mix_into(hit, highpass(noise(0.4, decay=0.35, seed=sd), 4000), 0, 0.4)
-    elif k == "poison":
-        cast = s_clang(2400, 0.2, sd, 1.0)                       # flask shatters
-        hit = []
-        r = random.Random(sd)
-        for i in range(16):
-            f = r.uniform(200, 600)
-            mix_into(hit, tone(f, 0.08, f * 1.8, decay=0.07), r.uniform(0, 1.2), 0.35)
-        mix_into(hit, gain(highpass(noise(1.3, attack=0.2, decay=1.2, seed=sd), 2000), 0.25), 0)
-    elif k == "rage":
-        cast = s_voice(110, 0, 0.5, sd, growl=0.6)
-        hit = []
-        for i in range(4):
-            mix_into(hit, tone(80, 0.3, 60, wave_="saw", decay=0.25, vol=0.4), i * 0.25)
-        hit = lowpass(hit, 600)
-    elif k == "earthquake":
-        cast = s_thud(60, 0.4, sd)
-        hit = gain(lowpass(noise(1.6, attack=0.1, decay=1.5, seed=sd, color="brown"), 180), 4)
-        mix_into(hit, tone(38, 1.6, 30, decay=1.4, vol=0.6), 0)
-    elif k == "tornado":
-        cast = s_whoosh(0.4, 200, 800, sd, 0.8)
-        hit = []
-        for i in range(4):
-            mix_into(hit, s_whoosh(0.5, 250 + i * 60, 1400, sd + i, 0.7), i * 0.22, 1.0)
-    elif k == "graveyard":
-        cast = fm(220, 3.5, 3.0, 1.2, decay=1.0, vol=0.5)          # tolling bell
-        hit = []
-        for i, semi in enumerate((0, 1, 6)):
-            mix_into(hit, tone(330 * 2 ** (semi / 12), 1.4, wave_="triangle",
-                               attack=0.3, vib=0.01, vol=0.3), 0)
-        mix_into(hit, s_bones(sd, 6), 0.3, 0.6)
-    elif k == "goblin_barrel":
-        cast = s_thud(140, 0.25, sd)
-        mix_into(cast, s_whoosh(0.4, 300, 1200, sd, 0.6), 0.05, 1.0)
-        hit = s_thud(120, 0.3, sd)
-        mix_into(hit, s_clang(500, 0.2, sd, 0.4), 0, 0.5)             # wood splinters
-        for i in range(3):
-            mix_into(hit, s_voice(420 + 50 * i, i + 2, 0.15, sd + i), 0.12 + 0.05 * i, 0.6)
-    elif k == "barbarian_barrel":
-        cast = s_thud(120, 0.3, sd)
-        hit = gain(lowpass(noise(0.9, decay=0.8, seed=sd, color="brown"), 400), 2.5)
-        mix_into(hit, s_voice(140, 0, 0.35, sd, growl=0.3), 0.6, 0.8)
-    elif k == "snowball":
-        cast = s_whoosh(0.3, 600, 2400, sd, 0.6)
-        hit = lowpass(noise(0.35, decay=0.3, seed=sd), 1800)
-        mix_into(hit, s_thud(140, 0.2, sd), 0, 0.6)
-    elif k == "royal_delivery":
-        cast = s_brass(262, 0.5, (0, 4, 7))                       # royal fanfare
-        hit = s_thud(90, 0.4, sd)
-        mix_into(hit, s_clang(520, 0.25, sd, 0.5), 0, 0.5)        # crate cracks
-        mix_into(hit, s_explosion(0.7, sd, 0.4), 0, 0.6)
-    elif k == "void":
-        cast = tone(70, 0.7, 45, wave_="saw", attack=0.2, decay=0.5, vol=0.4, vib=0.05)
-        cast = lowpass(cast, 700)
-        hit = s_zap(420, 0.4, sd)
-        mix_into(hit, lowpass(noise(0.5, decay=0.45, seed=sd, color="brown"), 500), 0, 2.0)
-        mix_into(hit, tone(55, 0.5, 35, decay=0.45, vol=0.6), 0)
-    elif k == "vines":
-        cast = bandpass(noise(0.4, attack=0.05, decay=0.35, seed=sd), 1800, 1.5)
-        hit = []
-        r = random.Random(sd)
-        for i in range(6):                                         # creaks + snaps
-            mix_into(hit, tone(r.uniform(150, 300), 0.18, r.uniform(90, 140),
-                               wave_="saw", decay=0.16, vol=0.3), i * 0.07)
-            mix_into(hit, s_thud(r.uniform(160, 260), 0.07, sd + i, 0.5), i * 0.07, 0.5)
-        hit = lowpass(hit, 2200)
-    elif k == "clone":
-        cast = s_shimmer(1200, 0.4, sd, 4)
-        hit = s_chime(784, (0, 7, 12, 19), 0.05, 0.6)
-        mix_into(hit, s_shimmer(2000, 0.6, sd + 1, 6), 0, 0.6)
-    elif k == "goblin_curse":
-        cast = s_voice(300, 4, 0.3, sd, growl=0.2)
-        hit = []
-        for i, semi in enumerate((0, 1, 6)):
-            mix_into(hit, tone(220 * 2 ** (semi / 12), 1.0, wave_="triangle",
-                               attack=0.1, vib=0.02, vol=0.28), i * 0.05)
-        mix_into(hit, s_voice(520, 2, 0.25, sd + 1), 0.4, 0.5)    # goblin cackle
-    elif k == "mirror":
-        cast = s_shimmer(1800, 0.5, sd, 6)
-        hit = s_chime(1318, (0, 7, 12), 0.04, 0.4)
-    else:
-        cast = s_whoosh(0.3, 400, 2000, sd, 0.8)
-        hit = s_explosion(0.8, sd, 0.6)
-    return fade_tail(normalize(cast, 0.75)), fade_tail(normalize(hit, 0.85))
-
-
-# ---------------------------------------------------------------------------
-# UI, deaths, towers, jingles
-# ---------------------------------------------------------------------------
 def make_extras():
     S = {}
-    S["ui_click"] = normalize(mix_into(tone(1200, 0.05, 900, decay=0.04),
-                                       tone(2400, 0.03, decay=0.02), 0, 0.3), 0.5)
-    S["ui_select"] = normalize(mix_into(pluck(660, 0.18, 0.6), pluck(990, 0.15, 0.6), 0.04, 0.6), 0.55)
-    S["ui_deselect"] = normalize(mix_into(pluck(660, 0.15, 0.6), pluck(440, 0.15, 0.6), 0.04, 0.6), 0.5)
-    S["ui_invalid"] = normalize(lowpass(tone(130, 0.18, 110, wave_="square", decay=0.17), 1200), 0.45)
-    S["ui_toggle"] = normalize(tone(800, 0.06, 1200, decay=0.05), 0.45)
     S["ability"] = normalize(mix_into(s_whoosh(0.5, 300, 3000, 5, 1.0),
                                       s_chime(784, (0, 4, 7, 12), 0.06, 0.6), 0.1, 0.8), 0.85)
     S["crown"] = normalize(s_chime(1046, (0, 4, 7, 12), 0.09, 0.9), 0.75)
@@ -558,10 +420,6 @@ def make_extras():
     S["double_elixir"] = normalize(mix_into(s_chime(523, (0, 7), 0.12, 0.6),
                                             s_chime(784, (0, 7), 0.12, 0.6), 0.3, 1.0), 0.75)
     S["overtime"] = normalize(fm(98, 1.4, 4.0, 2.0, decay=1.8), 0.8)    # gong
-    S["tick"] = normalize(tone(1500, 0.04, decay=0.03), 0.35)
-    pop = tone(520, 0.12, 900, decay=0.1, vol=0.6)
-    mix_into(pop, s_chime(1318, (0, 7), 0.05, 0.35), 0.04, 0.5)
-    S["elixir_pop"] = normalize(pop, 0.4)
     ev = s_shimmer(1200, 0.7, 41, 6)
     mix_into(ev, s_whoosh(0.5, 200, 2600, 42, 0.7), 0, 0.8)
     mix_into(ev, tone(220, 0.6, 440, wave_="triangle", attack=0.05, decay=0.5, vol=0.4), 0, 1.0)
@@ -813,9 +671,6 @@ def make_battle_music2():
 def _jobs():
     """(name, builder) for every sound file."""
     jobs = []
-    for key, c in cards.CARDS.items():
-        if c.category == "spell":
-            jobs.append((key + "_spell", (lambda c=c: make_spell(c))))
     jobs.append(("_extras", make_extras))
     jobs.append(("music_menu", make_menu_music))
     jobs.append(("music_battle", make_battle_music))
@@ -828,10 +683,8 @@ def _manifest_path():
     return os.path.join(SOUND_DIR, ".soundgen.json")
 
 
-EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle",
-               "ability", "crown", "king_wake", "match_start", "double_elixir",
-               "overtime", "tick", "victory", "defeat",
-               "elixir_pop", "evo_deploy", "hero_ability"]
+EXTRA_NAMES = ["ability", "crown", "king_wake", "match_start", "double_elixir",
+               "overtime", "victory", "defeat", "evo_deploy", "hero_ability"]
 
 # Sounds re-rendered since they were first shipped: bump a name's number to
 # regenerate just that file on the next launch (without a full SOUND_VERSION
@@ -878,8 +731,6 @@ def ensure_sounds(progress=None):
             progress(n, len(jobs))
         if name == "_extras":
             names = EXTRA_NAMES
-        elif name.endswith("_spell"):
-            names = [name[:-6] + "_cast", name[:-6] + "_impact"]
         elif name == "music_battle":
             names = ["music_battle", "music_final"]
         elif name == "music_battle2":
@@ -995,7 +846,7 @@ def match_sound_names(m):
                 keys.update(_related(r))
     names = list(DEATH_NAMES) + ["tower_down", "dash", "slam", "portal"]
     for k in sorted(keys):
-        for kind in ("attack", "hit", "deploy", "ability", "spawn"):
+        for kind in ("attack", "hit", "deploy", "ability", "spawn", "cast", "impact"):
             names.append(k + "_" + kind)
     return names
 
@@ -1113,15 +964,17 @@ class SoundManager:
         return self._start(name, snd, vol, pan)
 
     def play(self, name, vol=1.0, pan=0.5, min_gap=0.06):
+        """Play `name` (name.wav / name.ogg, or one of its name_1..3
+        variants)."""
         if not (self.ok and self.sfx_on):
-            return
+            return False
         t = self.last.get(name, -9.0)
         if self.clock - t < min_gap:
-            return
+            return False
         snd = self._get(name)
         if snd is None:
-            return
-        self._start(name, snd, vol, pan)
+            return self.play_var(name, vol, pan, 0.0)
+        return self._start(name, snd, vol, pan)
 
     def _start(self, name, snd, vol, pan):
         self.last[name] = self.clock

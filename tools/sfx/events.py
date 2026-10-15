@@ -500,3 +500,125 @@ SPAWN = {
 }
 for k, (fn, loud) in SPAWN.items():
     S(k + "_spawn", fn, loud=loud)
+
+# ======================================================================
+#  SPELLS: <spell>_cast (thrown / cast) and <spell>_impact (lands)
+# ======================================================================
+
+
+def sp(*layer_fns, loud=-14.0, room=None):
+    """Like ab(): layers given as P()/F() builders."""
+    return ab(*layer_fns, loud=loud)[0], loud, room
+
+
+def rain_of(pool, n, spread, db=-4.0, st=0.0, ln=0.2, seed=0):
+    """n hits of pool scattered over `spread` seconds (arrows, debris...)."""
+    def f(v, nm, s):
+        r = D.rng(seed + v * 31)
+        out = []
+        for i in range(n):
+            t = float(r.uniform(0, spread)) * (i / max(n - 1, 1)) ** 0.7
+            out.append(L(pool, v, nm, st + s + float(r.uniform(-1.5, 1.5)), ln,
+                         db - float(r.uniform(0, 5)), t, idx=i))
+        return out
+    return f
+
+
+launch = F(lambda v, s: K.whoosh(0.45, 300, 2200, v + 50), -6, 0.0)
+
+SPELLS = {
+    "fireball": (sp(launch, P(K.FIREBALL, 0, 0.0, 0, 0.6, peak=True)),
+                 sp(P(K.BANGS, 0, 0.0, -2, 0.9), P(K.FIRE_SPELL, -3, 0.0, 0, 0.8, peak=True),
+                    F(lambda v, s: K.crackle_fire(0.8, v), -6),
+                    F(lambda v, s: K.impact_core(v, 0.8), -2), loud=-11)),
+    "arrows": (sp(rain_of(K.BOW, 5, 0.18, -2, 0, 0.3), loud=-15),
+               sp(rain_of(K.ARROW_FLY, 4, 0.15, -6, 3, 0.2), rain_of(K.WOOD, 9, 0.35, -2, 6, 0.12, 3),
+                  rain_of(K.FOOTSTEP, 6, 0.35, -6, 4, 0.12, 9), loud=-14)),
+    "rocket": (sp(P([(K.SCI, "rocket_01.ogg")], 0, 0.0, 2, 0.8, peak=True),
+                  F(lambda v, s: K.whoosh(0.8, 300, 2600, v), -4), loud=-14),
+               sp(P(K.EXPLO, 0, 0.0, -3, 1.2), P(K.LOWBOOM, -2, 0.0, 0, 1.0, peak=True),
+                  F(lambda v, s: K.impact_core(v, 1.0), 0), P(K.STONE, -8, 0.05, -2, 0.6),
+                  loud=-10, room=-16)),
+    "zap": (sp(F(lambda v, s: K.zap(0.12, v + 3, 3500), -6), loud=-18),
+            sp(F(lambda v, s: K.zap(0.45, v, 2800), 0), P(K.ZAPS, -3, 0.0, 0, 0.4),
+               F(lambda v, s: K.thump(70, 0.25, 0.5, v), -6), loud=-13)),
+    "the_log": (sp(P(K.CREAK, -2, 0.0, -4, 0.5), P(K.WOOD, 0, 0.1, -4, 0.3), loud=-16),
+                sp(F(lambda v, s: D.lp(K.noise_roll(1.2, v), 700), 0),
+                   rain_of(K.WOOD, 6, 0.9, -4, -5, 0.25, 5),
+                   rain_of(K.PUNCH_MED, 4, 0.9, -6, -3, 0.2, 7), loud=-13)),
+    "lightning": (sp(F(lambda v, s: K.zap(0.35, v + 9, 2600), -4),
+                     F(lambda v, s: K.whoosh(0.5, 2000, 400, v), -8), loud=-16),
+                  sp(P(K.THUNDER, 0, 0.0, 0, 1.4, peak=True),
+                     F(lambda v, s: K.zap(0.5, v, 2400), -2),
+                     F(lambda v, s: K.impact_core(v, 0.9), -3), loud=-10, room=-14)),
+    "freeze": (sp(F(lambda v, s: K.whoosh(0.4, 1500, 6000, v), -4), loud=-17),
+               sp(P(K.ICY, 0, 0.0, -2, 1.0), P([(K.FRZ, "freeze.wav")], -2, 0.0, 0, 1.2, peak=True),
+                  P(K.GLASS2, -4, 0.05, -3, 0.5), loud=-13)),
+    "poison": (sp(launch, P(K.SLIME, -4, 0.1, 0, 0.4), loud=-17),
+               sp(P(K.SLIME, 0, 0.0, -2, 0.6), P(K.BUBBLES, -3, 0.1, -2, 0.8),
+                  F(lambda v, s: K.fizz(1.0, v, 2500), -10), P(K.SPLATS, -6, 0.0, 0, 0.5),
+                  loud=-14)),
+    "rage": (sp(launch, loud=-17),
+             sp(P(K.V_ROAR, -2, 0.0, 3, 0.7), P(K.BUBBLES, -4, 0.0, -3, 0.6),
+                F(lambda v, s: K.shimmer(700 * D.semis(s), 0.8, v), -6), loud=-13)),
+    "earthquake": (sp(F(lambda v, s: D.lp(K.noise_roll(0.6, v), 900), 0),
+                      P(K.STONE, -6, 0.1, -5, 0.4), loud=-17),
+                   sp(P(K.QUAKE, 0, 0.0, 0, 1.4, peak=True), P(K.STONE, -4, 0.1, -4, 0.6),
+                      rain_of(K.STONE, 4, 0.8, -8, -3, 0.3, 2), loud=-11, room=-16)),
+    "tornado": (sp(launch, loud=-17),
+                sp(P(K.WIND, 0, 0.0, -3, 0.9), P(K.WIND_LONG, -2, 0.1, 0, 1.3, peak=True),
+                   F(lambda v, s: K.whoosh(1.2, 200, 1500, v), -4), loud=-13)),
+    "graveyard": (sp(P(K.MAGIC, -2, 0.0, -6, 0.6), loud=-17),
+                  sp(P(K.V_GHOST, 0, 0.0, -2, 1.0), P(K.BONE, -2, 0.2, 0, 0.15),
+                     P(K.BONE, -4, 0.3, 2, 0.15, 2), P(K.STONE, -6, 0.0, -4, 0.4),
+                     P(K.V_WITCH, -10, 0.3, -5, 0.8), loud=-14)),
+    "goblin_barrel": (sp(launch, P(K.CREAK, -6, 0.0, 2, 0.3), loud=-16),
+                      sp(P(K.WOOD_BREAK, 0, 0.0, -2, 0.5), P(K.WOOD, -2, 0.0, -3, 0.3),
+                         P(K.V_GOBLIN_LAUGH, -2, 0.15, 1, 0.7), loud=-13)),
+    "barbarian_barrel": (sp(F(lambda v, s: D.lp(K.noise_roll(0.6, v), 600), -2),
+                            P(K.WOOD, -4, 0.0, -4, 0.3), loud=-16),
+                         sp(P(K.WOOD_BREAK, 0, 0.0, -3, 0.5), P(K.WOOD, -2, 0.0, -4, 0.3),
+                            P(K.V_BATTLECRY, -9, 0.15, 0, 0.8), loud=-13)),
+    "snowball": (sp(launch, loud=-17),
+                 sp(P(K.SNOW, 0, 0.0, -4, 0.35), P(K.SOFT_HEAVY, -2, 0.0, -2, 0.3),
+                    F(lambda v, s: K.whoosh(0.4, 1500, 6000, v), -8), P(K.GLASS, -12, 0.03, 4, 0.3),
+                    loud=-14)),
+    "royal_delivery": (sp(launch, loud=-17),
+                       sp(P(K.WOOD_BREAK, 0, 0.0, -4, 0.5), P(K.PLATE, -2, 0.0, -2, 0.4),
+                          F(lambda v, s: K.impact_core(v, 0.7), -4),
+                          P(K.V_MALE_GRUNT, -4, 0.2, 1, 0.5), loud=-12)),
+    "void": (sp(P(K.MAGIC, -2, 0.0, -7, 0.6), loud=-17),
+             sp(P(K.MAGIC, 0, 0.0, -9, 1.0), P(K.LOWBOOM, -2, 0.0, -2, 1.0, peak=True),
+                F(lambda v, s: K.whoosh(1.0, 1500, 150, v), -4), loud=-12)),
+    "vines": (sp(F(lambda v, s: D.bp(D.noise(0.5, "pink", v), 1500, 6000) * 0.7, -4), loud=-17),
+              sp(P(K.CREAK, 0, 0.0, -3, 0.6), P(K.CREAK, -3, 0.25, -1, 0.5, 1),
+                 P(K.WOOD, -4, 0.0, -5, 0.3), F(lambda v, s: D.bp(D.noise(0.8, "pink", v), 1500,
+                                                                   6000) * 0.6, -6), loud=-14)),
+    "clone": (sp(launch, loud=-17),
+              sp(F(lambda v, s: K.shimmer(1400 * D.semis(s), 0.9, v, 7), 0),
+                 P(K.MAGIC, -4, 0.0, 3, 0.7), loud=-14)),
+    "goblin_curse": (sp(P(K.MAGIC, -2, 0.0, -4, 0.5), loud=-17),
+                     sp(P(K.V_WITCH, -2, 0.1, 3, 0.9), P(K.BUBBLES, -4, 0.0, -4, 0.6),
+                        P(K.MAGIC, -4, 0.0, -6, 0.8), loud=-14)),
+    "mirror": (sp(F(lambda v, s: K.shimmer(1900 * D.semis(s), 0.7, v, 6), -2),
+                  P(K.GLASS2, -4, 0.0, 2, 0.5), loud=-15),
+               sp(F(lambda v, s: K.shimmer(1500 * D.semis(s), 0.8, v + 2, 6), 0),
+                  P(K.GLASS2, -4, 0.0, 0, 0.5), loud=-14)),
+}
+for k, (cast, hit) in SPELLS.items():
+    for suffix, (fn, loud, room) in (("cast", cast), ("impact", hit)):
+        S(k + "_" + suffix, fn, loud=loud, room=room)
+
+# ======================================================================
+#  UI
+# ======================================================================
+S("ui_click", lambda v, n: D.mix(L(K.UI_CLICK, v, n, DET[v], 0.12, 0, 0.0)), loud=-20, room=-40)
+S("ui_select", lambda v, n: D.mix(L(K.UI_SELECT, v, n, DET[v], 0.3, 0, 0.0)), loud=-18, room=-40)
+S("ui_deselect", lambda v, n: D.mix(L(K.UI_DROP, v, n, DET[v], 0.3, 0, 0.0)), loud=-19, room=-40)
+S("ui_invalid", lambda v, n: D.mix(L(K.UI_ERROR, v, n, DET[v], 0.4, 0, 0.0)), loud=-18, room=-40)
+S("ui_toggle", lambda v, n: D.mix(L(K.UI_SWITCH, v, n, DET[v], 0.3, 0, 0.0)), loud=-19, room=-40)
+S("tick", lambda v, n: D.mix(L(K.UI_TICK, v, n, DET[v] * 0.3, 0.1, 0, 0.0),
+                             L(K.WOOD, v, n, 8, 0.08, -10, 0.0)), loud=-17, room=-30)
+S("elixir_pop", lambda v, n: D.mix(L(K.BUBBLES, v, n, 4 + DET[v], 0.3, 0, 0.0),
+                                   at(D.gain(K.chime(1318 * D.semis(DET[v]), (0, 7), 0.05, 0.35),
+                                             -6), 0.03)), loud=-19, room=-30)

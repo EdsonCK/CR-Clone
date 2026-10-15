@@ -441,14 +441,6 @@ def bowler(v, key):
                  at(D.gain(D.lp(K.noise_roll(0.5, v), 900), -10), 0.08))
 
 
-def _noise_roll(t, seed):
-    """Rumble of a boulder rolling."""
-    n = D.noise(t, "brown", seed)
-    am = 0.6 + 0.4 * np.sin(2 * np.pi * 9 * np.arange(D.n_of(t)) / D.SR)
-    return D.fade(n * am.astype(np.float32), 0.05, 0.15)
-
-
-K.noise_roll = _noise_roll
 reg(ATTACK, "bowler", bowler, loud=-14)
 
 

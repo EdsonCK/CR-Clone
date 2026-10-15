@@ -68,5 +68,17 @@ needs no credit - thank you anyway!
   Tiny creatures sounds - fvcalderan  (https://opengameart.org/content/tiny-creatures-sounds)
   Evil Screech 1 - Nocturnal_Vanguard  (https://opengameart.org/content/evil-screech-1)
   Osare Minotaur Sounds - Augmentality (Brandon Morris)  (https://opengameart.org/content/osare-minotaur-sounds)
+  100 CC0 SFX #2 - rubberduck  (https://opengameart.org/content/100-cc0-sfx-2)
+  Rain + Long Thunder - WuxiaScrub  (https://opengameart.org/content/rain-long-thunder)
+  wind1 - Luke.RUSTLTD  (https://opengameart.org/content/wind1)
+  Wind - IgnasD  (https://opengameart.org/content/wind)
+  Wind, hit, time morph - qubodup  (https://opengameart.org/content/wind-hit-time-morph)
+  rumble fx - cinameng  (https://opengameart.org/content/rumble-fx)
+  Earthquake and Open sesame - mieki256  (https://opengameart.org/content/earthquake-and-open-sesame)
+  Classic fanfare lick - fvcalderan  (https://opengameart.org/content/classic-fanfare-lick)
+  Win sound effect - Listener  (https://opengameart.org/content/win-sound-effect)
+  Interface Sounds - Kenney  (https://kenney.nl/assets/interface-sounds)
+  UI Audio - Kenney  (https://kenney.nl/assets/ui-audio)
+  Music Jingles - Kenney  (https://kenney.nl/assets/music-jingles)
 
 Every other sound is synthesised by src/sounds.py.

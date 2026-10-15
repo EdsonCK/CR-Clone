@@ -284,6 +284,13 @@ def fizz(t=0.3, seed=0, f=6000.0):
     return D.fade(D.decay_env(n * am, t / 2.5), 0.01, 0.06)
 
 
+def noise_roll(t, seed):
+    """Rumble of something heavy rolling (boulder, log, barrel)."""
+    n = D.noise(t, "brown", seed)
+    am = 0.6 + 0.4 * np.sin(2 * np.pi * 9 * np.arange(D.n_of(t)) / D.SR)
+    return D.fade(n * am.astype(np.float32), 0.05, 0.15)
+
+
 def crackle_fire(t=0.4, seed=0):
     """Burning: soft low roar + a few small, rounded pops."""
     c = D.crackle(t, 45, seed, bright=0, decay=t / 1.5)
@@ -428,3 +435,30 @@ def impact_core(v=0, w=1.0):
     debris = head(D.hp(tk(pick(STONE, v)), 300), 0.3)
     return D.mix((sub, 0.0, 0.0), (punch, 0.0, -2.0), (crack, 0.0, -7.0),
                  (debris, 0.015, -14.0 + 4.0 * w))
+
+
+# ===================================================================== spells
+THUNDER = [("rain-long-thunder", "rain-thunder.ogg")]
+QUAKE = [("earthquake-and-open-sesame", "shake.flac")]
+WIND = [("wind-hit-time-morph", "qubodup-megaswosh1.wav"),
+        ("wind-hit-time-morph", "qubodup-megaswosh2.wav"),
+        ("wind-hit-time-morph", "60009__qubodup__swosh_22.flac")]
+WIND_LONG = [("wind", "wind3.ogg"), ("wind", "wind.ogg"), ("wind", "wind2.ogg")]
+BELL = [(SFX100, "bell_01.ogg"), (SFX100, "bell_03.ogg"), (SFX100, "bell_02.ogg")]
+GONG = [(SFX100, "gong_01.ogg"), (SFX100, "gong_02.ogg")]
+SNOW = [(KI, "footstep_snow_000.ogg"), (KI, "footstep_snow_001.ogg"),
+        (KI, "footstep_snow_002.ogg"), (KI, "footstep_snow_003.ogg")]
+GLASS2 = [("100-cc0-sfx-2", "sfx100v2_glass_01.ogg"), ("100-cc0-sfx-2", "sfx100v2_glass_05.ogg"),
+          ("100-cc0-sfx-2", "sfx100v2_glass_06.ogg"), ("100-cc0-sfx-2", "sfx100v2_glass_03.ogg")]
+UI_CLICK = [("kenney/interface-sounds", "click_002.ogg"), ("kenney/interface-sounds", "click_004.ogg"),
+            ("kenney/interface-sounds", "click_005.ogg")]
+UI_SELECT = [("kenney/interface-sounds", "select_003.ogg"), ("kenney/interface-sounds", "select_004.ogg"),
+             ("kenney/interface-sounds", "select_005.ogg")]
+UI_DROP = [("kenney/interface-sounds", "drop_002.ogg"), ("kenney/interface-sounds", "drop_003.ogg"),
+           ("kenney/interface-sounds", "drop_004.ogg")]
+UI_ERROR = [("kenney/interface-sounds", "error_006.ogg"), ("kenney/interface-sounds", "error_007.ogg"),
+            ("kenney/interface-sounds", "error_003.ogg")]
+UI_SWITCH = [("kenney/ui-audio", "switch16.ogg"), ("kenney/ui-audio", "switch18.ogg"),
+             ("kenney/ui-audio", "switch22.ogg")]
+UI_TICK = [("kenney/interface-sounds", "tick_002.ogg"), ("kenney/interface-sounds", "tick_001.ogg"),
+           ("kenney/interface-sounds", "tick_004.ogg")]

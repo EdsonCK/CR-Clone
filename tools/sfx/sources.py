@@ -306,6 +306,46 @@ PACKS = {
     "osare-minotaur-sounds": ("Osare Minotaur Sounds", "Augmentality (Brandon Morris)", [
         "https://opengameart.org/sites/default/files/mino1.wav",
     ]),
+    "100-cc0-sfx-2": ("100 CC0 SFX #2", "rubberduck", [
+        "https://opengameart.org/sites/default/files/sfx_100_v2.zip",
+    ]),
+    "rain-long-thunder": ("Rain + Long Thunder", "WuxiaScrub", [
+        "https://opengameart.org/sites/default/files/rain-thunder.ogg",
+        "https://opengameart.org/sites/default/files/rain-thunder_0.ogg",
+    ]),
+    "wind1": ("wind1", "Luke.RUSTLTD", [
+        "https://opengameart.org/sites/default/files/wind1.wav",
+        "https://opengameart.org/sites/default/files/wind2.wav",
+        "https://opengameart.org/sites/default/files/wind3.wav",
+        "https://opengameart.org/sites/default/files/wind4.wav",
+        "https://opengameart.org/sites/default/files/wind5.wav",
+    ]),
+    "wind": ("Wind", "IgnasD", [
+        "https://opengameart.org/sites/default/files/Wind.ogg",
+        "https://opengameart.org/sites/default/files/wind.zip",
+    ]),
+    "wind-hit-time-morph": ("Wind, hit, time morph", "qubodup", [
+        "https://opengameart.org/sites/default/files/qubodup-timehitwind.zip",
+    ]),
+    "rumble-fx": ("rumble fx", "cinameng", [
+        "https://opengameart.org/sites/default/files/rumble.mp3",
+        "https://opengameart.org/sites/default/files/rumble.wav",
+    ]),
+    "earthquake-and-open-sesame": ("Earthquake and Open sesame", "mieki256", [
+        "https://opengameart.org/sites/default/files/shake.flac",
+        "https://opengameart.org/sites/default/files/shake.ogg",
+    ]),
+    "classic-fanfare-lick": ("Classic fanfare lick", "fvcalderan", [
+        "https://opengameart.org/sites/default/files/fanfare_3.ogg",
+        "https://opengameart.org/sites/default/files/fanfare_4.ogg",
+    ]),
+    "win-sound-effect": ("Win sound effect", "Listener", [
+        "https://opengameart.org/sites/default/files/Win%20sound.mp3",
+        "https://opengameart.org/sites/default/files/Win%20sound.wav",
+    ]),
+    "kenney/interface-sounds": ("Interface Sounds", "Kenney", ["kenney:interface-sounds"]),
+    "kenney/ui-audio": ("UI Audio", "Kenney", ["kenney:ui-audio"]),
+    "kenney/music-jingles": ("Music Jingles", "Kenney", ["kenney:music-jingles"]),
 }
 
 
