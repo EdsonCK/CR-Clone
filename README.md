@@ -95,6 +95,11 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.4.6 changes
+
+* **Monk** +10% hp (889 -> 978), to make up for standing still during his
+  Pensive Protection (still 80% damage reduction, 4s).
+
 ## v1.4.5 changes
 
 * **Reward animations**: every reward you collect - battle rewards,

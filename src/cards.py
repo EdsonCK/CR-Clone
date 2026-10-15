@@ -723,7 +723,7 @@ _CARD_LIST = [
             ability_cost=2, ability_value=6, no_knockback=True),
             # 6 skeletons + 1 per soul collected from nearby deaths (max 10)
     CardDef("monk", "Monk", 5, rarity="champion",
-            hp=889, damage=69, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
+            hp=978, damage=69, hit_speed=0.9, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, is_champion=True, combo_every=3, knockback=1.2,
             # 3-hit combo: every 3rd strike splashes and knocks enemies back
             # (every champion ability below is ONE use per deployment, except
