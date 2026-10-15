@@ -823,18 +823,20 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 final = w is not None and w.boss
             else:
                 final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
-            # two battle themes, alternating from one battle to the next
+            # battle themes rotate from one battle to the next
             if not (cur.startswith("battle") or cur.startswith("final")):
-                self.battle_theme = 2 if getattr(self, "battle_theme", 2) == 1 else 1
-            sfx2 = "2" if self.battle_theme == 2 else ""
+                n = sounds.music_themes("battle")
+                self.battle_theme = getattr(self, "battle_theme", n) % n + 1
+            sfx2 = "" if self.battle_theme == 1 else str(self.battle_theme)
             self.sfx.music(("final" if final else "battle") + sfx2)
         elif self.state == "result":
             self.sfx.music(None)
         else:
-            # two menu themes: the other one each time you come back
+            # menu themes rotate: the next one each time you come back
             if not cur.startswith("menu"):
-                self.menu_theme = 2 if getattr(self, "menu_theme", 2) == 1 else 1
-            self.sfx.music("menu" if self.menu_theme == 1 else "menu2")
+                n = sounds.music_themes("menu")
+                self.menu_theme = getattr(self, "menu_theme", n) % n + 1
+            self.sfx.music("menu" if self.menu_theme == 1 else "menu%d" % self.menu_theme)
         if m is None or self.state not in ("match", "result"):
             return
         if m is not getattr(self, "_sfx_match", None):

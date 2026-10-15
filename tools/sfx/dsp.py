@@ -72,11 +72,15 @@ def write(path, x, quality=0.62):
     import soundfile as sf
     x = np.clip(np.nan_to_num(x), -0.999, 0.999).astype(np.float32)
     if path.endswith(".ogg"):
+        # block by block: libsndfile can crash encoding long Vorbis in one go
         try:
-            sf.write(path, x, SR, format="OGG", subtype="VORBIS",
-                     compression_level=1.0 - quality)
+            f = sf.SoundFile(path, "w", SR, 1, format="OGG", subtype="VORBIS",
+                             compression_level=1.0 - quality)
         except TypeError:                                # older soundfile
-            sf.write(path, x, SR, format="OGG", subtype="VORBIS")
+            f = sf.SoundFile(path, "w", SR, 1, format="OGG", subtype="VORBIS")
+        with f:
+            for i in range(0, len(x), SR):
+                f.write(x[i:i + SR])
     else:
         sf.write(path, x, SR, subtype="PCM_16")
 

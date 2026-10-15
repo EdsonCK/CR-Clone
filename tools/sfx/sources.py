@@ -7,9 +7,11 @@ Every pack listed here is CC0 ("No Rights Reserved" - public domain):
 free to use, change and redistribute, no credit required. We credit the
 authors anyway, in assets/sounds/CREDITS.txt (written by render.py).
 
-The packs are NOT stored in the repository (they're ~800 MB). To rebuild
-the sounds:   python tools/sfx/render.py --fetch
-downloads them once into tools/sfx/_cache (or $SFX_CACHE).
+The packs are NOT stored in the repository (with the VSCO-2 CE orchestral
+samples they're ~2 GB). To rebuild the sounds:
+    python tools/sfx/render.py --fetch
+downloads them once into tools/sfx/_cache (or $SFX_CACHE); the orchestral
+samples come from github.com/sgossner/VSCO-2-CE (CC0, sparse git clone).
 
 PACKS: key -> (title, author, [download urls]). OpenGameArt pages live at
 https://opengameart.org/content/<key>; Kenney's at https://kenney.nl/assets/<name>.
@@ -346,16 +348,40 @@ PACKS = {
     "kenney/interface-sounds": ("Interface Sounds", "Kenney", ["kenney:interface-sounds"]),
     "kenney/ui-audio": ("UI Audio", "Kenney", ["kenney:ui-audio"]),
     "kenney/music-jingles": ("Music Jingles", "Kenney", ["kenney:music-jingles"]),
+    "medieval-minstrel-dance": ("Medieval: Minstrel Dance", "RandomMind", [
+        "https://opengameart.org/sites/default/files/Loop_Minstrel_Dance_0.wav",
+    ]),
+    "battle-theme-a": ("Battle Theme A", "cynicmusic", [
+        "https://opengameart.org/sites/default/files/battleThemeA.mp3",
+    ]),
+    "inst/vsco": ("VSCO 2 CE (orchestral samples)", "Versilian Studios", ["git:vsco"]),
 }
 
 
+VSCO_GIT = "https://github.com/sgossner/VSCO-2-CE.git"
+VSCO_PATHS = ["Strings/Violin Section/Pizz/", "Strings/Violin Section/Spic/",
+              "Strings/Violin Section/susVib/", "Strings/Viola Section/pizz/",
+              "Strings/Viola Section/susvib/", "Strings/Cello Section/pizzT/",
+              "Strings/Cello Section/spic/", "Strings/Cello Section/susvib/",
+              "Strings/Solo Contrabass/Pizz/", "Strings/Harp/", "Brass/F Horn/sus/",
+              "Brass/F Horn/stac/", "Brass/Trumpet/sus/", "Brass/Trumpet/stac/",
+              "Brass/Tenor Trombone/sus/", "Brass/Tenor Trombone/stac/", "Brass/Tuba/sus/",
+              "Brass/Tuba/stac/", "Percussion/Timpani/", "Percussion/Glock/", "Percussion/Xylo/",
+              "Percussion/BDrumNewhit*", "Percussion/Snare2-*", "Percussion/cymbal-crash*",
+              "Percussion/Triangle3-*", "Percussion/Tamb1-*"]
+
+
 def page(key):
+    if key == "inst/vsco":
+        return "https://github.com/sgossner/VSCO-2-CE"
     if key.startswith("kenney/"):
         return "https://kenney.nl/assets/" + key.split("/", 1)[1]
     return "https://opengameart.org/content/" + key
 
 
 def pack_dir(key):
+    if key == "inst/vsco":
+        return os.path.join(CACHE, "inst", "vsco")
     if key.startswith("kenney/"):
         return os.path.join(CACHE, "kenney", key.split("/", 1)[1])
     return os.path.join(CACHE, "oga", key)
@@ -429,9 +455,18 @@ def fetch(only=None, log=print):
         d = pack_dir(key)
         if os.path.isdir(d) and os.listdir(d):
             continue
-        os.makedirs(d, exist_ok=True)
+        if key != "inst/vsco":
+            os.makedirs(d, exist_ok=True)
         log("fetching %s (%s)" % (title, author))
         for u in urls:
+            if u == "git:vsco":                  # sparse clone of the sample library
+                import subprocess
+                subprocess.run(["git", "clone", "-q", "--depth", "1", "--filter=blob:none",
+                                "--no-checkout", VSCO_GIT, d], check=True)
+                subprocess.run(["git", "-C", d, "sparse-checkout", "set", "--no-cone"]
+                               + VSCO_PATHS, check=True)
+                subprocess.run(["git", "-C", d, "checkout", "-q"], check=True)
+                continue
             if u.startswith("kenney:"):
                 u = _kenney_zip(u.split(":", 1)[1])
                 dest = os.path.join(d, "pack.zip")

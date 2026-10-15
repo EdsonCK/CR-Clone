@@ -81,13 +81,16 @@ def jobs(keys=None):
 
 
 def credits():
-    lines = ["Sound effects: the battle sounds (attacks, impacts, deploys, deaths,",
-             "abilities, spawns...) are built from recordings in these",
-             "public-domain (CC0) packs, processed with tools/sfx (numpy). CC0",
-             "needs no credit - thank you anyway!", ""]
+    lines = ["Sound effects and music: the battle sounds (attacks, impacts, deploys,",
+             "deaths, abilities, spawns, spells, UI) are built from recordings in",
+             "these public-domain (CC0) packs, processed with tools/sfx (numpy);",
+             "the jingles and music themes 3-4 use the VSCO-2 CE orchestral samples",
+             "and two CC0 tracks: \"Medieval: Minstrel Dance\" by RandomMind (menu)",
+             "and \"Battle Theme A\" by cynicmusic (battle). CC0 needs no credit -",
+             "thank you anyway!", ""]
     for key, (title, author, _) in S.PACKS.items():
         lines.append("  %s - %s  (%s)" % (title, author, S.page(key)))
-    lines += ["", "Every other sound is synthesised by src/sounds.py."]
+    lines += ["", "Music themes 1-2 are synthesised by src/sounds.py."]
     with open(os.path.join(OUT, "CREDITS.txt"), "w") as f:
         f.write("\n".join(lines) + "\n")
 

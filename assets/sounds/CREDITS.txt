@@ -1,7 +1,10 @@
-Sound effects: the battle sounds (attacks, impacts, deploys, deaths,
-abilities, spawns...) are built from recordings in these
-public-domain (CC0) packs, processed with tools/sfx (numpy). CC0
-needs no credit - thank you anyway!
+Sound effects and music: the battle sounds (attacks, impacts, deploys,
+deaths, abilities, spawns, spells, UI) are built from recordings in
+these public-domain (CC0) packs, processed with tools/sfx (numpy);
+the jingles and music themes 3-4 use the VSCO-2 CE orchestral samples
+and two CC0 tracks: "Medieval: Minstrel Dance" by RandomMind (menu)
+and "Battle Theme A" by cynicmusic (battle). CC0 needs no credit -
+thank you anyway!
 
   Impact Sounds - Kenney  (https://kenney.nl/assets/impact-sounds)
   RPG Audio - Kenney  (https://kenney.nl/assets/rpg-audio)
@@ -80,5 +83,8 @@ needs no credit - thank you anyway!
   Interface Sounds - Kenney  (https://kenney.nl/assets/interface-sounds)
   UI Audio - Kenney  (https://kenney.nl/assets/ui-audio)
   Music Jingles - Kenney  (https://kenney.nl/assets/music-jingles)
+  Medieval: Minstrel Dance - RandomMind  (https://opengameart.org/content/medieval-minstrel-dance)
+  Battle Theme A - cynicmusic  (https://opengameart.org/content/battle-theme-a)
+  VSCO 2 CE (orchestral samples) - Versilian Studios  (https://github.com/sgossner/VSCO-2-CE)
 
-Every other sound is synthesised by src/sounds.py.
+Music themes 1-2 are synthesised by src/sounds.py.

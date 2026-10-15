@@ -3,25 +3,25 @@
   SOUNDS.PY  --  Music & sound effects: loading, playback, synthesis
 ============================================================================
 
-ATTACK SOUNDS (v1.4.7) are real recordings: every unit has 3 variants,
-assets/sounds/<cardkey>_attack_1..3.ogg, built OFFLINE by tools/sfx from
-public-domain (CC0) packs (see assets/sounds/CREDITS.txt), and splash
-projectiles (bombs, fireballs, mortar shells...) also get an impact,
-<cardkey>_hit_1..3.ogg. Each attack plays one of the variants at random.
+Almost every sound is a finished file in assets/sounds, built OFFLINE by
+tools/sfx (see assets/sounds/CREDITS.txt):
 
-Everything else (deploys, spells, UI, music) is synthesised here from
-scratch (oscillators, filtered noise, plucked strings...). On first run
-(or whenever SOUND_VERSION changes) those are rendered into
-assets/sounds/*.wav and loaded from disk afterwards.
+  * battle sounds - attacks, splash impacts, deploys, deaths, abilities,
+    spawns, spells (cast + impact), UI clicks - are public-domain (CC0)
+    recordings processed with numpy, 3 variants each (<name>_1..3.ogg),
+    one picked at random every time;
+  * jingles (match start, victory, crown...) and music themes 3-4 are
+    played by a sampled orchestra (CC0 VSCO-2 samples) or are CC0
+    recordings (stereo .ogg).
 
->>> To use your own sounds, drop a WAV with the same name into
-    assets/sounds/ (e.g. knight_deploy.wav). Files you add yourself are
-    never overwritten. Names:
-        <cardkey>_deploy.wav   played when the card is placed
-        <cardkey>_attack.wav   replaces ALL of that unit's attack variants
-        <spellkey>_impact.wav  played when a spell lands
-        music_menu / music_battle / music_final .wav  (looping music)
-        ui_*, death_*, tower_*, ... (see EXTRA_SOUNDS below)
+Only music themes 1-2 are still synthesised here from scratch (oscillators,
+filtered noise, plucked strings): on first run (or whenever SOUND_VERSION
+changes) they are rendered into assets/sounds/music_*.wav.
+
+>>> To use your own sounds, drop a WAV with the same name (without the
+    variant number) into assets/sounds/ - e.g. knight_attack.wav replaces
+    all three Knight attack variants, victory.wav the victory jingle. Files
+    you add yourself are never overwritten.
 ============================================================================
 """
 
@@ -208,13 +208,6 @@ def normalize(sig, peak=0.85):
     return [v * k for v in sig]
 
 
-def fade_tail(sig, dur=0.03):
-    n = min(len(sig), int(dur * SR))
-    for i in range(n):
-        sig[len(sig) - n + i] *= (n - i) / n
-    return sig
-
-
 def loop_wrap(sig, length):
     """Fold anything past `length` seconds back onto the start so a music
     loop repeats seamlessly (reverb/decay tails carry over the loop point)."""
@@ -258,22 +251,9 @@ def write_wav(path, sig):
         w.writeframes(data.tobytes())
 
 
-def _rng(key, salt=""):
-    return random.Random(zlib.crc32((key + salt).encode()))
-
-
 # ===========================================================================
-#  SOUND FAMILIES
+#  SYNTH VOICES (used by the synthesised music themes)
 # ===========================================================================
-def s_explosion(size=1.0, seed=1, bright=0.5):
-    out = []
-    mix_into(out, lowpass(noise(0.9 * size, decay=0.55 * size, seed=seed,
-                                color="brown"), 900 * (0.6 + bright), 120), 0, 1.0)
-    mix_into(out, tone(110 / size, 0.5 * size, 38, decay=0.4 * size), 0, 0.9)
-    mix_into(out, highpass(noise(0.18, decay=0.12, seed=seed + 7), 2500), 0, 0.35)
-    return out
-
-
 def s_whoosh(dur=0.35, f0=400, f1=1800, seed=2, vol=1.0):
     n = noise(dur, attack=dur * 0.6, decay=dur * 0.9, seed=seed)
     return gain(bandpass(lowpass(n, f0, f1), (f0 + f1) / 2, 0.9), 2.5 * vol)
@@ -287,119 +267,6 @@ def s_clang(f=900, dur=0.45, seed=3, bright=1.0):
     return out
 
 
-def s_thud(f=90, dur=0.35, seed=4, vol=1.0):
-    out = tone(f * 1.8, dur, f * 0.6, decay=dur * 0.7)
-    mix_into(out, lowpass(noise(dur * 0.6, decay=dur * 0.4, seed=seed), 700), 0, 0.6)
-    return gain(out, vol)
-
-
-def s_zap(f=1200, dur=0.3, seed=5):
-    r = random.Random(seed)
-    out = []
-    t = 0.0
-    while t < dur:
-        seg = r.uniform(0.012, 0.04)
-        ff = f * r.uniform(0.6, 1.6)
-        mix_into(out, tone(ff, seg, ff * r.uniform(0.5, 1.5), wave_="square",
-                           decay=seg * 2), t, r.uniform(0.4, 0.9))
-        t += seg * r.uniform(0.6, 1.0)
-    mix_into(out, highpass(noise(dur, decay=dur * 0.7, seed=seed), 2000), 0, 0.5)
-    return lowpass(out, 6000)
-
-
-def s_bolt(dur=0.3, seed=5, bright=1.0):
-    """An electric bolt: a sharp crack, then a crackling, fizzing discharge
-    over a low mains-style hum. No pitched tones, so it never 'rings'."""
-    r = random.Random(seed)
-    out = highpass(noise(0.035, attack=0.0005, decay=0.02, seed=seed), 1800)
-    out = gain(out, 1.3)
-    # crackle: a burst of tiny random sparks that thins out over time
-    t = 0.004
-    while t < dur:
-        life = 1.0 - t / dur
-        burst = highpass(noise(r.uniform(0.001, 0.004), attack=0.0002,
-                               decay=0.002, seed=r.randint(0, 10 ** 6)), 1200)
-        mix_into(out, burst, t, r.uniform(0.3, 1.0) * (0.25 + 0.75 * life))
-        t += r.uniform(0.003, 0.016) * (1.0 + 1.5 * (1.0 - life))
-    out = bandpass(out, 3200 * bright, 0.9)
-    mix_into(out, highpass(noise(dur, decay=dur * 0.5, seed=seed + 1), 5000), 0, 0.25)
-    hum = lowpass(tone(100, dur * 0.8, 85, wave_="saw", attack=0.002,
-                       decay=dur * 0.45), 700)
-    mix_into(out, hum, 0, 0.35)
-    return out
-
-
-def s_shimmer(f=1500, dur=0.6, seed=6, n=5):
-    r = random.Random(seed)
-    out = []
-    for i in range(n):
-        mix_into(out, fm(f * r.uniform(0.9, 2.2), 1.41, 2.0, dur * r.uniform(0.5, 1.0),
-                         decay=dur * 0.5), i * 0.035, 0.35)
-    return out
-
-
-def s_voice(pitch=180, vowel=0, dur=0.22, seed=7, growl=0.0):
-    """A tiny formant 'grunt' - gives every troop its own voice."""
-    formants = [(730, 1090), (530, 1840), (270, 2290), (570, 840), (440, 1020),
-                (660, 1720)][vowel % 6]
-    src = tone(pitch, dur, pitch * 0.82, wave_="saw", attack=0.01, decay=dur * 0.9,
-               vib=0.02)
-    if growl:
-        src = [v + growl * w for v, w in zip(src, noise(dur, decay=dur, seed=seed))]
-    out = []
-    mix_into(out, bandpass(src, formants[0], 5), 0, 1.0)
-    mix_into(out, bandpass(src, formants[1], 6), 0, 0.6)
-    return gain(out, 3.0)
-
-
-def s_twang(f=300, dur=0.3, seed=8):
-    out = pluck(f, dur, bright=0.3, seed=seed)
-    mix_into(out, s_whoosh(0.18, 1200, 4000, seed=seed, vol=0.4), 0.02, 1.0)
-    return out
-
-
-def s_gunshot(size=1.0, seed=9):
-    out = highpass(noise(0.12 * size, decay=0.09 * size, seed=seed), 900)
-    mix_into(out, tone(160 / size, 0.16 * size, 60, decay=0.12), 0, 0.8)
-    mix_into(out, lowpass(noise(0.4 * size, decay=0.3, seed=seed + 1), 500), 0.01, 0.35)
-    return out
-
-
-def s_fire(dur=0.45, seed=10, f=600):
-    out = lowpass(noise(dur, attack=0.05, decay=dur * 0.8, seed=seed), f * 2, f * 0.6)
-    r = random.Random(seed)
-    for _ in range(int(dur * 25)):     # crackles
-        mix_into(out, highpass(noise(0.006, decay=0.005, seed=r.randint(0, 99999)), 2500),
-                 r.uniform(0, dur), r.uniform(0.3, 0.8))
-    return gain(out, 1.6)
-
-
-def s_bones(seed=11, n=4, f=1800):
-    r = random.Random(seed)
-    out = []
-    for i in range(n):
-        mix_into(out, bandpass(noise(0.03, decay=0.025, seed=r.randint(0, 9999)),
-                               f * r.uniform(0.7, 1.4), 8), i * r.uniform(0.03, 0.06), 2.5)
-    return out
-
-
-def s_mechanical(seed=12, f=220):
-    r = random.Random(seed)
-    out = []
-    for i in range(3):
-        mix_into(out, s_clang(f * r.uniform(1.5, 3.0), 0.12, seed + i, 0.5), i * 0.07, 0.5)
-    mix_into(out, tone(f, 0.25, f * 0.7, wave_="square", decay=0.2), 0, 0.15)
-    return lowpass(out, 5000)
-
-
-def s_chime(f=880, notes=(0, 4, 7), step=0.07, dur=0.5):
-    out = []
-    for i, semi in enumerate(notes):
-        mix_into(out, fm(f * 2 ** (semi / 12), 2.0, 1.2, dur, decay=dur * 0.6),
-                 i * step, 0.5)
-    return out
-
-
 def s_brass(f=220, dur=0.5, notes=(0, 4, 7)):
     out = []
     for semi in notes:
@@ -407,36 +274,6 @@ def s_brass(f=220, dur=0.5, notes=(0, 4, 7)):
         sig = lowpass(tone(ff, dur, wave_="saw", attack=0.03, vib=0.004), ff * 4)
         mix_into(out, sig, 0, 0.35)
     return out
-
-
-def make_extras():
-    S = {}
-    S["ability"] = normalize(mix_into(s_whoosh(0.5, 300, 3000, 5, 1.0),
-                                      s_chime(784, (0, 4, 7, 12), 0.06, 0.6), 0.1, 0.8), 0.85)
-    S["crown"] = normalize(s_chime(1046, (0, 4, 7, 12), 0.09, 0.9), 0.75)
-    S["king_wake"] = normalize(s_brass(110, 0.9, (0, 7)), 0.7)
-    S["match_start"] = normalize(mix_into(s_brass(196, 0.35, (0, 4, 7)),
-                                          s_brass(262, 0.6, (0, 4, 7)), 0.3, 1.0), 0.8)
-    S["double_elixir"] = normalize(mix_into(s_chime(523, (0, 7), 0.12, 0.6),
-                                            s_chime(784, (0, 7), 0.12, 0.6), 0.3, 1.0), 0.75)
-    S["overtime"] = normalize(fm(98, 1.4, 4.0, 2.0, decay=1.8), 0.8)    # gong
-    ev = s_shimmer(1200, 0.7, 41, 6)
-    mix_into(ev, s_whoosh(0.5, 200, 2600, 42, 0.7), 0, 0.8)
-    mix_into(ev, tone(220, 0.6, 440, wave_="triangle", attack=0.05, decay=0.5, vol=0.4), 0, 1.0)
-    S["evo_deploy"] = normalize(ev, 0.7)
-    hr = s_brass(330, 0.45, (0, 4, 7, 12))
-    mix_into(hr, s_chime(1318, (0, 7, 12), 0.06, 0.5), 0.1, 0.6)
-    S["hero_ability"] = normalize(hr, 0.75)
-    vic = []
-    for i, semi in enumerate((0, 4, 7, 12)):
-        mix_into(vic, s_brass(262 * 2 ** (semi / 12), 0.5 if i < 3 else 1.4, (0, 4, 7)), i * 0.18, 0.6)
-    mix_into(vic, s_chime(1046, (0, 4, 7, 12, 16), 0.1, 1.0), 0.6, 0.5)
-    S["victory"] = normalize(vic, 0.85)
-    dft = []
-    for i, semi in enumerate((7, 3, 0, -5)):
-        mix_into(dft, s_brass(196 * 2 ** (semi / 12), 0.55 if i < 3 else 1.5, (0, 3)), i * 0.3, 0.6)
-    S["defeat"] = normalize(lowpass(dft, 1500), 0.8)
-    return S
 
 
 # ===========================================================================
@@ -671,7 +508,6 @@ def make_battle_music2():
 def _jobs():
     """(name, builder) for every sound file."""
     jobs = []
-    jobs.append(("_extras", make_extras))
     jobs.append(("music_menu", make_menu_music))
     jobs.append(("music_battle", make_battle_music))
     jobs.append(("music_menu2", make_menu_music2))
@@ -683,8 +519,6 @@ def _manifest_path():
     return os.path.join(SOUND_DIR, ".soundgen.json")
 
 
-EXTRA_NAMES = ["ability", "crown", "king_wake", "match_start", "double_elixir",
-               "overtime", "victory", "defeat", "evo_deploy", "hero_ability"]
 
 # Sounds re-rendered since they were first shipped: bump a name's number to
 # regenerate just that file on the next launch (without a full SOUND_VERSION
@@ -729,9 +563,7 @@ def ensure_sounds(progress=None):
     for n, (name, build) in enumerate(jobs):
         if progress:
             progress(n, len(jobs))
-        if name == "_extras":
-            names = EXTRA_NAMES
-        elif name == "music_battle":
+        if name == "music_battle":
             names = ["music_battle", "music_final"]
         elif name == "music_battle2":
             names = ["music_battle2", "music_final2"]
@@ -741,10 +573,7 @@ def ensure_sounds(progress=None):
             now.update(nm for nm in names if nm in generated or fresh_install)
             continue
         res = build()
-        if name == "_extras":
-            for nm in names:
-                write(nm, res[nm])
-        elif name == "music_battle":
+        if name == "music_battle":
             write("music_battle", res)
             # the last-minute track: same loop, faster and a tone higher
             write("music_final", resample(res, 1.12))
@@ -849,6 +678,18 @@ def match_sound_names(m):
         for kind in ("attack", "hit", "deploy", "ability", "spawn", "cast", "impact"):
             names.append(k + "_" + kind)
     return names
+
+
+def music_themes(kind):
+    """How many themes of `kind` ('menu' or 'battle') are installed (1..4):
+    music_<kind>.wav, music_<kind>2.wav, music_<kind>3.ogg, ..."""
+    n = 1
+    while n < 9:
+        nm = "music_%s%d" % (kind, n + 1)
+        if not any(os.path.exists(os.path.join(SOUND_DIR, nm + e)) for e in (".wav", ".ogg")):
+            break
+        n += 1
+    return n
 
 
 # ===========================================================================
@@ -989,8 +830,9 @@ class SoundManager:
 
     # ---- music ----
     def music(self, track):
-        """track: 'menu' | 'menu2' | 'battle' | 'battle2' | 'final' | 'final2' |
-        None (stop)."""
+        """track: 'menu' | 'menu2..4' | 'battle' | 'battle2..4' | 'final' |
+        'final2..4' | None (stop). Themes 1-2 are synthesised WAVs, 3-4 are
+        .ogg files built by tools/sfx/music.py."""
         if not self.ok:
             return
         if not self.music_on:
@@ -1004,6 +846,8 @@ class SoundManager:
                 self.pg.mixer.music.stop()
                 return
             path = os.path.join(SOUND_DIR, "music_%s.wav" % track)
+            if not os.path.exists(path):
+                path = path[:-4] + ".ogg"
             if not os.path.exists(path):
                 return
             self.pg.mixer.music.load(path)

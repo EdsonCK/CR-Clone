@@ -95,6 +95,30 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.4.8 changes
+
+* **Electric attacks hit the moment they're fired**: Electro Wizard,
+  Electro Dragon, Zappies, Goblinstein and the Spirit Empress (in the air)
+  no longer throw a slow ball - like Tesla and the Electro Giant's
+  counter-zap, the zap lands instantly. Every electric hit draws a new
+  lightning bolt (jagged, flickering, glowing, with forks and a flash where
+  it lands) that stays pinned to the shooter and the target, so its end is
+  always exactly on the target. The **Electro Spirit** and **Electro
+  Dragon** chains now ripple outward, **0.2 s per hop**, and the Electro
+  Spirit's bolt is thicker. **Sparky**'s blast is now a blue ball of
+  lightning that flies 4x faster.
+* **Big hits feel big**: Mini P.E.K.K.A (reworked), P.E.K.K.A, Mega Knight,
+  Golem, Giant, Prince, Hog Rider, Sparky, Mortar and the other heavy
+  hitters get a sub punch, a crack and debris on impact and are louder; the
+  very heaviest nudge the camera.
+* **All other sounds redone**: every spell's cast and impact (thunder for
+  Lightning, a real earthquake, wind for Tornado, the Log rolling, arrow
+  volleys...) and the UI clicks are recordings now, and the jingles (match
+  start, victory, defeat, crown, King waking, double elixir, overtime,
+  abilities, evolutions) are played by a sampled orchestra.
+* **New music**: 2 new menu themes and 2 new battle themes - the menu and
+  battles now rotate through 4 each (see *Music & sound*).
+
 ## v1.4.7 changes
 
 * **New battle sounds**, made from real public-domain recordings instead of
@@ -724,9 +748,10 @@ spell fields, etc.).
 
 **Battle sounds are real recordings.** Every unit's attacks, every splash
 impact (bombs, fireballs, mortar shells), every deploy, death, champion /
-hero / evolution ability and every spawner (Tombstone, huts, Witch...) is
-built from public-domain (**CC0**) recordings - swords, bows, muskets,
-cannons, creature and human voices, foley - processed and layered with
+hero / evolution ability, every spawner (Tombstone, huts, Witch...), every
+spell's cast and impact and the UI clicks are built from public-domain
+(**CC0**) recordings - swords, bows, muskets, cannons, thunder, wind, an
+earthquake, creature and human voices, foley - processed and layered with
 numpy, sometimes with synthesised layers on top (electric zaps, fizzing
 fuses, magic shimmers). The packs and their authors are listed in
 `assets/sounds/CREDITS.txt`.
@@ -735,34 +760,48 @@ fuses, magic shimmers). The packs and their authors are listed in
   picks one at random every time (a tiny 8-bit random generator, never the
   same variant twice in a row), so repeated swings don't sound like a loop;
 * each unit has its own mix (a Knight and a Barbarian both swing swords, but
-  sound different);
+  sound different), and the heaviest hitters (P.E.K.K.A, Mini P.E.K.K.A,
+  Mega Knight, Golem, Giant, Prince, Sparky...) get extra weight: a sub
+  punch, a crack and debris on impact, louder - the very biggest also nudge
+  the camera;
 * a match loads the sounds its two decks can need on a background thread
   as it starts (about 1 ms per file), so nothing is read from disk mid-fight.
-  All the recorded sounds together are ~12 MB of .ogg files.
 
-The rest - menu and battle music, spells' cast / impact sounds, UI clicks,
-jingles and announcements - is **synthesised** in `src/sounds.py`
-(oscillators, filtered noise, plucked strings), rendered to WAVs on first
-run.
+**Jingles** (match start, victory, defeat, crowns, the King waking up,
+double elixir, overtime, abilities, evolutions) are played by a small
+**sampled orchestra** - brass, strings, harp, glockenspiel, timpani, snare
+from the CC0 VSCO-2 CE library (`tools/sfx/orch.py`, written out in
+`tools/sfx/compose.py`).
+
+**Music:** the menu and battles each **rotate through 4 themes** (the next
+one each time). Themes 1-2 are synthesised by `src/sounds.py`; the new
+themes 3-4 are:
+
+| | menu | battle |
+|---|---|---|
+| 3 | "Medieval: Minstrel Dance" - RandomMind (CC0 recording) | "Battle Theme A" - cynicmusic (CC0 recording) |
+| 4 | "Arena Gates" - composed for the sampled orchestra | "Siege of the Bridge" - composed for the sampled orchestra |
+
+Every battle theme has a faster final-minute version.
 
 Sounds are panned left/right by where they happen. Toggle **Music** (M key)
-and **Sound** (N key) anywhere; volumes are in Settings. There are two menu
-themes and two battle themes (each with its faster final-minute version):
-battles alternate between the battle themes, and the menu switches theme
-each time you come back from a battle.
+and **Sound** (N key) anywhere; volumes are in Settings.
 
 **Your own sounds:** drop a WAV into `assets/sounds/` named after the sound
 without the number - e.g. `knight_attack.wav` replaces all three Knight
 attack variants, `giant_deploy.wav` the Giant's deploy, `die_goblin.wav`
-every goblin death. It is used and never overwritten.
+every goblin death, `victory.wav` the victory jingle. It is used and never
+overwritten.
 
 **Rebuilding the recorded sounds** (only if you want to change them):
 `tools/sfx/` holds the recipes. `pip install numpy scipy soundfile py7zr`,
-then `python tools/sfx/render.py --fetch` downloads the CC0 packs once
-(~800 MB, kept out of the repo) and renders everything in ~10 s;
-`python tools/sfx/render.py knight` re-renders just one unit, and
-`--sheet out.png` draws spectrograms to check them by eye. Attacks are in
-`tools/sfx/attack.py`, everything else in `tools/sfx/events.py`.
+then `python tools/sfx/render.py --fetch` downloads the CC0 packs and the
+orchestral samples once (~2 GB, kept out of the repo) and renders every
+sound effect in ~15 s; `python tools/sfx/music.py` builds music themes 3-4
+and the jingles. `python tools/sfx/render.py knight` re-renders just one
+unit, and `--sheet out.png` draws spectrograms to check them by eye.
+Attacks are in `tools/sfx/attack.py`, everything else in
+`tools/sfx/events.py`.
 
 ## Settings
 

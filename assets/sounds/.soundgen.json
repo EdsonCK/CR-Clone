@@ -1,22 +1,12 @@
 {
 "version": 2,
 "generated": [
-"ability",
-"crown",
-"defeat",
-"double_elixir",
-"evo_deploy",
-"hero_ability",
-"king_wake",
-"match_start",
 "music_battle",
 "music_battle2",
 "music_final",
 "music_final2",
 "music_menu",
-"music_menu2",
-"overtime",
-"victory"
+"music_menu2"
 ],
 "revs": {
 "elixir_pop": 3,
