@@ -95,6 +95,19 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.4.7 changes
+
+* **New battle sounds**, made from real public-domain recordings instead of
+  synthesis: every unit's **attacks** (with 3 random variants each),
+  **impacts** of bombs, fireballs and mortar shells, **deploys** (each unit's
+  voice + how it lands), **deaths** (humans, goblins, skeletons, giants,
+  machines, buildings...), champion / hero / evolution **abilities**,
+  buildings **spawning** units, dashes, slams, portals and a crumbling tower.
+  Higher quality too: the sound now runs at 44.1 kHz. See *Music & sound*.
+* **Tombstone** sends its skeletons out one at a time, 0.25 s apart, from
+  the same spot in front of it - a Tombstone on the centre line no longer
+  splits its waves between the two lanes.
+
 ## v1.4.6 changes
 
 * **Monk** +10% hp (889 -> 978), to make up for standing still during his
@@ -709,29 +722,47 @@ spell fields, etc.).
 
 ## Music & sound
 
-All music and sound effects are **synthesised from scratch** in
-`src/sounds.py` (oscillators, filtered noise, plucked strings). There are no
-samples and nothing copyrighted. That includes:
+**Battle sounds are real recordings.** Every unit's attacks, every splash
+impact (bombs, fireballs, mortar shells), every deploy, death, champion /
+hero / evolution ability and every spawner (Tombstone, huts, Witch...) is
+built from public-domain (**CC0**) recordings - swords, bows, muskets,
+cannons, creature and human voices, foley - processed and layered with
+numpy, sometimes with synthesised layers on top (electric zaps, fizzing
+fuses, magic shimmers). The packs and their authors are listed in
+`assets/sounds/CREDITS.txt`.
 
-* menu music, battle music, and a faster track for the last minute;
-* victory / defeat jingles and announcements (double elixir, overtime, the
-  final 10-second countdown, the King waking up);
-* UI clicks, card select / deselect, and an "invalid placement" buzz;
-* a **unique deploy sound and attack sound for every card**, plus a cast
-  and impact sound for every spell.
+* each of those sounds has **3 variants** (`<name>_1..3.ogg`) and the game
+  picks one at random every time (a tiny 8-bit random generator, never the
+  same variant twice in a row), so repeated swings don't sound like a loop;
+* each unit has its own mix (a Knight and a Barbarian both swing swords, but
+  sound different);
+* a match loads the sounds its two decks can need on a background thread
+  as it starts (about 1 ms per file), so nothing is read from disk mid-fight.
+  All the recorded sounds together are ~12 MB of .ogg files.
+
+The rest - menu and battle music, spells' cast / impact sounds, UI clicks,
+jingles and announcements - is **synthesised** in `src/sounds.py`
+(oscillators, filtered noise, plucked strings), rendered to WAVs on first
+run.
 
 Sounds are panned left/right by where they happen. Toggle **Music** (M key)
 and **Sound** (N key) anywhere; volumes are in Settings. There are two menu
 themes and two battle themes (each with its faster final-minute version):
 battles alternate between the battle themes, and the menu switches theme
-each time you come back from a battle. The
-WAVs live in `assets/sounds/`. Drop in your own WAV with the same name
-(e.g. `knight_attack.wav`) and it is used and never overwritten.
+each time you come back from a battle.
 
-The Tesla fires an electric crackle (a sharp crack, fizzing sparks and a
-low hum) instead of a pitched tone, and it and the Archers are trimmed
-quieter (`ATTACK_GAIN` in `sounds.py`). To re-render one sound after changing
-it, bump its number in `SOUND_REVS`; only that file is regenerated.
+**Your own sounds:** drop a WAV into `assets/sounds/` named after the sound
+without the number - e.g. `knight_attack.wav` replaces all three Knight
+attack variants, `giant_deploy.wav` the Giant's deploy, `die_goblin.wav`
+every goblin death. It is used and never overwritten.
+
+**Rebuilding the recorded sounds** (only if you want to change them):
+`tools/sfx/` holds the recipes. `pip install numpy scipy soundfile py7zr`,
+then `python tools/sfx/render.py --fetch` downloads the CC0 packs once
+(~800 MB, kept out of the repo) and renders everything in ~10 s;
+`python tools/sfx/render.py knight` re-renders just one unit, and
+`--sheet out.png` draws spectrograms to check them by eye. Attacks are in
+`tools/sfx/attack.py`, everything else in `tools/sfx/events.py`.
 
 ## Settings
 
@@ -924,7 +955,7 @@ src/
   ai.py       the single-player opponent
   sprites.py  saves/loads unit art, in-game unit sizes
   sprite_art.py  the original card art (one function per card)
-  sounds.py   procedural music & sound effects
+  sounds.py   sound loading / playback + procedural music & UI sounds
   fx.py       particles & spell visuals
   game.py     window, menus, deck builder, rendering, input, main loop
   ui.py       shared text / gradient / button helpers
@@ -943,10 +974,11 @@ src/
   towers.py   Tower Troops;  carddesc.py  the one-line card descriptions
 assets/
   sprites/    generated (and user-replaceable) PNGs
-  sounds/     generated (and user-replaceable) WAVs
+  sounds/     recorded battle sounds (.ogg) + generated WAVs (all user-replaceable)
 tools/
   balance.py        card benchmark & auto-balancer
   apply_balance.py  writes balanced stats into src/cards.py
+  sfx/              builds the recorded battle sounds (see Music & sound)
 ```
 
 ## Cards included (123, including 8 Champions)

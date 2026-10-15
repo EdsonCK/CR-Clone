@@ -410,80 +410,6 @@ def s_brass(f=220, dur=0.5, notes=(0, 4, 7)):
 
 
 # ---------------------------------------------------------------------------
-# Unit groups used to pick deploy sounds
-# ---------------------------------------------------------------------------
-HEAVY = {"pekka", "mega_knight", "giant_skeleton", "golem", "golemite", "giant",
-         "goblin_giant", "electro_giant", "elixir_golem", "ice_golem",
-         "goblin_monster", "skeleton_king", "royal_guardian", "lava_hound"}
-UNDEAD = {"skeletons", "skeleton", "skeleton_army", "skeleton_barrel",
-          "giant_skeleton", "skeleton_king", "guards", "tombstone", "graveyard"}
-MACHINES = {"xbow", "mortar", "cannon", "tesla", "inferno_tower", "bomb_tower",
-            "flying_machine", "cannon_cart", "sparky", "elixir_collector",
-            "goblin_hut", "barbarian_hut", "furnace", "royal_giant"}
-SMALL = {"skeletons", "skeleton", "skeleton_army", "goblins", "goblin",
-         "spear_goblins", "spear_goblin", "bats", "bat", "minions",
-         "minion_horde", "lava_pup", "ice_spirit", "fire_spirit",
-         "electro_spirit", "elixir_blob", "guards", "dart_goblin",
-         "wall_breakers", "bomber", "zappies"}
-
-
-def make_deploy(c):
-    """Placing a card: landing thump + the unit's own 'voice'."""
-    r = _rng(c.key, "dep")
-    sd = r.randint(0, 10 ** 6)
-    p = r.uniform(0.85, 1.2)
-    if c.category == "building":
-        out = []
-        for i in range(3):
-            mix_into(out, s_thud(140 * p * (1 + 0.1 * i), 0.18, sd + i), i * 0.11, 0.8)
-            mix_into(out, s_clang(700 * p * r.uniform(0.9, 1.3), 0.12, sd + i, 0.5), i * 0.11, 0.3)
-        if c.key in MACHINES:
-            mix_into(out, s_mechanical(sd, 180 * p), 0.3, 0.6)
-        if c.spawner:
-            mix_into(out, s_voice(260 * p, r.randint(0, 5), 0.2, sd), 0.32, 0.6)
-        return fade_tail(normalize(out, 0.75))
-    big = c.hp * max(c.count, 1) >= 1800 or c.key in HEAVY
-    small = c.key in SMALL
-    out = []
-    # landing
-    land_f = 70 if big else (180 if small else 120)
-    mix_into(out, s_thud(land_f * p, 0.45 if big else 0.25, sd, 1.0), 0, 0.9)
-    # voice / character
-    vstart = 0.06
-    if c.key in UNDEAD:
-        mix_into(out, s_bones(sd, 5, 1500 * p), vstart, 0.8)
-    elif c.key in MACHINES or c.key in ("battle_ram", "skeleton_barrel"):
-        mix_into(out, s_mechanical(sd, 160 * p), vstart, 0.8)
-    elif c.flying and c.key in ("baby_dragon", "inferno_dragon", "electro_dragon",
-                                "lava_hound"):
-        roar = lowpass(tone(110 * p, 0.5, 80 * p, wave_="saw", attack=0.05,
-                            decay=0.45, vib=0.03), 900)
-        mix_into(roar, lowpass(noise(0.5, attack=0.05, decay=0.4, seed=sd), 700), 0, 0.6)
-        mix_into(out, roar, vstart, 0.9)
-    elif c.key in ("ice_spirit", "fire_spirit", "electro_spirit", "elixir_blob",
-                   "elixir_golem"):
-        mix_into(out, s_chime(900 * p, (0, 7, 12), 0.04, 0.3), vstart, 0.6)
-    elif c.flying and c.key in ("balloon",):
-        mix_into(out, s_whoosh(0.5, 200, 700, sd, 0.6), vstart, 1.0)
-    else:
-        if small:
-            pitch = 330 * p
-        elif big:
-            pitch = 95 * p
-        else:
-            pitch = 170 * p
-        mix_into(out, s_voice(pitch, r.randint(0, 5), 0.18 if small else 0.28, sd,
-                              growl=0.25 if big else 0.0), vstart, 0.8)
-        if c.count >= 3:     # a crowd: extra overlapping voices
-            for k in range(2):
-                mix_into(out, s_voice(pitch * r.uniform(0.85, 1.2), r.randint(0, 5),
-                                      0.15, sd + k + 1), vstart + 0.05 * (k + 1), 0.45)
-    if c.is_champion:
-        mix_into(out, s_brass(196 * p, 0.6, (0, 4, 7, 12)), 0.1, 0.5)
-    return fade_tail(normalize(out, 0.8))
-
-
-# ---------------------------------------------------------------------------
 # Spells: a distinct cast + impact for each one
 # ---------------------------------------------------------------------------
 def make_spell(c):
@@ -625,13 +551,6 @@ def make_extras():
     S["ui_toggle"] = normalize(tone(800, 0.06, 1200, decay=0.05), 0.45)
     S["ability"] = normalize(mix_into(s_whoosh(0.5, 300, 3000, 5, 1.0),
                                       s_chime(784, (0, 4, 7, 12), 0.06, 0.6), 0.1, 0.8), 0.85)
-    S["death_small"] = normalize(mix_into(lowpass(noise(0.2, decay=0.15, seed=3), 1500),
-                                          tone(500, 0.15, 250, decay=0.12), 0, 0.4), 0.45)
-    S["death_big"] = normalize(s_thud(60, 0.6, 9, 1.0), 0.7)
-    S["death_building"] = normalize(mix_into(s_explosion(0.9, 21, 0.3), s_bones(4, 6, 800), 0.05, 0.5), 0.7)
-    tw = s_explosion(1.8, 31, 0.4)
-    mix_into(tw, gain(lowpass(noise(1.5, attack=0.1, decay=1.4, seed=8, color="brown"), 300), 3), 0.2, 1.0)
-    S["tower_down"] = normalize(tw, 0.9)
     S["crown"] = normalize(s_chime(1046, (0, 4, 7, 12), 0.09, 0.9), 0.75)
     S["king_wake"] = normalize(s_brass(110, 0.9, (0, 7)), 0.7)
     S["match_start"] = normalize(mix_into(s_brass(196, 0.35, (0, 4, 7)),
@@ -640,12 +559,6 @@ def make_extras():
                                             s_chime(784, (0, 7), 0.12, 0.6), 0.3, 1.0), 0.75)
     S["overtime"] = normalize(fm(98, 1.4, 4.0, 2.0, decay=1.8), 0.8)    # gong
     S["tick"] = normalize(tone(1500, 0.04, decay=0.03), 0.35)
-    S["dash"] = normalize(s_whoosh(0.25, 500, 3000, 12, 1.0), 0.6)
-    S["slam"] = normalize(s_explosion(1.0, 41, 0.3), 0.85)
-    por = gain(lowpass(noise(0.7, attack=0.2, decay=0.6, seed=17, color="brown"), 500, 1400), 2.5)
-    mix_into(por, tone(90, 0.7, 180, wave_="triangle", attack=0.15, decay=0.6, vol=0.4), 0)
-    mix_into(por, s_bones(23, 4, 1300), 0.25, 0.7)
-    S["portal"] = normalize(por, 0.7)
     pop = tone(520, 0.12, 900, decay=0.1, vol=0.6)
     mix_into(pop, s_chime(1318, (0, 7), 0.05, 0.35), 0.04, 0.5)
     S["elixir_pop"] = normalize(pop, 0.4)
@@ -903,11 +816,6 @@ def _jobs():
     for key, c in cards.CARDS.items():
         if c.category == "spell":
             jobs.append((key + "_spell", (lambda c=c: make_spell(c))))
-        elif c.deployable:
-            jobs.append((key + "_deploy", (lambda c=c: make_deploy(c))))
-    # forms that appear mid-match announce themselves too
-    for key in ("spirit_empress_air", "demolisher_charge", "phoenix_reborn"):
-        jobs.append((key + "_deploy", (lambda c=cards.CARDS[key]: make_deploy(c))))
     jobs.append(("_extras", make_extras))
     jobs.append(("music_menu", make_menu_music))
     jobs.append(("music_battle", make_battle_music))
@@ -921,9 +829,8 @@ def _manifest_path():
 
 
 EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle",
-               "ability", "death_small", "death_big", "death_building",
-               "tower_down", "crown", "king_wake", "match_start", "double_elixir",
-               "overtime", "tick", "dash", "slam", "victory", "defeat", "portal",
+               "ability", "crown", "king_wake", "match_start", "double_elixir",
+               "overtime", "tick", "victory", "defeat",
                "elixir_pop", "evo_deploy", "hero_ability"]
 
 # Sounds re-rendered since they were first shipped: bump a name's number to
@@ -1037,18 +944,59 @@ def _related(key):
     return out
 
 
+# Which death sound (assets/sounds/die_<group>_1..3.ogg) each unit makes.
+# Units not listed: buildings -> "building", big ones -> "big", else "small".
+_DEATH_GROUPS = {
+    "human": "knight barbarians barbarian elite_barbarians wizard ice_wizard electro_wizard "
+             "prince dark_prince lumberjack hog_rider executioner hunter magic_archer miner "
+             "mighty_miner little_prince golden_knight monk ronin fisherman rascal_boy "
+             "royal_recruits royal_guardian",
+    "female": "archers musketeer three_musketeers valkyrie princess witch mother_witch "
+              "night_witch bandit battle_healer ram_rider archer_queen firecracker berserker "
+              "rascal_girl boss_bandit dagger_duchess spirit_empress tower_princess",
+    "goblin": "goblins goblin goblin_gang spear_goblins spear_goblin dart_goblin goblin_brawler "
+              "bush_goblin decoy_goblin goblin_demolisher demolisher_charge",
+    "skeleton": "skeletons skeleton skeleton_army guards bomber wall_breakers wb_runner "
+                "giant_skeleton skeleton_king skeletrooper souldier skeleton_general tomb_queen",
+    "giant": "giant royal_giant goblin_giant electro_giant rune_giant bowler mega_knight",
+    "golem": "golem golemite ice_golem",
+    "machine": "pekka mini_pekka flying_machine cannon_cart sparky zappies goblin_machine "
+               "hero_turret balloon battle_ram",
+    "monster": "goblinstein goblin_monster rhino royal_hogs cursed_hog",
+    "flyer": "baby_dragon inferno_dragon electro_dragon lava_hound lava_pup phoenix "
+             "phoenix_reborn mega_minion minions minion_horde minion_giant skeleton_dragons",
+    "bug": "bats bat",
+    "magic": "ice_spirit electro_spirit heal_spirit spirit_empress_air ma_decoy phoenix_egg "
+             "suspicious_bush",
+    "fire": "fire_spirit",
+    "elixir": "elixir_golem elixir_golemite elixir_blob",
+    "ghost": "royal_ghost lumberjack_ghost",
+    "building": "skeleton_barrel furnace",
+}
+DEATH_GROUP = {k: g for g, ks in _DEATH_GROUPS.items() for k in ks.split()}
+DEATH_NAMES = ["die_" + g for g in list(_DEATH_GROUPS) + ["big", "small"]]
+
+
+def death_sound(key, building=False, big=False):
+    """The death sound name for unit `key`."""
+    g = DEATH_GROUP.get(key)
+    if g is None:
+        g = "building" if building else ("big" if big else "small")
+    return "die_" + g
+
+
 def match_sound_names(m):
-    """Attack / impact sound names for everything that can appear in match m."""
+    """The recorded sounds everything that can appear in match m may need."""
     keys = {"princess_tower", "king_tower"}
     keys.update(getattr(m, "tower_troops", {}).values())
     for deck in getattr(m, "decks", ()):
         for k in deck:
             for r in _related(k):
                 keys.update(_related(r))
-    names = []
+    names = list(DEATH_NAMES) + ["tower_down", "dash", "slam", "portal"]
     for k in sorted(keys):
-        names.append(k + "_attack")
-        names.append(k + "_hit")
+        for kind in ("attack", "hit", "deploy", "ability", "spawn"):
+            names.append(k + "_" + kind)
     return names
 
 
@@ -1116,11 +1064,27 @@ class SoundManager:
             self.variants[name] = vs
         return vs
 
-    def preload(self, names):
-        """Load these sounds' variants now (at match start), so the first
-        swing of each unit doesn't touch the disk mid-battle."""
-        for n in names:
-            self._variants(n)
+    def preload(self, names, background=True):
+        """Load these sounds' variants ahead of time (at match start), so
+        the first swing of each unit doesn't touch the disk mid-battle.
+        Runs on a background thread (each file takes ~1 ms to decode, so the
+        game never stalls); anything played before it gets there simply
+        loads on the spot."""
+        names = [n for n in names if n not in self.variants]
+        if not names:
+            return
+
+        def work():
+            for n in names:
+                self._variants(n)
+        if background:
+            try:
+                import threading
+                threading.Thread(target=work, daemon=True).start()
+                return
+            except Exception:
+                pass
+        work()
 
     def _pick(self, name, n):
         """A random-enough variant index: a tiny 8-bit LCG (one multiply,

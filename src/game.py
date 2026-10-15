@@ -868,7 +868,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 if c is not None and c.category == "spell":
                     self.sfx.play(key + "_cast", 0.85 if mine else 0.7, pan, min_gap=0.02)
                 else:
-                    self.sfx.play(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
+                    self.sfx.play_var(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
                 if ev.get("evo"):
                     self.sfx.play("evo_deploy", 0.8, pan, min_gap=0.0)
                     if mine:
@@ -881,22 +881,25 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             elif kind == "death":
                 if ev.get("tower"):
                     self.shake = 9.0
-                    self.sfx.play("tower_down", 1.0, pan, min_gap=0.0)
+                    self.sfx.play_var("tower_down", 1.0, pan, min_gap=0.0)
                     self.sfx.play("crown", 0.8, 0.5, min_gap=0.0)
-                elif ev.get("building"):
-                    self.sfx.play("death_building", 0.7, pan)
-                elif ev.get("big"):
-                    self.sfx.play("death_big", 0.7, pan)
-                    self.shake = max(getattr(self, "shake", 0.0), 3.0)
                 else:
-                    self.sfx.play("death_small", 0.35, pan, min_gap=0.09)
+                    name = sounds.death_sound(key, ev.get("building"), ev.get("big"))
+                    if ev.get("building"):
+                        self.sfx.play_var(name, 0.7, pan)
+                    elif ev.get("big"):
+                        self.sfx.play_var(name, 0.7, pan)
+                        self.shake = max(getattr(self, "shake", 0.0), 3.0)
+                    else:
+                        self.sfx.play_var(name, 0.45, pan, min_gap=0.09)
             elif kind == "ability":
                 hero = None
                 for e in self.match.entities:
                     if e.hero and e.key == key and e.hero_def is not None:
                         hero = e
                         break
-                self.sfx.play("hero_ability" if hero else "ability", 1.0, pan, min_gap=0.0)
+                if not self.sfx.play_var(key + "_ability", 1.0, pan, min_gap=0.0):
+                    self.sfx.play("hero_ability" if hero else "ability", 1.0, pan, min_gap=0.0)
                 # name the ability over the unit, so you see what just happened
                 c = cards.CARDS.get(key)
                 name = None
@@ -914,14 +917,16 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                                            "text": name, "col": col, "age": 0.0,
                                            "life": 1.6})
             elif kind == "dash":
-                self.sfx.play("dash", 0.6, pan)
+                self.sfx.play_var("dash", 0.6, pan)
+            elif kind == "spawn":
+                self.sfx.play_var(key + "_spawn", 0.55 if mine else 0.45, pan, min_gap=0.1)
             elif kind == "wave":
                 self.sfx.play("overtime" if key == "boss" else "match_start", 0.9,
                               min_gap=0.0)
             elif kind == "portal":
-                self.sfx.play("portal", 0.6, pan, min_gap=0.15)
+                self.sfx.play_var("portal", 0.6, pan, min_gap=0.15)
             elif kind == "land" and ev.get("slam"):
-                self.sfx.play("slam", 0.85, pan)
+                self.sfx.play_var("slam", 0.85, pan)
                 self.shake = max(getattr(self, "shake", 0.0), 4.0)
             elif kind == "elixir_made":
                 if mine:

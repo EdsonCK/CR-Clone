@@ -247,6 +247,65 @@ PACKS = {
     "7-ghast-sounds": ("7 Ghast Sounds", "StarNinjas", [
         "https://opengameart.org/sites/default/files/ghast_-_starninjas.zip",
     ]),
+    "female-rpg-voice-starter-pack": ("Female RPG Voice Starter Pack", "cicifyre", [
+        "https://opengameart.org/sites/default/files/RPG%20Voice%20Starter%20Pack.zip",
+    ]),
+    "female-hurt-grunts-groans": ("Female Hurt Grunts & Groans", "Nocturnal_Vanguard", [
+        "https://opengameart.org/sites/default/files/female_hurt_grunts_groans_1.ogg",
+        "https://opengameart.org/sites/default/files/female_hurt_grunts_groans_1_0.ogg",
+    ]),
+    "male-gruntyelling-sounds": ("Male Grunt/Yelling sounds", "HaelDB", [
+        "https://opengameart.org/sites/default/files/yelling%20sounds.zip",
+    ]),
+    "5-hit-sounds-dying": ("5 Hit Sounds + Dying", "TinyWorlds", [
+        "https://opengameart.org/sites/default/files/5Hit_Sounds.zip",
+    ]),
+    "witch-cackle": ("Witch Cackle", "AntumDeluge", [
+        "https://opengameart.org/sites/default/files/witch_cackle-1.ogg",
+        "https://opengameart.org/sites/default/files/witch_cackle-1_0.ogg",
+    ]),
+    "group-giggling": ("Group giggling", "Nocturnal_Vanguard", [
+        "https://opengameart.org/sites/default/files/group_giggling.ogg",
+        "https://opengameart.org/sites/default/files/group_giggling_0.ogg",
+    ]),
+    "evil-laugh": ("Evil Laugh", "AntumDeluge", [
+        "https://opengameart.org/sites/default/files/laugh-evil-1.ogg",
+        "https://opengameart.org/sites/default/files/laugh-evil-1_0.ogg",
+    ]),
+    "15-vocal-male-strainhurtpainjump-sounds": ("15 vocal male strain/hurt/pain/jump sounds", "qubodup", [
+        "https://opengameart.org/sites/default/files/slightscreams.7z",
+        "https://opengameart.org/sites/default/files/sls.mp3",
+    ]),
+    "grunts-male-death-and-pain": ("grunts of male death and pain", "thebardofblasphemy", [
+        "https://opengameart.org/sites/default/files/death%20pain%20grunts.wav",
+    ]),
+    "hurt-death-sound-effect-for-character": ("Hurt / Death sound effect for character", "Badre-Eddine", [
+        "https://opengameart.org/sites/default/files/10.mp3",
+        "https://opengameart.org/sites/default/files/11.mp3",
+        "https://opengameart.org/sites/default/files/1_8.mp3",
+        "https://opengameart.org/sites/default/files/2_3.mp3",
+        "https://opengameart.org/sites/default/files/3_2.mp3",
+        "https://opengameart.org/sites/default/files/4_1.mp3",
+        "https://opengameart.org/sites/default/files/5_1.mp3",
+        "https://opengameart.org/sites/default/files/6_1.mp3",
+        "https://opengameart.org/sites/default/files/7.mp3",
+        "https://opengameart.org/sites/default/files/8.mp3",
+        "https://opengameart.org/sites/default/files/9.mp3",
+        "https://opengameart.org/sites/default/files/death%20sound%20effect.zip",
+    ]),
+    "tiny-creatures-sounds": ("Tiny creatures sounds", "fvcalderan", [
+        "https://opengameart.org/sites/default/files/battlecry0.ogg",
+        "https://opengameart.org/sites/default/files/battlecry1.ogg",
+        "https://opengameart.org/sites/default/files/battlecry2.ogg",
+        "https://opengameart.org/sites/default/files/laugh.ogg",
+    ]),
+    "evil-screech-1": ("Evil Screech 1", "Nocturnal_Vanguard", [
+        "https://opengameart.org/sites/default/files/evil_screech_1.ogg",
+        "https://opengameart.org/sites/default/files/evil_screech_1_0.ogg",
+    ]),
+    "osare-minotaur-sounds": ("Osare Minotaur Sounds", "Augmentality (Brandon Morris)", [
+        "https://opengameart.org/sites/default/files/mino1.wav",
+    ]),
 }
 
 

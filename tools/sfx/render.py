@@ -9,8 +9,10 @@
     python tools/sfx/render.py knight pekka     render just these units
     python tools/sfx/render.py --sheet out.png knight   + a spectrogram sheet
 
-Writes assets/sounds/<key>_attack_1..3.ogg (and <key>_hit_1..3.ogg for
-splash projectiles) plus assets/sounds/CREDITS.txt. The game itself needs
+Writes assets/sounds/<name>_1..3.ogg for every sound in attack.py
+(<key>_attack, <key>_hit) and events.py (<key>_deploy, die_<group>,
+<key>_ability, <key>_spawn, dash, slam, portal, tower_down), plus
+assets/sounds/CREDITS.txt. The game itself needs
 none of this - it just plays the finished .ogg files.
 ============================================================================
 """
@@ -41,35 +43,48 @@ def finish(y, loud=-15.0, room=-21.0):
     return D.fade(y, 0.0008, 0.02)
 
 
-def _job(args):
-    table, key, v = args
+def registry():
+    """name -> (fn(v), loudness dB, reverb dB) for every sound we build."""
     import attack as A
-    fn = (A.ATTACK if table == "attack" else A.HIT)[key]
+    import events as E
+    reg = {}
+    for key, fn in A.ATTACK.items():
+        reg[key + "_attack"] = (fn, A.LOUD.get(key, -15.0), A.ROOM.get(key, -21.0))
+    for key, fn in A.HIT.items():
+        reg[key + "_hit"] = (fn, A.LOUD.get(key, -15.0), A.ROOM.get(key, -21.0))
+    for name, fn in E.SOUNDS.items():
+        reg[name] = (fn, E.LOUD.get(name, -16.0), E.ROOM.get(name, -21.0))
+    return reg
+
+
+def _job(args):
+    name, v = args
+    fn, loud, room = registry()[name]
     try:
-        y = finish(fn(v), A.LOUD.get(key, -15.0), A.ROOM.get(key, -21.0))
+        y = finish(fn(v), loud, room)
     except Exception as ex:                      # report, keep going
-        return key, table, v, "ERROR %s: %r" % (type(ex).__name__, ex)
-    path = os.path.join(OUT, "%s_%s_%d.ogg" % (key, table, v + 1))
+        return name, v, "ERROR %s: %r" % (type(ex).__name__, ex)
+    path = os.path.join(OUT, "%s_%d.ogg" % (name, v + 1))
     D.write(path, y)
-    return key, table, v, path
+    return name, v, path
 
 
 def jobs(keys=None):
-    import attack as A
+    """keys: names ("knight_attack") or card keys ("knight": all its sounds)."""
     out = []
-    for table, reg in (("attack", A.ATTACK), ("hit", A.HIT)):
-        for key in sorted(reg):
-            if keys and key not in keys:
-                continue
-            for v in range(VARIANTS):
-                out.append((table, key, v))
+    for name in sorted(registry()):
+        if keys and name not in keys and not any(name.startswith(k + "_") for k in keys):
+            continue
+        for v in range(VARIANTS):
+            out.append((name, v))
     return out
 
 
 def credits():
-    lines = ["Sound effects: attack sounds are built from these public-domain",
-             "(CC0) recordings, processed with tools/sfx (numpy). CC0 needs no",
-             "credit - thank you anyway!", ""]
+    lines = ["Sound effects: the battle sounds (attacks, impacts, deploys, deaths,",
+             "abilities, spawns...) are built from recordings in these",
+             "public-domain (CC0) packs, processed with tools/sfx (numpy). CC0",
+             "needs no credit - thank you anyway!", ""]
     for key, (title, author, _) in S.PACKS.items():
         lines.append("  %s - %s  (%s)" % (title, author, S.page(key)))
     lines += ["", "Every other sound is synthesised by src/sounds.py."]
@@ -91,16 +106,16 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     with Pool(max(1, (os.cpu_count() or 2))) as pool:
         done = pool.map(_job, todo, chunksize=2)
-    errs = [d for d in done if d[3].startswith("ERROR")]
+    errs = [d for d in done if d[2].startswith("ERROR")]
     for e in errs:
         print(*e)
-    done = [d for d in done if not d[3].startswith("ERROR")]
+    done = [d for d in done if not d[2].startswith("ERROR")]
     print("rendered %d files" % len(done))
     if not args:
         credits()
     if sheet_path:
         import sheet
-        sheet.sheet([("%s %s%d" % (k, t[0], v + 1), D.load(p)) for k, t, v, p in done],
+        sheet.sheet([("%s %d" % (n, v + 1), D.load(p)) for n, v, p in done],
                     sheet_path, cols=3, max_t=1.0)
 
 

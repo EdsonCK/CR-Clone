@@ -1,6 +1,7 @@
-Sound effects: attack sounds are built from these public-domain
-(CC0) recordings, processed with tools/sfx (numpy). CC0 needs no
-credit - thank you anyway!
+Sound effects: the battle sounds (attacks, impacts, deploys, deaths,
+abilities, spawns...) are built from recordings in these
+public-domain (CC0) packs, processed with tools/sfx (numpy). CC0
+needs no credit - thank you anyway!
 
   Impact Sounds - Kenney  (https://kenney.nl/assets/impact-sounds)
   RPG Audio - Kenney  (https://kenney.nl/assets/rpg-audio)
@@ -54,5 +55,18 @@ credit - thank you anyway!
   8 wet squish, slurp impacts - Independent.nu  (https://opengameart.org/content/8-wet-squish-slurp-impacts)
   63 Digital sound effects (lasers, phasers, space etc.) - Kenney  (https://opengameart.org/content/63-digital-sound-effects-lasers-phasers-space-etc)
   7 Ghast Sounds - StarNinjas  (https://opengameart.org/content/7-ghast-sounds)
+  Female RPG Voice Starter Pack - cicifyre  (https://opengameart.org/content/female-rpg-voice-starter-pack)
+  Female Hurt Grunts & Groans - Nocturnal_Vanguard  (https://opengameart.org/content/female-hurt-grunts-groans)
+  Male Grunt/Yelling sounds - HaelDB  (https://opengameart.org/content/male-gruntyelling-sounds)
+  5 Hit Sounds + Dying - TinyWorlds  (https://opengameart.org/content/5-hit-sounds-dying)
+  Witch Cackle - AntumDeluge  (https://opengameart.org/content/witch-cackle)
+  Group giggling - Nocturnal_Vanguard  (https://opengameart.org/content/group-giggling)
+  Evil Laugh - AntumDeluge  (https://opengameart.org/content/evil-laugh)
+  15 vocal male strain/hurt/pain/jump sounds - qubodup  (https://opengameart.org/content/15-vocal-male-strainhurtpainjump-sounds)
+  grunts of male death and pain - thebardofblasphemy  (https://opengameart.org/content/grunts-male-death-and-pain)
+  Hurt / Death sound effect for character - Badre-Eddine  (https://opengameart.org/content/hurt-death-sound-effect-for-character)
+  Tiny creatures sounds - fvcalderan  (https://opengameart.org/content/tiny-creatures-sounds)
+  Evil Screech 1 - Nocturnal_Vanguard  (https://opengameart.org/content/evil-screech-1)
+  Osare Minotaur Sounds - Augmentality (Brandon Morris)  (https://opengameart.org/content/osare-minotaur-sounds)
 
 Every other sound is synthesised by src/sounds.py.

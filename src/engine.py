@@ -269,6 +269,7 @@ class Entity:
         self._reload_t = 0.0
         self.fed = False           # already ate a Royal Chef pancake
         self.spawn_timer = card.spawner[2] if card.spawner else 0.0
+        self.spawn_queue = []      # staggered spawner wave: [seconds until next, left]
         if card.spawner and card.spawn_first is not None:
             self.spawn_timer = card.spawn_first
         self.elixir_timer = card.generates_elixir[1] if card.generates_elixir else 0.0
@@ -573,12 +574,25 @@ class Entity:
                 self.spawn_timer += evo_engine.spawner_interval(
                     self, self.card.spawner[2], match)
                 ukey, ucount, _ = self.card.spawner
-                ox, oy = evo_engine.spawner_offset(self, match)
-                made = match.spawn_units(self.team, ukey, ucount, self.x + ox,
-                                         self.y + oy, deploy=0.0,
-                                         power=self.child_power(), level=self.level)
-                for u in made:
-                    u.parent = self
+                if self.card.spawn_stagger > 0 and ucount > 1:
+                    self._spawn_wave_unit(match)
+                    self.spawn_queue = [self.card.spawn_stagger, ucount - 1]
+                else:
+                    ox, oy = evo_engine.spawner_offset(self, match)
+                    made = match.spawn_units(self.team, ukey, ucount, self.x + ox,
+                                             self.y + oy, deploy=0.0,
+                                             power=self.child_power(), level=self.level)
+                    for u in made:
+                        u.parent = self
+                    match.emit("spawn", self.key, self.x, self.y, self.team)
+            if self.spawn_queue:
+                self.spawn_queue[0] -= dt
+                if self.spawn_queue[0] <= 0:
+                    self._spawn_wave_unit(match)
+                    self.spawn_queue[1] -= 1
+                    self.spawn_queue = ([self.spawn_queue[0] + self.card.spawn_stagger,
+                                         self.spawn_queue[1]]
+                                        if self.spawn_queue[1] > 0 else [])
 
         if self.attack_cd > 0:
             self.attack_cd -= dt
@@ -1016,6 +1030,15 @@ class Entity:
                 and tgt is not None and (tgt.is_building or tgt.is_tower)):
             self.hp = 0
             self.alive = False
+
+    def _spawn_wave_unit(self, match):
+        """One unit of a staggered spawner wave, centred in front."""
+        ukey = self.card.spawner[0]
+        ox, oy = evo_engine.spawner_offset(self, match)
+        for u in match.spawn_units(self.team, ukey, 1, self.x + ox, self.y + oy,
+                                   deploy=0.0, power=self.child_power(), level=self.level):
+            u.parent = self
+        match.emit("spawn", self.key, self.x, self.y, self.team)
 
     def _reload_dagger(self, dt, match):
         """Dagger Duchess: refill one dagger per `reload` s while not throwing."""

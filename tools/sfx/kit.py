@@ -340,3 +340,76 @@ def from_peak(x, pre=0.03, fin=0.02):
 def head(x, t, tail=0.03):
     """First t seconds (faded)."""
     return D.shorten(x, t, tail)
+
+
+# ===================================================================== voices
+MALE = "male-gruntyelling-sounds"
+FEM = "female-rpg-voice-starter-pack"
+FEM_HURT = "female-hurt-grunts-groans"
+DEATHS = "grunts-male-death-and-pain"
+STRAIN = "15-vocal-male-strainhurtpainjump-sounds"
+HURT = "hurt-death-sound-effect-for-character"
+TINYC = "tiny-creatures-sounds"
+GHOSTV = "ghost-monster-voice-moaning-growling"
+
+V_MALE_GRUNT = [(MALE, "3grunt1.wav"), (MALE, "3grunt2.wav"), (MALE, "3grunt3.wav"),
+                (MALE, "3grunt5.wav"), (MALE, "3grunt6.wav"), (MALE, "3grunt4.wav")]
+V_MALE_YELL = [(ZOMB, "humanYell1.wav"), (ZOMB, "humanYell2.wav"), (ZOMB, "humanYell5.wav"),
+               (MALE, "1yell2.wav"), (MALE, "1yell8.wav"), (MALE, "2yell1.wav"),
+               (MALE, "2yell10.wav"), (MALE, "3yell7.wav"), (MALE, "yell13.wav"),
+               (MALE, "1yell10.wav"), (MALE, "1yell14.wav"), (ZOMB, "humanYell4.wav")]
+V_BATTLECRY = [(MALE, "1yell4.wav"), (MALE, "3yell1.wav"), (MALE, "3yell14.wav"),
+               (MALE, "yell4.wav"), (MALE, "yell5.wav"), (MALE, "1yell3.wav")]
+V_FEMALE = [(FEM, "attack1.wav"), (FEM, "attack2.wav"), (FEM, "attack3.wav"),
+            (FEM, "jump1.wav"), (FEM, "jump2.wav"), (FEM, "jump3.wav")]
+V_FEMALE_HURT = [(FEM, "damaged1.wav"), (FEM, "damaged2.wav"), (FEM, "damaged3.wav")]
+V_GOBLIN = [(GOB, "goblin-1.wav"), (GOB, "goblin-2.wav"), (GOB, "goblin-5.wav"),
+            (GOB, "goblin-6.wav"), (GOB, "goblin-8.wav"), (GOB, "goblin-10.wav"),
+            (GOB, "goblin-11.wav"), (GOB, "goblin-13.wav"), (GOB, "goblin-14.wav")]
+V_GOBLIN_LAUGH = [(GOB, "goblin-4.wav"), (GOB, "goblin-9.wav"), (GOB, "goblin-15.wav"),
+                  (GOB, "goblin-12.wav"), (GOB, "goblin-3.wav")]
+V_TINY = [(TINYC, "battlecry0.ogg"), (TINYC, "battlecry1.ogg"), (TINYC, "battlecry2.ogg")]
+V_GIANT = [(RPG, "giant1.wav"), (RPG, "giant3.wav"), (RPG, "giant4.wav"), (RPG, "giant5.wav"),
+           (RPG, "giant2.wav")]
+V_OGRE = [(RPG, "ogre1.wav"), (RPG, "ogre2.wav"), (RPG, "ogre3.wav"), (RPG, "ogre4.wav"),
+          (RPG, "ogre5.wav")]
+V_MONSTER = [(RPG, "mnstr1.wav"), (RPG, "mnstr2.wav"), (RPG, "mnstr3.wav"), (RPG, "mnstr7.wav"),
+             (RPG, "mnstr8.wav"), (RPG, "mnstr12.wav"), (RPG, "mnstr13.wav")]
+V_TROLL = [(C1, "troll_01.ogg"), (C1, "troll_02.ogg"), (C1, "troll_03.ogg")]
+V_ROAR = [(C1, "roar_01.ogg"), (C1, "roar_03.ogg"), (C2, "roar_04.ogg"), (C2, "roar_06.ogg")]
+V_CREATURE = [(C2, "attack_02.ogg"), (C2, "attack_03.ogg"), (C2, "monster_08.ogg"),
+              (C2, "monster_10.ogg"), (C2, "monster_11.ogg"), (C2, "monster_14.ogg")]
+V_BUG = [(C2, "bug_05.ogg"), (C2, "bug_06.ogg"), (C2, "bug_08.ogg"), (C2, "bug_09.ogg"),
+         (C2, "bug_10.ogg"), (C2, "bug_12.ogg"), (C2, "bug_13.ogg")]
+V_CUTE = [(C1, "cute_01.ogg"), (C1, "cute_02.ogg"), (C1, "cute_06.ogg"), (C1, "cute_07.ogg"),
+          (C1, "cute_08.ogg")]
+V_ZOMBIE = [(ZOMB, "zombieYell3.wav"), (ZOMB, "zombieYell5.wav"), (ZOMB, "zombieYell7.wav"),
+            (ZOMB, "zombieYell9.wav"), (ZOMB, "zombieYell6.wav")]
+V_SKELETON = [(BONES, "0.ogg"), (BONES, "4.ogg"), (BONES, "6.ogg"), (BONES, "7.ogg")]
+V_GHOST = [(GHOSTV, "qubodup-GhostMoan01.wav"), (GHOSTV, "qubodup-GhostMoan02.wav"),
+           (GHOSTV, "qubodup-GhostMoan03.wav"), (GHOSTV, "qubodup-GhostMoan04.wav")]
+V_WITCH = [("witch-cackle", "witch_cackle-1.ogg"), ("evil-laugh", "laugh-evil-1.ogg")]
+V_SCREECH = [("evil-screech-1", "evil_screech_1.ogg"), (GHAST, "ghast_cries.1.ogg"),
+             (GHAST, "ghast_cries.2.ogg")]
+V_DEATH_M = [(ZOMB, "humanDeath1.wav"), (ZOMB, "humanDeath2.wav"), (STRAIN, "slightscream-03.flac"),
+             (STRAIN, "slightscream-07.flac"), (STRAIN, "slightscream-11.flac"),
+             (STRAIN, "slightscream-05.flac")]
+V_DEATH_MONSTER = [(C2, "die_01.ogg"), (C2, "die_02.ogg"), (C2, "die_04.ogg"),
+                   (ZOMB, "zombieDeath1.wav"), (ZOMB, "zombieDeath3.wav"), (C1, "hurt_02.ogg")]
+FOOTSTEP = [(KR, "footstep00.ogg"), (KR, "footstep01.ogg"), (KR, "footstep03.ogg"),
+            (KR, "footstep05.ogg"), (KR, "footstep07.ogg"), (KR, "footstep08.ogg")]
+GRASS = [(KI, "footstep_grass_000.ogg"), (KI, "footstep_grass_001.ogg"),
+         (KI, "footstep_grass_002.ogg"), (KI, "footstep_grass_003.ogg")]
+FLAP = [("dragon-flap-0", "dragonflap.wav", 0), ("dragon-flap-0", "dragonflap.wav", 1),
+        ("dragon-flap-0", "dragonflap.wav", 2)]
+WOOD_BREAK = [(MW, "wood_breaking_01.ogg"), (MW, "wood_breaking_02.ogg"), (R80, "wood_01.ogg"),
+              (R80, "wood_03.ogg")]
+METAL_FALL = [(MW, "metal_falling_02.ogg"), (MW, "metal_hit_01.ogg"), (MW, "metal_hit_04.ogg"),
+              (MW, "metal_hit_03.ogg")]
+BUBBLES = [(RPG, "bubble.wav"), (RPG, "bubble2.wav"), (RPG, "bubble3.wav")]
+DOOR = [(KR, "doorOpen_1.ogg"), (KR, "doorOpen_2.ogg"), (KR, "doorClose_1.ogg"),
+        (KR, "doorClose_4.ogg")]
+CREAK = [(KR, "creak1.ogg"), (KR, "creak2.ogg"), (KR, "creak3.ogg")]
+ARMOR = [(RPG, "armor-light.wav"), (RPG, "chainmail1.wav"), (RPG, "chainmail2.wav")]
+SLIME = [(RPG, "slime1.wav"), (RPG, "slime3.wav"), (RPG, "slime5.wav"), (RPG, "slime7.wav"),
+         (C2, "slime_02.ogg"), (C2, "slime_05.ogg")]

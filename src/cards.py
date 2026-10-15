@@ -297,6 +297,9 @@ class CardDef:
     passive: bool = False       # never attacks or moves (Phoenix Egg)
     hatch: Optional[str] = None # unit that appears when lifetime runs out
     spawn_first: Optional[float] = None  # first spawner delay (Goblin Drill)
+    spawn_stagger: float = 0.0     # >0: a spawner's wave comes out ONE unit at a
+                                   #   time, this many seconds apart, all from the
+                                   #   same spot in front (Tombstone)
     spawn_knockback: float = 0.0         # knockback of spawn_damage
     heal_burst: Optional[Tuple[float, int, int, float]] = None
                                 # (radius, hp_per_pulse, pulses, secs) heals
@@ -502,8 +505,10 @@ _CARD_LIST = [
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
             hp=504, damage=0, range=0, attacks=G, lifetime=30.0,
             spawner=("skeleton", 2, 3.5), death_spawn=("skeleton", 4), spawn_first=0.1,
-            sub_hp_mult=1.26, sub_dmg_mult=1.26),
-            # tombstone: 2 skeletons every 3.5s, 4 on death
+            spawn_stagger=0.25, sub_hp_mult=1.26, sub_dmg_mult=1.26),
+            # tombstone: 2 skeletons every 3.5s (one after the other, 0.25s
+            # apart, from the same spot - so a Tombstone on the centre line
+            # doesn't split its wave between the lanes), 4 on death
     CardDef("goblin_hut", "Goblin Hut", 5, category="building", rarity="rare",
             hp=1423, damage=0, range=0, attacks=G, lifetime=50.0,
             spawner=("spear_goblin", 1, 4.75),
