@@ -136,11 +136,16 @@ CHAIN_COLORS = {
 }
 
 
+# towers (and tower troops) shoot a lot: their attack sounds play quieter
+TOWER_SHOOTERS = frozenset(("princess_tower", "king_tower", "tower_princess", "cannoneer",
+                            "dagger_duchess", "royal_chef"))
+
+
 class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFXMixin,
            SandboxMixin):
     def __init__(self):
         try:
-            pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
+            pygame.mixer.pre_init(sounds.MIX_SR, -16, 2, 512)
         except Exception:
             pass
         pygame.init()
@@ -821,6 +826,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self.sfx.music("menu" if self.menu_theme == 1 else "menu2")
         if m is None or self.state not in ("match", "result"):
             return
+        if m is not getattr(self, "_sfx_match", None):
+            self._sfx_match = m
+            self.sfx.preload(sounds.match_sound_names(m))
         evs = m.take_events()
         self._handle_events(evs)
         if self.state != "match":
@@ -851,9 +859,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             pan = self._pan(ev["x"])
             mine = ev.get("team") == PLAYER
             if kind == "attack":
-                tower = key in ("princess_tower", "king_tower", "cannoneer",
-                                "dagger_duchess", "royal_chef")
-                self.sfx.play(key + "_attack", 0.32 if tower else 0.5, pan, min_gap=0.07)
+                tower = key in TOWER_SHOOTERS
+                self.sfx.play_var(key + "_attack", 0.32 if tower else 0.5, pan, min_gap=0.07)
+            elif kind == "hit":
+                self.sfx.play_var(key + "_hit", 0.5, pan, min_gap=0.07)
             elif kind == "deploy":
                 c = cards.CARDS.get(key)
                 if c is not None and c.category == "spell":

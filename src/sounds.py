@@ -1,26 +1,27 @@
 """
 ============================================================================
-  SOUNDS.PY  --  Procedural music & sound effects (all original)
+  SOUNDS.PY  --  Music & sound effects: loading, playback, synthesis
 ============================================================================
 
-Every sound in the game is synthesised here from scratch (oscillators,
-filtered noise, plucked strings...) - no samples, nothing copyrighted.
+ATTACK SOUNDS (v1.4.7) are real recordings: every unit has 3 variants,
+assets/sounds/<cardkey>_attack_1..3.ogg, built OFFLINE by tools/sfx from
+public-domain (CC0) packs (see assets/sounds/CREDITS.txt), and splash
+projectiles (bombs, fireballs, mortar shells...) also get an impact,
+<cardkey>_hit_1..3.ogg. Each attack plays one of the variants at random.
 
-On first run (or whenever SOUND_VERSION changes) the sounds are rendered
-into  assets/sounds/*.wav  and loaded from disk afterwards.
+Everything else (deploys, spells, UI, music) is synthesised here from
+scratch (oscillators, filtered noise, plucked strings...). On first run
+(or whenever SOUND_VERSION changes) those are rendered into
+assets/sounds/*.wav and loaded from disk afterwards.
 
 >>> To use your own sounds, drop a WAV with the same name into
-    assets/sounds/ (e.g. knight_attack.wav). Files you add yourself are never
-    overwritten. Names:
+    assets/sounds/ (e.g. knight_deploy.wav). Files you add yourself are
+    never overwritten. Names:
         <cardkey>_deploy.wav   played when the card is placed
-        <cardkey>_attack.wav   played when a unit of that card attacks
+        <cardkey>_attack.wav   replaces ALL of that unit's attack variants
         <spellkey>_impact.wav  played when a spell lands
         music_menu / music_battle / music_final .wav  (looping music)
         ui_*, death_*, tower_*, ... (see EXTRA_SOUNDS below)
-
-Every card gets its OWN deploy and attack sound: each belongs to a sound
-family (blade, bow, gun, fire, ice, zap ...) and is then varied per card
-(pitch, timbre, envelope, "voice") from a hash of its key, its size, etc.
 ============================================================================
 """
 
@@ -34,7 +35,9 @@ import zlib
 
 import cards
 
-SR = 22050                      # sample rate (Hz), mono 16-bit
+SR = 22050                      # sample rate (Hz) of the synthesised WAVs
+MIX_SR = 44100                  # the mixer's rate (the recorded .ogg files)
+VARIANTS = 3                    # <name>_1..3.ogg per varied sound
 SOUND_VERSION = 2
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -407,51 +410,8 @@ def s_brass(f=220, dur=0.5, notes=(0, 4, 7)):
 
 
 # ---------------------------------------------------------------------------
-# Which family each card's ATTACK sounds like (anything not listed is derived
-# from its stats in _attack_family()).
+# Unit groups used to pick deploy sounds
 # ---------------------------------------------------------------------------
-ATTACK_FAMILY = {
-    # bows, darts, spears
-    "archers": "bow", "princess": "firebow", "magic_archer": "magicbow",
-    "xbow": "xbow", "princess_tower": "bow", "dart_goblin": "dart",
-    "spear_goblins": "spear", "spear_goblin": "spear", "archer_queen": "xbow",
-    "little_prince": "bow",
-    # guns & cannons
-    "musketeer": "gun", "three_musketeers": "gun", "flying_machine": "gun",
-    "hunter": "shotgun", "cannon": "cannon", "royal_giant": "cannon",
-    "king_tower": "cannon", "cannon_cart": "cannon",
-    # fire & ice & lightning
-    "wizard": "fire", "baby_dragon": "fire", "lava_pup": "fire",
-    "lava_hound": "fire", "inferno_tower": "sizzle", "inferno_dragon": "sizzle",
-    "ice_wizard": "ice", "electro_wizard": "zap", "zappies": "zap",
-    "tesla": "bolt", "electro_dragon": "zap", "electro_spirit": "zap",
-    "goblinstein": "zap", "sparky": "bigzap", "electro_giant": "zap",
-    "witch": "magic", "night_witch": "slash",
-    # lobbed / thrown
-    "bomber": "lob", "bomb_tower": "lob", "mortar": "mortar", "bowler": "boulder",
-    "executioner": "axe",
-    # kamikaze
-    "fire_spirit": "explode", "ice_spirit": "ice", "wall_breakers": "explode",
-    "balloon": "explode",
-    # melee
-    "mighty_miner": "drill", "miner": "clank", "battle_healer": "heal",
-    "monk": "punch", "hog_rider": "smash", "battle_ram": "smash",
-    # v1.1 cards
-    "firecracker": "firework", "firecracker_spark": "firework",
-    "goblin_machine_rocket": "rocket", "goblin_machine": "clank",
-    "skeleton_dragons": "fire", "phoenix": "fire", "phoenix_reborn": "fire",
-    "rascal_girl": "sling", "rascal_boy": "punch", "goblin_brawler": "punch",
-    "royal_recruits": "stab", "bush_goblin": "stab", "berserker": "stab",
-    "heal_spirit": "healburst", "suspicious_bush": "rustle",
-    "goblin_demolisher": "lob", "demolisher_charge": "explode",
-    "minion_giant": "toxin", "mother_witch": "magic", "royal_ghost": "ghost",
-    "ronin": "katana", "rune_giant": "runehammer", "fisherman": "slap",
-    "royal_hogs": "smash", "cursed_hog": "smash", "ram_rider": "smash",
-    "spirit_empress": "katana", "spirit_empress_air": "zap",
-    "tower_princess": "bow", "cannoneer": "cannon", "dagger_duchess": "dart",
-    "royal_chef": "dart",
-}
-
 HEAVY = {"pekka", "mega_knight", "giant_skeleton", "golem", "golemite", "giant",
          "goblin_giant", "electro_giant", "elixir_golem", "ice_golem",
          "goblin_monster", "skeleton_king", "royal_guardian", "lava_hound"}
@@ -465,167 +425,6 @@ SMALL = {"skeletons", "skeleton", "skeleton_army", "goblins", "goblin",
          "minion_horde", "lava_pup", "ice_spirit", "fire_spirit",
          "electro_spirit", "elixir_blob", "guards", "dart_goblin",
          "wall_breakers", "bomber", "zappies"}
-
-
-def _attack_family(c):
-    if c.key in ATTACK_FAMILY:
-        return ATTACK_FAMILY[c.key]
-    if c.kamikaze:
-        return "explode"
-    if c.heal_on_attack:
-        return "heal"
-    if c.flying and c.range >= 1.5:
-        return "spit"
-    if c.key in HEAVY or c.hp >= 1800:
-        return "heavyslash" if c.splash or c.key in ("pekka", "mega_knight") else "smash"
-    if c.key in SMALL:
-        return "stab"
-    return "slash"
-
-
-def make_attack(c):
-    r = _rng(c.key, "atk")
-    p = r.uniform(0.8, 1.25)                       # per-card pitch
-    size = 1.6 if c.key in HEAVY else (0.7 if c.key in SMALL else 1.0)
-    fam = _attack_family(c)
-    sd = r.randint(0, 10 ** 6)
-    if fam == "bow" and c.key == "archers":
-        # light "thwip": short, high, airy - two archers fire it a lot
-        sig = pluck(380 * p, 0.16, bright=0.2, seed=sd)
-        mix_into(sig, s_whoosh(0.12, 1800, 4500, seed=sd, vol=0.3), 0.01, 1.0)
-        sig = lowpass(sig, 5000)
-    elif fam == "bow":
-        sig = s_twang(260 * p, 0.28, sd)
-    elif fam == "firebow":
-        sig = s_twang(240 * p, 0.3, sd)
-        mix_into(sig, s_fire(0.3, sd, 900), 0.03, 0.4)
-    elif fam == "magicbow":
-        sig = s_twang(320 * p, 0.3, sd)
-        mix_into(sig, s_shimmer(1800 * p, 0.35, sd, 3), 0.02, 0.6)
-    elif fam == "xbow":
-        sig = s_mechanical(sd, 300 * p)
-        mix_into(sig, s_twang(420 * p, 0.15, sd), 0, 0.6)
-    elif fam == "dart":
-        sig = highpass(noise(0.07, attack=0.01, decay=0.05, seed=sd), 1500)
-        mix_into(sig, tone(1400 * p, 0.08, 700, decay=0.06), 0, 0.3)
-    elif fam == "spear":
-        sig = s_whoosh(0.22, 500 * p, 2600 * p, sd, 0.9)
-    elif fam == "gun":
-        sig = s_gunshot(0.9 * p, sd)
-    elif fam == "shotgun":
-        sig = s_gunshot(1.5, sd)
-        mix_into(sig, s_mechanical(sd, 180), 0.12, 0.4)
-    elif fam == "cannon":
-        sig = s_gunshot(2.0 * (0.9 + 0.2 * p), sd)
-        mix_into(sig, s_thud(70 * p, 0.4, sd), 0, 0.7)
-    elif fam == "fire":
-        sig = s_fire(0.45 * (size ** 0.5), sd, 500 * p)
-        mix_into(sig, s_whoosh(0.3, 200, 900, sd, 0.6), 0, 1.0)
-    elif fam == "sizzle":
-        sig = gain(highpass(noise(0.35, attack=0.02, decay=0.3, seed=sd), 1800 * p), 0.6)
-        mix_into(sig, tone(90 * p, 0.35, 70, wave_="saw", decay=0.3), 0, 0.15)
-    elif fam == "ice":
-        sig = s_shimmer(1300 * p, 0.45, sd, 4)
-        mix_into(sig, s_whoosh(0.2, 1500, 5000, sd, 0.4), 0, 1.0)
-    elif fam == "bolt":
-        sig = s_bolt(0.32, sd, 0.9 + 0.2 * p)
-    elif fam == "zap":
-        sig = s_zap(1000 * p, 0.25, sd)
-    elif fam == "bigzap":
-        sig = s_zap(600 * p, 0.6, sd)
-        mix_into(sig, s_explosion(1.0, sd, 0.8), 0.05, 0.8)
-    elif fam == "magic":
-        sig = s_chime(700 * p, (0, 3, 7, 10), 0.04, 0.35)
-        mix_into(sig, s_whoosh(0.3, 600, 2000, sd, 0.5), 0, 1.0)
-    elif fam == "lob":
-        sig = tone(900 * p, 0.25, 500 * p, decay=0.25, vol=0.4)
-        mix_into(sig, s_whoosh(0.2, 300, 1200, sd, 0.6), 0, 1.0)
-    elif fam == "mortar":
-        sig = s_gunshot(2.4, sd)
-        mix_into(sig, tone(700, 0.5, 300, decay=0.45, vol=0.25), 0.1, 1.0)
-    elif fam == "boulder":
-        sig = lowpass(noise(0.6, attack=0.05, decay=0.5, seed=sd, color="brown"), 400)
-        sig = gain(sig, 3.0)
-        mix_into(sig, s_thud(60 * p, 0.4, sd), 0, 0.8)
-    elif fam == "axe":
-        sig = s_whoosh(0.35, 300 * p, 1500 * p, sd, 1.0)
-        mix_into(sig, s_clang(700 * p, 0.2, sd, 0.6), 0.02, 0.4)
-    elif fam == "explode":
-        sig = s_explosion(0.6 + 0.3 * p, sd, 0.6)
-    elif fam == "drill":
-        sig = tone(140 * p, 0.3, 180 * p, wave_="square", decay=0.3, vol=0.25)
-        mix_into(sig, bandpass(noise(0.3, decay=0.25, seed=sd), 2200 * p, 3), 0, 1.2)
-    elif fam == "clank":
-        sig = s_clang(1100 * p, 0.3, sd, 0.8)
-        mix_into(sig, s_thud(150, 0.2, sd), 0, 0.5)
-    elif fam == "heal":
-        sig = s_thud(130 * p, 0.25, sd)
-        mix_into(sig, s_chime(1046 * p, (0, 4, 7), 0.05, 0.4), 0.05, 0.6)
-    elif fam == "punch":
-        sig = s_thud(160 * p, 0.2, sd)
-        mix_into(sig, s_whoosh(0.12, 600, 1800, sd, 0.5), 0, 1.0)
-    elif fam == "spit":
-        sig = tone(500 * p, 0.12, 250 * p, decay=0.1, vol=0.5)
-        mix_into(sig, bandpass(noise(0.1, decay=0.08, seed=sd), 1500 * p, 3), 0, 1.5)
-    elif fam == "smash":
-        sig = s_thud(85 * p / size ** 0.3, 0.4 * size ** 0.5, sd, 1.0)
-        mix_into(sig, lowpass(noise(0.3, decay=0.2, seed=sd + 3, color="brown"), 600), 0, 1.0)
-    elif fam == "heavyslash":
-        sig = s_clang(520 * p, 0.55, sd, 1.0)
-        mix_into(sig, s_thud(80 * p, 0.4, sd), 0, 0.8)
-        mix_into(sig, s_whoosh(0.25, 300, 1400, sd, 0.6), 0, 1.0)
-    elif fam == "firework":
-        # a fizzing launch, then a crackle of sparks
-        sig = s_whoosh(0.22, 900 * p, 3200 * p, sd, 0.7)
-        r2 = random.Random(sd)
-        for i in range(6):
-            mix_into(sig, highpass(noise(0.03, decay=0.025, seed=sd + i), 2500),
-                     0.12 + r2.uniform(0, 0.18), 0.7)
-    elif fam == "rocket":
-        sig = lowpass(noise(0.4, attack=0.03, decay=0.35, seed=sd, color="brown"), 1800)
-        sig = gain(sig, 2.2)
-        mix_into(sig, tone(160 * p, 0.35, 420 * p, wave_="saw", decay=0.3, vol=0.18), 0)
-    elif fam == "sling":
-        sig = s_twang(520 * p, 0.14, sd)
-        mix_into(sig, s_whoosh(0.1, 1500, 3800, sd, 0.4), 0.02, 1.0)
-    elif fam == "toxin":
-        # a wet, gurgling retch
-        sig = tone(220 * p, 0.3, 120 * p, wave_="saw", decay=0.28, vol=0.25, vib=0.08)
-        sig = lowpass(sig, 1200)
-        mix_into(sig, bandpass(noise(0.3, decay=0.25, seed=sd), 700 * p, 2), 0, 1.6)
-    elif fam == "ghost":
-        sig = s_whoosh(0.35, 250 * p, 900 * p, sd, 0.9)
-        mix_into(sig, tone(620 * p, 0.35, 480 * p, wave_="triangle", attack=0.05,
-                           decay=0.3, vol=0.2, vib=0.04), 0, 1.0)
-        mix_into(sig, s_clang(800 * p, 0.25, sd, 0.6), 0.05, 0.5)
-    elif fam == "katana":
-        sig = s_whoosh(0.16, 1200 * p, 5200 * p, sd, 0.9)
-        mix_into(sig, s_clang(1900 * p, 0.3, sd, 1.0), 0.03, 0.55)
-    elif fam == "runehammer":
-        sig = s_thud(90 * p, 0.35, sd, 1.0)
-        mix_into(sig, s_clang(640 * p, 0.35, sd, 0.8), 0, 0.6)
-        mix_into(sig, s_chime(988 * p, (0, 7), 0.05, 0.3), 0.04, 0.3)
-    elif fam == "healburst":
-        sig = s_chime(1046 * p, (0, 4, 7, 12), 0.05, 0.6)
-        mix_into(sig, s_whoosh(0.3, 800, 3000, sd, 0.4), 0, 1.0)
-    elif fam == "rustle":
-        sig = bandpass(noise(0.35, attack=0.02, decay=0.3, seed=sd), 2600 * p, 1.5)
-        mix_into(sig, s_voice(400 * p, 2, 0.15, sd), 0.15, 0.6)
-    elif fam == "slap":
-        sig = s_thud(150 * p, 0.2, sd)
-        mix_into(sig, bandpass(noise(0.12, decay=0.1, seed=sd), 1800 * p, 2), 0, 1.4)
-    elif fam == "stab":
-        sig = s_clang(1500 * p, 0.15, sd, 0.6)
-        if c.key in UNDEAD:
-            mix_into(sig, s_bones(sd, 2), 0, 0.6)
-    else:  # slash
-        sig = s_clang(950 * p, 0.35, sd, 0.9)
-        mix_into(sig, s_whoosh(0.18, 500, 2500, sd, 0.5), 0, 1.0)
-    return fade_tail(normalize(sig, 0.8 * ATTACK_GAIN.get(c.key, 1.0)))
-
-
-# per-card loudness trims for attack sounds (1.0 = normal)
-ATTACK_GAIN = {"archers": 0.55, "tesla": 0.9}
 
 
 def make_deploy(c):
@@ -1104,17 +903,11 @@ def _jobs():
     for key, c in cards.CARDS.items():
         if c.category == "spell":
             jobs.append((key + "_spell", (lambda c=c: make_spell(c))))
-        else:
-            jobs.append((key + "_attack", (lambda c=c: make_attack(c))))
-            if c.deployable:
-                jobs.append((key + "_deploy", (lambda c=c: make_deploy(c))))
+        elif c.deployable:
+            jobs.append((key + "_deploy", (lambda c=c: make_deploy(c))))
     # forms that appear mid-match announce themselves too
     for key in ("spirit_empress_air", "demolisher_charge", "phoenix_reborn"):
         jobs.append((key + "_deploy", (lambda c=cards.CARDS[key]: make_deploy(c))))
-    # towers attack too (and a few secondary weapons)
-    for tk in ("princess_tower", "king_tower", "goblin_machine_rocket"):
-        fake = cards.CardDef(tk, tk, 0, hp=3000)
-        jobs.append((tk + "_attack", (lambda c=fake: make_attack(c))))
     jobs.append(("_extras", make_extras))
     jobs.append(("music_menu", make_menu_music))
     jobs.append(("music_battle", make_battle_music))
@@ -1136,8 +929,7 @@ EXTRA_NAMES = ["ui_click", "ui_select", "ui_deselect", "ui_invalid", "ui_toggle"
 # Sounds re-rendered since they were first shipped: bump a name's number to
 # regenerate just that file on the next launch (without a full SOUND_VERSION
 # rebuild). Your own replacement WAVs are still never overwritten.
-SOUND_REVS = {"tesla_attack": 3, "archers_attack": 3, "elixir_pop": 3,
-              "evo_deploy": 3, "hero_ability": 3}
+SOUND_REVS = {"elixir_pop": 3, "evo_deploy": 3, "hero_ability": 3}
 
 
 def ensure_sounds(progress=None):
@@ -1215,6 +1007,52 @@ def ensure_sounds(progress=None):
 
 
 # ===========================================================================
+#  WHICH SOUNDS A MATCH NEEDS  (preloaded when it starts)
+# ===========================================================================
+_RELATED = {}
+
+
+def _related(key):
+    """`key` plus every unit it can bring onto the field (spawns, death
+    spawns, squad members, alternate forms...), found by scanning the
+    card's fields for other card keys. Cached."""
+    out = _RELATED.get(key)
+    if out is not None:
+        return out
+    out = {key}
+    c = cards.CARDS.get(key)
+    if c is not None:
+        stack = list(vars(c).values())
+        while stack:
+            v = stack.pop()
+            if isinstance(v, str):
+                if v in cards.CARDS:
+                    out.add(v)
+            elif isinstance(v, (list, tuple, set)):
+                stack.extend(v)
+            elif isinstance(v, dict):
+                stack.extend(v.keys())
+                stack.extend(v.values())
+    _RELATED[key] = out
+    return out
+
+
+def match_sound_names(m):
+    """Attack / impact sound names for everything that can appear in match m."""
+    keys = {"princess_tower", "king_tower"}
+    keys.update(getattr(m, "tower_troops", {}).values())
+    for deck in getattr(m, "decks", ()):
+        for k in deck:
+            for r in _related(k):
+                keys.update(_related(r))
+    names = []
+    for k in sorted(keys):
+        names.append(k + "_attack")
+        names.append(k + "_hit")
+    return names
+
+
+# ===========================================================================
 #  PLAYBACK
 # ===========================================================================
 class SoundManager:
@@ -1230,34 +1068,86 @@ class SoundManager:
         self.music_volume = music_volume
         self.sfx_volume = sfx_volume
         self.clock = 0.0
+        self.variants = {}         # name -> [Sound, ...] (loaded once)
+        self.last_var = {}         # name -> index played last time
+        self._rr = 0               # tiny random generator state (see _pick)
         try:
             import pygame
             self.pg = pygame
             if not pygame.mixer.get_init():
-                pygame.mixer.init(frequency=SR, size=-16, channels=2, buffer=512)
+                pygame.mixer.init(frequency=MIX_SR, size=-16, channels=2, buffer=512)
             pygame.mixer.set_num_channels(32)
             self.ok = True
         except Exception:
             self.ok = False
 
     # ---- loading ----
+    def _load(self, name):
+        """name.wav (yours / synthesised) or name.ogg (recorded), or None."""
+        if not self.ok:
+            return None
+        for ext in (".wav", ".ogg"):
+            path = os.path.join(SOUND_DIR, name + ext)
+            if os.path.exists(path):
+                try:
+                    return self.pg.mixer.Sound(path)
+                except Exception:
+                    return None
+        return None
+
     def _get(self, name):
         if name in self.sounds:
             return self.sounds[name]
-        snd = None
-        path = os.path.join(SOUND_DIR, name + ".wav")
-        if self.ok and os.path.exists(path):
-            try:
-                snd = self.pg.mixer.Sound(path)
-            except Exception:
-                snd = None
+        snd = self._load(name)
         self.sounds[name] = snd
         return snd
+
+    def _variants(self, name):
+        """All variants of a sound: your own name.wav alone if you added
+        one, else name_1..3.ogg. Loaded on first use, then kept."""
+        vs = self.variants.get(name)
+        if vs is None:
+            own = self._load(name)
+            if own is not None:
+                vs = [own]
+            else:
+                vs = [s for s in (self._load("%s_%d" % (name, i + 1))
+                                  for i in range(VARIANTS)) if s is not None]
+            self.variants[name] = vs
+        return vs
+
+    def preload(self, names):
+        """Load these sounds' variants now (at match start), so the first
+        swing of each unit doesn't touch the disk mid-battle."""
+        for n in names:
+            self._variants(n)
+
+    def _pick(self, name, n):
+        """A random-enough variant index: a tiny 8-bit LCG (one multiply,
+        one add) and no immediate repeats - far cheaper than random()."""
+        self._rr = (self._rr * 5 + 3) & 255
+        i = (self._rr >> 3) % n
+        if n > 1 and i == self.last_var.get(name):
+            i = (i + 1) % n
+        self.last_var[name] = i
+        return i
 
     def tick(self, dt):
         self.clock += dt
 
     # ---- effects ----
+    def play_var(self, name, vol=1.0, pan=0.5, min_gap=0.06):
+        """Play one of the variants of `name` (name_1..3) at random."""
+        if not (self.ok and self.sfx_on):
+            return False
+        if self.clock - self.last.get(name, -9.0) < min_gap:
+            return False
+        vs = self._variants(name)
+        if not vs:
+            return False
+        snd = vs[self._pick(name, len(vs))] if len(vs) > 1 else vs[0]
+        return self._start(name, snd, vol, pan)
+
     def play(self, name, vol=1.0, pan=0.5, min_gap=0.06):
         if not (self.ok and self.sfx_on):
             return
@@ -1267,14 +1157,18 @@ class SoundManager:
         snd = self._get(name)
         if snd is None:
             return
+        self._start(name, snd, vol, pan)
+
+    def _start(self, name, snd, vol, pan):
         self.last[name] = self.clock
         ch = self.pg.mixer.find_channel()
         if ch is None:
-            return
+            return False
         v = max(0.0, min(1.0, vol * self.sfx_volume))
         pan = max(0.0, min(1.0, pan))
         ch.set_volume(v * min(1.0, 2 * (1 - pan)), v * min(1.0, 2 * pan))
         ch.play(snd)
+        return True
 
     # ---- music ----
     def music(self, track):

@@ -1458,6 +1458,7 @@ class Projectile:
                     pierce=True, hit_radius=0.4, owner=self.owner))
             match.effects.append(Effect("aoe", self.team, self.x, self.y, 0.8,
                                         0.25, card_key="firecracker"))
+            match.emit("hit", "firecracker", self.x, self.y, self.team)
             return
         # chain-lightning shooters (Electro Dragon): the bolt arcs onward from
         # the struck target instead of splashing
@@ -1474,6 +1475,7 @@ class Projectile:
         if self.splash > 0:
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
                                         self.splash, 0.3, card_key=self.style))
+            match.emit("hit", self.style, self.x, self.y, self.team)
             match.area_damage(self.team, self.x, self.y, self.splash, self.dmg,
                               hit_air=(self.attacks == "air_ground"),
                               stun=self.stun, slow=self.slow,
