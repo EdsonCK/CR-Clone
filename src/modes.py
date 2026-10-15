@@ -16,6 +16,11 @@ Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
   Rage Battle     every troop is permanently raged (+35% speed & attack)
   Random Decks    both sides get a random deck
   Double Trouble  double elixir, double-strength towers and a 5 minute clock
+  2v2 Battle      you and an AI teammate against two AIs, as in the real
+                  game: each player has their own deck, hand and elixir bar
+                  and deploys anywhere on their side; the towers, crowns and
+                  clock are shared. Your teammate's hand and elixir show
+                  beside the arena, and "Ally" pops up where it plays.
 
 Endless Survival uses the Levels rules (your Level Deck, no enemy towers,
 miasma) with procedurally generated waves that never stop - see
@@ -31,11 +36,12 @@ import cards
 import sprites
 import levels
 import profile_data
-from engine import Match, PLAYER, ENEMY
+from engine import Match, PLAYER, ENEMY, ALLY, ENEMY2
 from ai import AIController
 from ui import lt_c, dk_c, Button, WHITE
 
 MODES = [
+    ("duo", "2v2 Battle", "You + an AI teammate vs two AIs.", "barbarians"),
     ("triple", "Triple Elixir", "Triple elixir from the first second.", "elixir_collector"),
     ("sudden", "Sudden Death", "All overtime: first tower down wins.", "king_tower"),
     ("mirror", "Mirror Match", "The AI plays your deck.", "archer_queen"),
@@ -151,6 +157,8 @@ class ModesMixin:
             return
         if key == "mirror":
             ai_deck = list(deck)
+        elif key == "duo":
+            ai_deck = self._duo_pick_decks()
         elif key == "random":
             deck, ai_deck = cards.random_deck(), cards.random_deck()
         else:
@@ -193,11 +201,37 @@ class ModesMixin:
             m.set_tower_troop(ENEMY, self._tower_troop())
         self.mode_decks = (list(deck), list(ai_deck))
         self.ai = AIController(m, team=ENEMY, level=self.ai_level)
+        if key == "duo":
+            self._duo_setup(m, deck, specials, alv)
         self._audio = {}
         self.fx.clear()
         self.selected = None
         self.state = "match"
         self.sfx.play("match_start", 0.9, min_gap=0.0)
+
+    # ================================================================ 2v2
+    def _duo_pick_decks(self):
+        """Three different AI decks: enemy 1 (returned), your teammate and
+        enemy 2 (kept in self.duo_decks)."""
+        names = list(cards.AI_DECK_PRESETS)
+        random.shuffle(names)
+        foe, ally, foe2 = names[:3]
+        self.duo_names = {ENEMY: foe, ALLY: ally, ENEMY2: foe2}
+        self.duo_decks = (list(cards.AI_DECK_PRESETS[ally]), list(cards.AI_DECK_PRESETS[foe2]))
+        return list(cards.AI_DECK_PRESETS[foe])
+
+    def _duo_setup(self, m, deck, specials, alv):
+        """Seat the teammate and the second enemy. Your teammate's cards are
+        your deck's level; it brings as many Evolutions / Heroes as you."""
+        ally_deck, foe2_deck = self.duo_decks
+        n_e, n_h = len(specials["evo_cards"][PLAYER]), len(specials["hero_cards"][PLAYER])
+        ae, ah = self._special_cards(ally_deck, owned=False, n_evo=n_e, n_hero=n_h)
+        fe, fh = self._special_cards(foe2_deck, owned=False, n_evo=n_e, n_hero=n_h)
+        m.add_seats(ally_deck, foe2_deck, ally_level=self.profile.deck_level(deck),
+                    foe_level=alv, evo_cards={ALLY: ae, ENEMY2: fe},
+                    hero_cards={ALLY: ah, ENEMY2: fh})
+        self._extra = (m, [AIController(m, team=PLAYER, level=self.ai_level, seat=ALLY),
+                           AIController(m, team=ENEMY, level=self.ai_level, seat=ENEMY2)])
 
     def _start_endless(self):
         deck = self.level_deck

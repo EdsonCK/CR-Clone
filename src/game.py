@@ -219,6 +219,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self.drag_card = None          # hand index being dragged (drag to deploy)
         self.match = None
         self.ai = None
+        self._extra = (None, [])     # (match, [AIs]) 2v2: teammate + 2nd enemy
         self.selected = None       # index into hand while deploying
         self.result_text = ""
         self.deck_msg = ""
@@ -498,6 +499,11 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self.aideck_return = return_to
         self.state = "aideck"
 
+    def _extra_ais(self):
+        """The 2v2 AIs (teammate, 2nd enemy) of the current match."""
+        m, ais = self._extra
+        return ais if m is self.match and m is not None else ()
+
     def _goto(self, state):
         if state == "levels" and self.state != "levels":
             # open the list at the first level you haven't cleared yet
@@ -764,6 +770,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 self.match.update(mdt)
                 if self.ai is not None:
                     self.ai.update(mdt)
+                for a in self._extra_ais():
+                    a.update(mdt)
                 if self.level_run is not None:
                     self.level_run.update(mdt)
                 if self.match.finished:
@@ -926,6 +934,12 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                     self.fx.popups.append({"x": px_, "y": py_ - cfg.TILE_SIZE * 1.6,
                                            "text": name, "col": col, "age": 0.0,
                                            "life": 1.6})
+            elif kind == "ally_play" and ev["team"] == PLAYER:
+                # 2v2: show where your teammate just played
+                px_, py_ = tile_to_px(ev["x"], ev["y"])
+                self.fx.popups.append({"x": px_, "y": py_ - cfg.TILE_SIZE * 1.2,
+                                       "text": "Ally", "col": (150, 230, 255), "age": 0.0,
+                                       "life": 1.3, "small": True})
             elif kind == "dash":
                 self.sfx.play_var("dash", 0.6, pan)
             elif kind == "spawn":
@@ -3878,6 +3892,54 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self.screen.blit(sprites.get_sprite(nk, 38), (nb.centerx - 19, nb.y + 19))
         self._draw_ability_button()
         self._draw_hero_button()
+        if m.is_2v2:
+            self._draw_ally_panel()
+
+    def _draw_ally_panel(self):
+        """2v2: your teammate's elixir, hand and next card, in the scenery
+        margin right of your half of the arena."""
+        from engine import ALLY
+        m = self.match
+        x0 = cfg.ARENA_X0 + cfg.ARENA_PX_W + 4
+        w = cfg.WINDOW_W - x0 - 4
+        r = pygame.Rect(x0, cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.56), w, 224)
+        panel = pygame.Surface(r.size, pygame.SRCALPHA)
+        pygame.draw.rect(panel, (18, 24, 40, 205), panel.get_rect(), border_radius=10)
+        self.screen.blit(panel, r.topleft)
+        pygame.draw.rect(self.screen, (110, 170, 230), r, 1, border_radius=10)
+        self._text("Ally", self.font_sb, (150, 230, 255), center=(r.centerx, r.y + 12))
+        name = getattr(self, "duo_names", {}).get(ALLY)
+        if name:
+            self._text(self._fit(name, self.font_s, w - 6), self.font_s, (190, 200, 220),
+                       center=(r.centerx, r.y + 28))
+        el = m.elixir[ALLY]
+        bar = pygame.Rect(r.x + 8, r.y + 40, w - 40, 8)
+        pygame.draw.rect(self.screen, (38, 22, 40), bar, border_radius=4)
+        pygame.draw.rect(self.screen, cfg.COLOR_ELIXIR,
+                         (bar.x, bar.y, int(bar.w * el / cfg.ELIXIR_MAX), bar.h), border_radius=4)
+        self._text("%d" % int(el), self.font_sb, lt_c(cfg.COLOR_ELIXIR, 60),
+                   topleft=(bar.right + 6, bar.y - 6))
+        cw = (w - 20) // 2
+        for i, key in enumerate(m.hands[ALLY][:4]):
+            cr = pygame.Rect(r.x + 6 + (i % 2) * (cw + 8), r.y + 56 + (i // 2) * (cw + 14),
+                             cw, cw + 8)
+            cost = m.card_cost(ALLY, key)
+            ok = cost is not None and el >= cost
+            pygame.draw.rect(self.screen, (44, 50, 62) if ok else (32, 34, 42), cr,
+                             border_radius=6)
+            spr = sprites.get_sprite(key, cw - 6)
+            if not ok:
+                spr = spr.copy()
+                spr.fill((110, 110, 110, 190), special_flags=pygame.BLEND_RGBA_MULT)
+            self.screen.blit(spr, (cr.x + 3, cr.y + 4))
+            pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (cr.x + 7, cr.y + 7), 7)
+            self._text("?" if cost is None else str(cost), self.font_s, WHITE,
+                       center=(cr.x + 7, cr.y + 7))
+        nk = m.next_card[ALLY]
+        if nk:
+            ny = r.y + 56 + 2 * (cw + 14)
+            self._text("Next", self.font_s, (170, 178, 195), topleft=(r.x + 8, ny + 6))
+            self.screen.blit(sprites.get_sprite(nk, 26), (r.right - 34, ny))
 
     def _hero_btn_rect(self):
         r = 24

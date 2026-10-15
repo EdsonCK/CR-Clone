@@ -75,9 +75,12 @@ def _ehp(card):
 
 
 class AIController:
-    def __init__(self, match, team=ENEMY, level=None):
+    def __init__(self, match, team=ENEMY, level=None, seat=None):
         self.match = match
         self.me = team
+        # whose hand / elixir it plays with: the team in 1v1, a 2v2 seat
+        # (2 = your teammate, 3 = the 2nd enemy) otherwise
+        self.seat = team if seat is None else seat
         self.opp = 1 - team
         self.flip = (team == PLAYER)      # local coords: my side = top
         self.level = level if level in cfg.AI_LEVELS else cfg.AI_LEVEL
@@ -131,10 +134,10 @@ class AIController:
                 and not e.is_building]
 
     def _hand(self):
-        return self.match.hands[self.me]
+        return self.match.hands[self.seat]
 
     def _el(self):
-        return self.match.elixir[self.me]
+        return self.match.elixir[self.seat]
 
     def _affordable(self, budget=None):
         """[(hand index, key, card)] the AI can pay for. The card is what
@@ -143,8 +146,8 @@ class AIController:
         el = self._el() if budget is None else budget
         out = []
         for i, k in enumerate(self._hand()):
-            cost = self.match.card_cost(self.me, k)
-            pk = self.match.play_key(self.me, k)
+            cost = self.match.card_cost(self.seat, k)
+            pk = self.match.play_key(self.seat, k)
             if cost is None or pk is None or cost > el:
                 continue
             c = cards.CARDS[pk]
@@ -164,12 +167,17 @@ class AIController:
         vx, vy = self.vel.get(id(e), (0.0, 0.0))
         return e.x + vx * t, e.y + vy * t
 
+    def _team_elixir(self, team):
+        """A team's elixir (2v2: the most either of its players has)."""
+        el = self.match.elixir
+        return max(el[s] for s in range(team, len(el), 2))
+
     def opp_elixir(self):
         """Estimated opponent elixir (None = this level doesn't count it)."""
         if self.lv(5):
-            return self.match.elixir[self.opp]
+            return self._team_elixir(self.opp)
         if self.lv(4):
-            return max(0.0, min(10.0, self.match.elixir[self.opp] + self._noise))
+            return max(0.0, min(10.0, self._team_elixir(self.opp) + self._noise))
         return None
 
     def _deck_has_air_threat(self):
@@ -217,10 +225,10 @@ class AIController:
                     tries.append((min(max(x + math.cos(a) * r, 0.7), cfg.GRID_COLS - 0.7),
                                   min(max(ly + math.sin(a) * r, 0.7), top)))
         for (tx, tly) in tries:
-            if m.play_card(self.me, idx, tx, self.W(tly)):
+            if m.play_card(self.seat, idx, tx, self.W(tly)):
                 self.log.append((round(self.clock, 1), key, self._why,
                                  round(tx, 1), round(tly, 1),
-                                 round(m.elixir[self.me] + card.elixir, 1)))
+                                 round(m.elixir[self.seat] + card.elixir, 1)))
                 return True
         return False
 
@@ -888,7 +896,7 @@ class AIController:
             else:
                 depth = max(0.0, RIVER_TOP - ly) / RIVER_TOP
                 v -= val * (1.0 + 0.8 * depth)
-        v += sim.elixir[me] - sim.elixir[op]
+        v += sum(sim.elixir[me::2]) - sum(sim.elixir[op::2])
         return v
 
     def _rollout(self, cand, horizon, seed=0):
@@ -897,18 +905,19 @@ class AIController:
         sim.events = []
         if cand is not None:
             idx, key, x, ly = cand
-            if sim.hands[self.me][idx] != key:
+            if sim.hands[self.seat][idx] != key:
                 return None
-            if not sim.play_card(self.me, idx, x, self.W(ly)):
+            if not sim.play_card(self.seat, idx, x, self.W(ly)):
                 return None
         pols = []
         if self.search_policy:
             # both sides keep playing a solid (Skilled) game after this move,
             # so attacks get answered and "wait" means "play normally"
-            for team in (self.me, self.opp):
-                pa = AIController(sim, team=team, level=3)
-                pa.rng.seed(seed * 2 + team)
-                pa.decision_timer = 0.3 + 0.2 * team
+            for seat in range(len(sim.hands)):
+                team = seat % 2
+                pa = AIController(sim, team=team, level=3, seat=seat)
+                pa.rng.seed(seed * 2 + seat)
+                pa.decision_timer = 0.3 + 0.2 * seat
                 pols.append(pa)
         dt = 0.1
         for _ in range(int(horizon / dt)):
@@ -1008,6 +1017,8 @@ class AIController:
 
     def _start_plan(self, threats):
         horizon = self.search_horizon
+        if self.match.is_2v2:
+            horizon = min(horizon, 6.0)       # 4 players: cheaper look-ahead
         cands = self._defense_candidates(threats) if threats else [None]
         if self.search_all:
             cands += self._offense_candidates()
@@ -1031,6 +1042,14 @@ class AIController:
         """Simulate the next candidate(s); act once all are scored."""
         pl = self.plan
         per_tick = 1 if self.search_policy else 2     # ~4-12 ms per simulation
+        m = self.match
+        if m.is_2v2:
+            # 3 AIs share one frame's thinking budget: one simulation per
+            # frame between them, so a 2v2 never stutters
+            if getattr(m, "_think_t", None) == m.elapsed:
+                return
+            m._think_t = m.elapsed
+            per_tick = 1
         while pl["i"] < len(pl["jobs"]) and per_tick > 0:
             ci, k = pl["jobs"][pl["i"]]
             v = self._rollout(pl["cands"][ci], pl["horizon"], pl["seed"] + 977 * k)
@@ -1062,7 +1081,7 @@ class AIController:
     def _hero(self):
         """Use a Hero's one-shot ability at a sensible moment."""
         m = self.match
-        h, ready, cost = m.hero_status(self.me)
+        h, ready, cost = m.hero_status(self.seat)
         if h is None or not ready:
             return
         near = [e for e in m.entities if e.alive and e.team == self.opp and not e.is_tower
@@ -1112,12 +1131,12 @@ class AIController:
         elif k == "electro_wizard":
             use = len(near) >= 2 or (near and hpf < 0.5)
         if use or (self.lv(1) and not self.lv(3) and near):
-            m.activate_hero(self.me)
+            m.activate_hero(self.seat)
 
     def _champion(self, dt):
         m = self.match
         self._hero()
-        champ, ready, cost = m.ability_status(self.me)
+        champ, ready, cost = m.ability_status(self.seat)
         if champ is None or not ready:
             return
         enemies = [e for e in m.entities if champ.can_attack(e)
@@ -1126,7 +1145,7 @@ class AIController:
         if not self.lv(3):
             # basic brain: fire as soon as anything is close
             if near and m.ability_has_target(champ):
-                m.activate_ability(self.me)
+                m.activate_ability(self.seat)
             return
         typ = champ.card.ability_type
         hpf = champ.hp / max(champ.max_hp, 1)
@@ -1174,7 +1193,7 @@ class AIController:
                         dist(champ.x, champ.y, t.x, t.y) <= champ.range + t.radius + 0.2)
             use = (in_melee and t.hp > champ.dmg * 1.5) or (hpf < 0.35 and near)
         if use and m.ability_has_target(champ):
-            m.activate_ability(self.me)
+            m.activate_ability(self.seat)
 
     # ============================================================== tracking
     def _track(self, dt):
@@ -1211,6 +1230,13 @@ class AIController:
         self._track(dt)
         self._champion(dt)
         self.decision_timer -= dt
+        if m.is_2v2:
+            # 2v2: when my partner just played, give its card a moment to
+            # land before deciding, so we don't both answer the same push
+            spent = m.stats["spent"][self.seat ^ 2]
+            if spent > getattr(self, "_partner_spent", 0.0):
+                self.decision_timer = max(self.decision_timer, 0.45)
+            self._partner_spent = spent
         if self.hold > 0:
             self.hold -= dt
         if self.plan is not None:

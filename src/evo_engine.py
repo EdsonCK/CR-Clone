@@ -88,7 +88,7 @@ def _fx(match, kind, team, x, y, radius, dur=0.35, key=None):
 def _hit(match, src, o, dmg, tower_mult=1.0):
     """Ability damage from `src` (credited to it in the match stats)."""
     prev = match._src, match._src_ent
-    match._src, match._src_ent = (src.team, src.key), src
+    match._src, match._src_ent = (src.seat, src.key), src
     o.take_damage(dmg * (tower_mult if o.is_tower else 1.0))
     match._src, match._src_ent = prev
 
@@ -96,7 +96,7 @@ def _hit(match, src, o, dmg, tower_mult=1.0):
 def _blast(match, src, x, y, radius, dmg, tower_dmg=None, air=True, knockback=0.0,
            stun=0.0, slow=None, key=None, kb_from=None):
     prev = match._src, match._src_ent
-    match._src, match._src_ent = (src.team, src.key), src
+    match._src, match._src_ent = (src.seat, src.key), src
     _fx(match, "aoe", src.team, x, y, radius, 0.35, key or src.key)
     match.area_damage(src.team, x, y, radius, dmg, hit_air=air, stun=stun, slow=slow,
                       tower_damage=tower_dmg, knockback=knockback, kb_from=kb_from)
@@ -292,7 +292,7 @@ def after_attack(e, match, dmg):
         match.effects.append(Effect("tornado", e.team, e.x, e.y, 5.5, 0.5, dps=0,
                                     speed=4.0, card_key="valkyrie"))
         prev = match._src, match._src_ent
-        match._src, match._src_ent = (e.team, e.key), e
+        match._src, match._src_ent = (e.seat, e.key), e
         match.area_damage(e.team, e.x, e.y, 5.5, 84 * DMG * p1, hit_air=True,
                           tower_damage=37 * DMG * p1)
         match._src, match._src_ent = prev
@@ -550,7 +550,7 @@ def run_later(match, kind, d):
     elif kind == "trooper":
         # Hero Balloon's Skeletrooper lands: thump, then fights on
         prev = match._src
-        match._src = (team, "balloon")
+        match._src = (d.get("seat", team), "balloon")
         match.effects.append(_mk_aoe(team, d["x"], d["y"], 1.5))
         match.area_damage(team, d["x"], d["y"], 1.5, d["dmg"], hit_air=False,
                           tower_damage=d["tower_dmg"])

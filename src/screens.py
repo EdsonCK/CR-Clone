@@ -114,25 +114,44 @@ class ScreensMixin:
         m = self.match
         st = m.stats
         self._screen_title("Match Stats", 28)
-        y = self._stat_bars(62, "Your damage", st["dmg"][0], cfg.COLOR_TEAM_PLAYER, 7,
-                            st["kills"][0])
-        y = self._stat_bars(y + 6, "Enemy damage", st["dmg"][1], cfg.COLOR_TEAM_ENEMY, 4,
-                            st["kills"][1])
+        duo = m.is_2v2
+
+        def both(k, a, b):                 # 2v2: the two enemies together
+            if isinstance(st[k][a], dict):
+                out = dict(st[k][a])
+                for kk, v in st[k][b].items():
+                    out[kk] = out.get(kk, 0) + v
+                return out
+            return st[k][a] + st[k][b]
+        cols = [("You", cfg.COLOR_TEAM_PLAYER, 0)]
+        if duo:
+            cols.append(("Ally", (150, 230, 255), 2))
+        cols.append(("Enemy", cfg.COLOR_TEAM_ENEMY, 1))
+
+        def get(k, seat):
+            return both(k, 1, 3) if duo and seat == 1 else st[k][seat]
+        y = self._stat_bars(62, "Your damage", st["dmg"][0], cfg.COLOR_TEAM_PLAYER,
+                            5 if duo else 7, st["kills"][0])
+        if duo:
+            y = self._stat_bars(y + 6, "Ally damage", st["dmg"][2], (150, 230, 255), 3,
+                                st["kills"][2])
+        y = self._stat_bars(y + 6, "Enemy damage", get("dmg", 1), cfg.COLOR_TEAM_ENEMY,
+                            3 if duo else 4, get("kills", 1))
         y += 8
         panel = self._panel((12, y, cfg.WINDOW_W - 24, 112), border=(150, 130, 80))
         yy = y + 10
-        rows = [("Elixir spent", "%d" % st["spent"][0], "%d" % st["spent"][1]),
-                ("Elixir wasted (full bar)", "%.1f" % st["leaked"][0], "%.1f" % st["leaked"][1]),
-                ("Tower damage", "%d" % st["tower_dmg"][0], "%d" % st["tower_dmg"][1]),
-                ("Cards played", "%d" % sum(st["played"][0].values()),
-                 "%d" % sum(st["played"][1].values()))]
-        self._text("You", self.font_sb, cfg.COLOR_TEAM_PLAYER, topleft=(panel.right - 130, yy - 4))
-        self._text("Enemy", self.font_sb, cfg.COLOR_TEAM_ENEMY, topleft=(panel.right - 66, yy - 4))
+        rows = [("Elixir spent", lambda s_: "%d" % get("spent", s_)),
+                ("Elixir wasted (full bar)", lambda s_: "%.1f" % get("leaked", s_)),
+                ("Tower damage", lambda s_: "%d" % get("tower_dmg", s_)),
+                ("Cards played", lambda s_: "%d" % sum(get("played", s_).values()))]
+        xs = [panel.right - 64 * (len(cols) - i) - 2 for i in range(len(cols))]
+        for (name, col, _), x in zip(cols, xs):
+            self._text(name, self.font_sb, col, topleft=(x, yy - 4))
         yy += 16
-        for lbl, a, b in rows:
+        for lbl, fn in rows:
             self._text(lbl, self.font_s, (220, 224, 236), topleft=(panel.x + 12, yy))
-            self._text(a, self.font_sb, topleft=(panel.right - 130, yy - 1))
-            self._text(b, self.font_sb, topleft=(panel.right - 66, yy - 1))
+            for (_, _, seat), x in zip(cols, xs):
+                self._text(fn(seat), self.font_sb, topleft=(x, yy - 1))
             yy += 21
         run = self.level_run
         if run is not None and getattr(run, "tower_log", None) is not None:

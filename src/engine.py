@@ -43,6 +43,26 @@ BUILDING_R = 1.2
 TOWER_R = 1.6
 
 PLAYER, ENEMY = 0, 1
+# 2v2: four SEATS (a hand, deck, elixir bar each). Seat 0 is you, 1 the
+# enemy, 2 your AI teammate, 3 the second enemy; a seat plays for team
+# seat % 2, so in 1v1 seat == team everywhere.
+ALLY, ENEMY2 = 2, 3
+SEATS = (0, 1, 2, 3)
+
+
+def team_of(seat):
+    return seat % 2
+
+
+# The seat whose action is running right now (Match sets it around plays and
+# each unit / projectile / effect update): whatever gets created meanwhile
+# belongs to that seat - a teammate's Witch's skeletons are the teammate's.
+_SEAT = [None]
+
+
+def seat_for(team):
+    s = _SEAT[0]
+    return s if s is not None and s % 2 == team else team
 
 
 # ---- collisions ----------------------------------------------------------
@@ -144,6 +164,7 @@ class Entity:
         self.level = None          # unit level badge (Levels mode)
         self.boss = False
         self.team = team
+        self.seat = seat_for(team)
         self.x = x
         self.y = y
         self.is_tower = is_tower
@@ -421,8 +442,8 @@ class Entity:
         if amount > 0:
             self.hurt = 0.14
             m = self._match_ref
-            if (m is not None and m._src is not None and m._src[0] in (0, 1)
-                    and m._src[0] != self.team):
+            if (m is not None and m._src is not None and m._src[0] in SEATS
+                    and m._src[0] % 2 != self.team):
                 st, sk = m._src
                 d = m.stats["dmg"][st]
                 d[sk] = d.get(sk, 0.0) + dealt
@@ -1358,6 +1379,7 @@ class Projectile:
                  style=None, homing=True, dest=None, hit_radius=0.55,
                  pierce=False, knockback=0.0, owner=None, boomerang=False):
         self.team = team
+        self.seat = seat_for(team)
         self.x = x
         self.y = y
         self.target = target
@@ -1550,6 +1572,7 @@ class Effect:
         self.spawn_t = 0.0
         self.points = points or []   # tile-coord polyline for "chain"/beam visuals
         self.team = team
+        self.seat = seat_for(team)
         self.x = x
         self.y = y
         self.radius = radius
@@ -1610,7 +1633,7 @@ class Effect:
                                             self.radius, 0.45, card_key="fireball"))
                 match.effects.append(Effect("aoe", self.team, self.x, self.y,
                                             self.radius, 0.35, card_key=self.card_key))
-                prev, match._src = match._src, (self.team, self.card_key)
+                prev, match._src = match._src, (self.seat, self.card_key)
                 match.area_damage(self.team, self.x, self.y, self.radius, self.damage,
                                   hit_air=False, slow=self.slow, knockback=self.knockback)
                 match._src = prev
@@ -1847,6 +1870,40 @@ class Match:
                 tw._death_done = True
                 self.entities.remove(tw)
 
+    # ---- 2v2 ---------------------------------------------------------------
+    def add_seats(self, ally_deck, foe_deck, ally_level=None, foe_level=None,
+                  evo_cards=None, hero_cards=None):
+        """Make this a 2v2: your AI teammate (seat ALLY) and a second enemy
+        (seat ENEMY2) join, each with their own deck, hand, elixir bar and
+        card levels. Towers, crowns and the clock are shared per team."""
+        import evos as _evos
+        for seat, deck, lv in ((ALLY, ally_deck, ally_level), (ENEMY2, foe_deck, foe_level)):
+            self.decks.append(list(deck))
+            d = list(deck)
+            random.shuffle(d)
+            self.hands.append(d[:cfg.HAND_SIZE])
+            self.queues.append(d[cfg.HAND_SIZE:])
+            self.next_card.append(self.queues[seat][0] if self.queues[seat] else None)
+            self.elixir.append(self.elixir[team_of(seat)])
+            self.card_levels[seat] = lv if lv is not None else \
+                self.card_levels.get(team_of(seat), cards.LEVEL_BASE)
+            self.evo_cards[seat] = set((evo_cards or {}).get(seat, ()))
+            self.hero_cards[seat] = set((hero_cards or {}).get(seat, ()))
+            self.evo_charge[seat] = {k: 0 for k in self.evo_cards[seat] if k in _evos.EVOS}
+            self.last_played[seat] = None
+        for k in ("dmg", "kills", "played", "tower_dmg_by"):
+            self.stats[k] += [{}, {}]
+        for k in ("spent", "leaked", "tower_dmg"):
+            self.stats[k] += [0.0, 0.0]
+
+    @property
+    def is_2v2(self):
+        return len(self.hands) > 2
+
+    def seats_of(self, team):
+        """The seats playing for `team`."""
+        return (team, team + 2) if self.is_2v2 else (team,)
+
     # ---- setup -------------------------------------------------------------
     def _setup_towers(self):
         cols = cfg.GRID_COLS
@@ -1947,7 +2004,9 @@ class Match:
 
     # ---- card levels -------------------------------------------------------
     def card_level(self, team, key):
-        lv = self.card_levels.get(team, cards.LEVEL_BASE)
+        lv = self.card_levels.get(seat_for(team))
+        if lv is None:
+            lv = self.card_levels.get(team, cards.LEVEL_BASE)
         if isinstance(lv, dict):
             return lv.get(key, cards.LEVEL_BASE)
         return lv
@@ -1966,6 +2025,17 @@ class Match:
             ev = {"kind": kind, "key": key, "x": x, "y": y, "team": team}
             ev.update(extra)
             self.events.append(ev)
+
+    # whoever is dealing damage right now; also sets the seat context (_SEAT)
+    # so anything created meanwhile belongs to the right 2v2 seat
+    @property
+    def _src(self):
+        return self.__dict__.get("_srcv")
+
+    @_src.setter
+    def _src(self, v):
+        self.__dict__["_srcv"] = v
+        _SEAT[0] = v[0] if v is not None and v[0] in SEATS else None
 
     def take_events(self):
         ev, self.events = self.events, []
@@ -2091,41 +2161,52 @@ class Match:
             return card.alt_form[1]
         return key
 
-    def play_card(self, team, hand_index, x, y):
-        if hand_index >= len(self.hands[team]):
+    def play_card(self, seat, hand_index, x, y):
+        """Seat `seat` plays hand card `hand_index` at (x, y). (1v1: the
+        seat is the team; 2v2: seats 2 / 3 play for teams 0 / 1.)"""
+        if hand_index >= len(self.hands[seat]):
             return False
-        key = self.hands[team][hand_index]
-        if key in self.banned and team == PLAYER:
+        team = team_of(seat)
+        key = self.hands[seat][hand_index]
+        if key in self.banned and seat == PLAYER:
             return False
-        cost = self.card_cost(team, key)
-        dkey = self.play_key(team, key)
-        if cost is None or dkey is None or self.elixir[team] < cost:
+        cost = self.card_cost(seat, key)
+        dkey = self.play_key(seat, key)
+        if cost is None or dkey is None or self.elixir[seat] < cost:
             return False
         x, y = self.snap(cards.CARDS[dkey], x, y)     # every placement snaps
         if not self.can_place(team, dkey, x, y):
             return False
         mirrored = cards.CARDS[key].spell_kind == "mirror"
-        self.elixir[team] -= cost
-        self.stats["spent"][team] += cost
-        pl = self.stats["played"][team]
+        self.elixir[seat] -= cost
+        self.stats["spent"][seat] += cost
+        pl = self.stats["played"][seat]
         pl[key] = pl.get(key, 0) + 1
         evo = hero = False
         if not mirrored:
-            evo = self.evo_ready(team, key)
-            if key in self.evo_charge[team]:
+            evo = self.evo_ready(seat, key)
+            if key in self.evo_charge[seat]:
                 if evo:
-                    self.evo_charge[team][key] = 0
+                    self.evo_charge[seat][key] = 0
                 else:
-                    self.evo_charge[team][key] += 1
-            hero = key in self.hero_cards[team]
-            self.last_played[team] = key
-        self._deploy(team, dkey, x, y, evo=evo, hero=hero,
-                     boost=1 if mirrored else 0, played=key)
+                    self.evo_charge[seat][key] += 1
+            hero = key in self.hero_cards[seat]
+            self.last_played[seat] = key
+        if seat == team:
+            self._deploy(team, dkey, x, y, evo=evo, hero=hero,
+                         boost=1 if mirrored else 0, played=key)
+        else:
+            # a 2v2 teammate: what comes out (and what it spawns) is theirs
+            prev, self._src = self._src, (seat, dkey)
+            self._deploy(team, dkey, x, y, evo=evo, hero=hero,
+                         boost=1 if mirrored else 0, played=key)
+            self._src = prev
+            self.emit("ally_play", dkey, x, y, team, seat=seat)
         # cycle the card
-        self.queues[team].append(key)
-        newk = self.queues[team].pop(0)
-        self.hands[team][hand_index] = newk
-        self.next_card[team] = self.queues[team][0] if self.queues[team] else None
+        self.queues[seat].append(key)
+        newk = self.queues[seat].pop(0)
+        self.hands[seat][hand_index] = newk
+        self.next_card[seat] = self.queues[seat][0] if self.queues[seat] else None
         return True
 
     def evo_ready(self, team, key):
@@ -2140,6 +2221,8 @@ class Match:
         return None if ch is None else (ch, _evos.EVOS[key].cycles)
 
     def later_add(self, delay, kind, **data):
+        if "team" in data:
+            data.setdefault("seat", seat_for(data["team"]))
         self.later.append((self.elapsed + delay, kind, data))
 
     def _run_later(self):
@@ -2151,7 +2234,7 @@ class Match:
         self.later = [x for x in self.later if x[0] > self.elapsed]
         for _, kind, d in due:
             team = d["team"]
-            self._src = (team, d.get("key", kind))
+            self._src = (d.get("seat", team), d.get("key", kind))
             self._src_ent = None
             if kind == "blast":
                 self.effects.append(Effect("aoe", team, d["x"], d["y"], d["radius"],
@@ -2440,7 +2523,7 @@ class Match:
         if not e.alive or not hit:
             return
         prev = self._src, self._src_ent
-        self._src, self._src_ent = (e.team, e.key), e
+        self._src, self._src_ent = (e.seat, e.key), e
         for a in hit:
             self.bolt(e.team, e, a, e.key)
             a.take_damage(rdmg * e.power[1])
@@ -2477,7 +2560,7 @@ class Match:
                                            0.7, 0.3, card_key=target.key))
                 self.emit("attack", target.key, target.x, target.y, target.team)
                 prev = self._src, self._src_ent
-                self._src, self._src_ent = (target.team, target.key), target
+                self._src, self._src_ent = (target.seat, target.key), target
                 source.take_damage(dmg * pc[1])
                 self._src, self._src_ent = prev
                 return
@@ -2532,7 +2615,7 @@ class Match:
         its next victim at that moment). on_done(points) runs when the last
         hop has landed (Evolved Electro Dragon keeps bouncing from there).
         """
-        c = {"team": team, "prev": src, "prev_xy": (origin_x, origin_y),
+        c = {"team": team, "seat": seat_for(team), "prev": src, "prev_xy": (origin_x, origin_y),
              "cur": first_target, "visited": set(), "left": max_targets,
              "dmg": dmg, "stun": stun, "jump": jump_range, "key": source_key,
              "src_ent": self._src_ent, "pts": [(origin_x, origin_y)], "t": 0.0,
@@ -2582,7 +2665,7 @@ class Match:
         for c in self.chains:
             c["t"] += dt
             prev = self._src, self._src_ent
-            self._src, self._src_ent = (c["team"], c["key"]), c["src_ent"]
+            self._src, self._src_ent = (c["seat"], c["key"]), c["src_ent"]
             while c["cur"] is not None and c["t"] >= c["hop"]:
                 c["t"] -= c["hop"]
                 self._chain_step(c)
@@ -2631,7 +2714,7 @@ class Match:
     def hero_on_field(self, team):
         best = None
         for e in self.entities:
-            if e.team == team and e.alive and e.hero:
+            if e.seat == team and e.alive and e.hero:
                 if e.ability_uses > 0:
                     return e
                 best = best or e
@@ -2657,7 +2740,7 @@ class Match:
 
     def champion_on_field(self, team):
         for e in self.entities:
-            if e.team == team and e.alive and e.card.is_champion:
+            if e.seat == team and e.alive and e.card.is_champion:
                 return e
         return None
 
@@ -2681,7 +2764,7 @@ class Match:
         if not self.ability_has_target(champ):
             return False
         self.elixir[team] -= card.ability_cost
-        self.emit("ability", champ.key, champ.x, champ.y, team)
+        self.emit("ability", champ.key, champ.x, champ.y, champ.team)
         champ.ability_uses -= 1
         champ.ability_cd = card.ability_cooldown
         if card.ability_delay > 0:
@@ -2705,10 +2788,10 @@ class Match:
                     # its target vanished during the wind-up: refunded
                     champ.ability_uses += 1
                     champ.ability_cd = 0.0
-                    self.add_elixir(champ.team, champ.card.ability_cost)
+                    self.add_elixir(champ.seat, champ.card.ability_cost)
                     continue
                 prev = self._src, self._src_ent
-                self._src, self._src_ent = (champ.team, champ.key), champ
+                self._src, self._src_ent = (champ.seat, champ.key), champ
                 self._do_ability(champ, champ.card)
                 self._src, self._src_ent = prev
 
@@ -2984,13 +3067,16 @@ class Match:
         mult = self.elixir_multiplier()
         self.add_elixir(PLAYER, cfg.ELIXIR_PER_SECOND * mult * dt)
         self.add_elixir(ENEMY, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)
+        if len(self.elixir) > 2:                   # 2v2: teammate + 2nd enemy
+            self.add_elixir(ALLY, cfg.ELIXIR_PER_SECOND * mult * dt)
+            self.add_elixir(ENEMY2, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)
 
         if self.always_rage:
             for e in self.entities:
                 if not e.is_tower:
                     e.rage_timer = max(e.rage_timer, 0.2)
         for e in list(self.entities):
-            self._src = (e.team, e.key)
+            self._src = (e.seat, e.key)
             self._src_ent = e
             e.update(dt, self)
             # Electro Giant counter-zap: whoever just hit him gets zapped
@@ -3002,7 +3088,7 @@ class Match:
         self._update_pending_abilities(dt)
         self._resolve_collisions(dt)
         for p in list(self.projectiles):
-            self._src = (p.team, p.owner.key if p.owner is not None else (p.style or "?"))
+            self._src = (p.seat, p.owner.key if p.owner is not None else (p.style or "?"))
             self._src_ent = p.owner
             p.update(dt, self)
         self._src_ent = None
@@ -3022,7 +3108,7 @@ class Match:
                         e.take_damage(dmg)
                         self.emit("miasma", e.key, e.x, e.y, PLAYER)
         for fx in list(self.effects):
-            self._src = (fx.team, fx.card_key or fx.kind)
+            self._src = (fx.seat, fx.card_key or fx.kind)
             fx.update(dt, self)
 
         # process deaths (repeat: a death can kill more - e.g. a death bomb)
@@ -3035,10 +3121,10 @@ class Match:
                           king=e.is_king, building=e.is_building,
                           big=e.max_hp >= 1500)
                 lh = getattr(e, "last_hit", None)
-                if lh is not None and not e.is_tower and lh[0] in (PLAYER, ENEMY):
+                if lh is not None and not e.is_tower and lh[0] in SEATS:
                     k = self.stats["kills"][lh[0]]
                     k[lh[1]] = k.get(lh[1], 0) + 1
-                self._src = (e.team, e.key)
+                self._src = (e.seat, e.key)
                 self._src_ent = e
                 if e.is_tower:
                     self._on_tower_destroyed(e)
