@@ -122,6 +122,7 @@ class Profile:
         self.trophies = 0            # Trophy Road
         self.best_trophies = 0
         self.road_paid = 0           # rewards granted up to this many trophies
+        self.mastery = {}            # card key -> Card Mastery record (mastery.py)
         self.load()
 
     # ---- persistence ----
@@ -156,6 +157,8 @@ class Profile:
         self.trophies = max(0, int(d.get("trophies", 0)))
         self.best_trophies = max(self.trophies, int(d.get("best_trophies", 0)))
         self.road_paid = int(d.get("road_paid", 0))
+        self.mastery = {k: v for k, v in d.get("mastery", {}).items()
+                        if k in cards.CARDS and isinstance(v, dict)}
         if "king_xp" in d:
             self.king_xp = int(d["king_xp"])
         else:
@@ -182,7 +185,7 @@ class Profile:
                     "decks": self.decks, "active_slot": self.active_slot,
                     "totals": self.totals, "special": self.special,
                     "trophies": self.trophies, "best_trophies": self.best_trophies,
-                    "road_paid": self.road_paid,
+                    "road_paid": self.road_paid, "mastery": self.mastery,
                 }, f, indent=1)
         except Exception:
             pass
@@ -197,6 +200,7 @@ class Profile:
         self.evos, self.heroes, self.flex_evo = [], [], []
         self.endless_best = self.endless_runs = 0
         self.trophies = self.best_trophies = self.road_paid = 0
+        self.mastery = {}
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}
         self.decks, self.active_slot = decks, slot
         self.save()

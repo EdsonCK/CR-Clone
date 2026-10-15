@@ -32,6 +32,7 @@ import towers
 import sounds
 import fx as fxmod
 import levels
+import mastery
 import profile_data
 import savedata
 import king
@@ -45,6 +46,7 @@ from home import HomeMixin
 from trophyroad import TrophyMixin
 from kingscreen import KingMixin
 from rewardfx import RewardFXMixin
+from masteryscreen import MasteryMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -148,7 +150,7 @@ TOWER_SHOOTERS = frozenset(("princess_tower", "king_tower", "tower_princess", "c
 
 
 class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFXMixin,
-           SandboxMixin):
+           SandboxMixin, MasteryMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.MIX_SR, -16, 2, 512)
@@ -998,6 +1000,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         else:
             self.result_text = "DRAW"
         self.last_rewards = []
+        self._mastery_record(w == PLAYER)
         if w == PLAYER and self.mode in (None, "trophy") and self.match.crowns[PLAYER] >= 3:
             self.profile.totals["three_crowns"] = self.profile.totals.get("three_crowns", 0) + 1
         if self.mode == "trophy":
@@ -1038,6 +1041,18 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
         self._record_result()
         self.state = "result"
+
+    def _mastery_record(self, won):
+        """Battles, Special Battles and 2v2 count towards Card Mastery."""
+        if getattr(self, "sandbox", False) or self.match is None:
+            return
+        m = self.match
+        deck = list(dict.fromkeys(m.decks[PLAYER]))
+        notes = mastery.record_match(self.profile, m, PLAYER, deck, won)
+        if len(notes) == 1:
+            self.last_rewards.append((notes[0], {}))
+        elif notes:
+            self.last_rewards.append(("Card Mastery: %d new - see Cards" % len(notes), {}))
 
     def _daily(self, won):
         import achievements as ach
@@ -3994,7 +4009,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         # rewards
         y = mid + 46
         for label, rw in self.last_rewards:
-            self._text(label, self.font_sb, (230, 232, 240), topleft=(panel.x + 24, y))
+            room = panel.w - 48 - (90 if rw else 0)
+            self._text(self._fit(label, self.font_sb, room), self.font_sb, (230, 232, 240),
+                       topleft=(panel.x + 24, y))
             self._reward_row(rw, panel.right - 24, y + 9)
             y += 22
         for b in self._result_buttons():

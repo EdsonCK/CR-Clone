@@ -1251,3 +1251,31 @@ def random_deck():
 
 def get(key: str) -> CardDef:
     return CARDS[key]
+
+
+_RELATED = {}
+
+
+def related_keys(key):
+    """`key` plus every unit it can bring onto the field (spawns, death
+    spawns, squad members, alternate forms...), found by scanning the
+    card's fields for other card keys. Cached."""
+    out = _RELATED.get(key)
+    if out is not None:
+        return out
+    out = {key}
+    c = CARDS.get(key)
+    if c is not None:
+        stack = list(vars(c).values())
+        while stack:
+            v = stack.pop()
+            if isinstance(v, str):
+                if v in CARDS:
+                    out.add(v)
+            elif isinstance(v, (list, tuple, set)):
+                stack.extend(v)
+            elif isinstance(v, dict):
+                stack.extend(v.keys())
+                stack.extend(v.values())
+    _RELATED[key] = out
+    return out

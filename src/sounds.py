@@ -596,34 +596,6 @@ def ensure_sounds(progress=None):
 # ===========================================================================
 #  WHICH SOUNDS A MATCH NEEDS  (preloaded when it starts)
 # ===========================================================================
-_RELATED = {}
-
-
-def _related(key):
-    """`key` plus every unit it can bring onto the field (spawns, death
-    spawns, squad members, alternate forms...), found by scanning the
-    card's fields for other card keys. Cached."""
-    out = _RELATED.get(key)
-    if out is not None:
-        return out
-    out = {key}
-    c = cards.CARDS.get(key)
-    if c is not None:
-        stack = list(vars(c).values())
-        while stack:
-            v = stack.pop()
-            if isinstance(v, str):
-                if v in cards.CARDS:
-                    out.add(v)
-            elif isinstance(v, (list, tuple, set)):
-                stack.extend(v)
-            elif isinstance(v, dict):
-                stack.extend(v.keys())
-                stack.extend(v.values())
-    _RELATED[key] = out
-    return out
-
-
 # Which death sound (assets/sounds/die_<group>_1..3.ogg) each unit makes.
 # Units not listed: buildings -> "building", big ones -> "big", else "small".
 _DEATH_GROUPS = {
@@ -671,8 +643,8 @@ def match_sound_names(m):
     keys.update(getattr(m, "tower_troops", {}).values())
     for deck in getattr(m, "decks", ()):
         for k in deck:
-            for r in _related(k):
-                keys.update(_related(r))
+            for r in cards.related_keys(k):
+                keys.update(cards.related_keys(r))
     names = list(DEATH_NAMES) + ["tower_down", "dash", "slam", "portal"]
     for k in sorted(keys):
         for kind in ("attack", "hit", "deploy", "ability", "spawn", "cast", "impact"):

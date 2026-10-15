@@ -22,6 +22,7 @@ import config as cfg
 import cards
 import sprites
 import evos
+import mastery
 import profile_data
 import icons
 from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE
@@ -41,12 +42,12 @@ HERO_COL = (255, 196, 80)
 class ScreensMixin:
     # screens drawn/handled by this mixin: _draw_<name>, _<name>_click
     EXTRA_SCREENS = ("cards", "settings", "modes", "draft", "stats", "achievements",
-                     "trophy", "king")
+                     "trophy", "king", "mastery")
 
     def _extra_escape(self):
         back = {"cards": getattr(self, "cards_return", "menu"),
                 "king": getattr(self, "king_return", "menu"),
-                "draft": "modes"}.get(self.state, "menu")
+                "draft": "modes", "mastery": "cards"}.get(self.state, "menu")
         if self.state == "stats":
             back = getattr(self, "stats_return", "result")
         self.state = back
@@ -299,6 +300,9 @@ class ScreensMixin:
                 b.enabled = p.hero_coins >= profile_data.HERO_COST
             b.kind = "hero"
             out.append(b)
+        b = Button((412, y, 112, 36), "Mastery", lambda: self._open_mastery(key), "primary")
+        b.kind = "mastery"
+        out.append(b)
         out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 42, 140, 34), "Back",
                           lambda: self._goto(getattr(self, "cards_return", "menu")), "dark"))
         return out
@@ -428,6 +432,8 @@ class ScreensMixin:
             pygame.draw.rect(self.screen, dk_c(lvcol, 50), pill, border_radius=8)
             pygame.draw.rect(self.screen, lvcol, pill, 1, border_radius=8)
             self._text("Lv %d" % lv, self.font_s, WHITE, center=pill.center)
+            if mastery.claimable(p, c.key):   # Mastery rewards waiting: gold star
+                self._star(r.right - 10, r.bottom - 28, 6, (250, 206, 92))
             if p.can_upgrade(c.key):          # upgrade available: green arrow
                 ax, ay = r.right - 10, r.y + 12
                 pygame.draw.polygon(self.screen, (60, 200, 90),
@@ -475,8 +481,10 @@ class ScreensMixin:
                 s += "  ->  %d" % round(nxt[i][1])
             self._text(s, self.font_s, (220, 224, 236), topleft=(panel.x + 86, yy))
             yy += 15
-        for b in self._cards_buttons():
+        for b in self._cards_buttons()[:-1]:
             b.draw(self.screen, self.font_sb)
+            if getattr(b, "kind", "") == "mastery" and mastery.claimable(p, c.key):
+                pygame.draw.circle(self.screen, (230, 60, 60), (b.rect.right - 4, b.rect.y + 4), 6)
         # descriptions
         yy = top + 144
         import carddesc

@@ -428,6 +428,8 @@ class Entity:
                 d[sk] = d.get(sk, 0.0) + dealt
                 if self.is_tower:
                     m.stats["tower_dmg"][st] += dealt
+                    tb = m.stats["tower_dmg_by"][st]
+                    tb[sk] = tb.get(sk, 0.0) + dealt
                 self.last_hit = m._src
                 self.last_hitter = m._src_ent
             if m is not None and m.dmg_numbers:
@@ -1784,7 +1786,8 @@ class Match:
         self._miasma_t = 0.0
         # post-match stats (see stats_summary)
         self.stats = {"dmg": [{}, {}], "kills": [{}, {}], "played": [{}, {}],
-                      "spent": [0.0, 0.0], "leaked": [0.0, 0.0], "tower_dmg": [0.0, 0.0]}
+                      "spent": [0.0, 0.0], "leaked": [0.0, 0.0], "tower_dmg": [0.0, 0.0],
+                      "tower_dmg_by": [{}, {}]}
         self._src = None           # (team, card key) dealing damage right now
         self._src_ent = None       # ...and the entity, if a unit
         self.later = []            # [(time, kind, data)] delayed actions
