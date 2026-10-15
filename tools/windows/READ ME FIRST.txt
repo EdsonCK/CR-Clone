@@ -1,0 +1,57 @@
+CLASH CLONE  -  Windows version
+================================
+
+WHAT YOU NEED
+  * A 64-bit Windows 10 or Windows 11 PC. That's all.
+    Python, pygame and everything else the game needs are already inside
+    this folder - you do NOT need to install anything.
+
+HOW TO PLAY
+  1. Unzip the whole zip file first (right-click the .zip > "Extract All...",
+     then pick a folder you like, e.g. Documents or your Desktop).
+     Don't run the game from inside the zip window - it won't find its files.
+  2. Open the extracted "ClashClone" folder and double-click ClashClone.exe.
+     (Tip: right-click ClashClone.exe > "Send to" > "Desktop (create
+     shortcut)" for a desktop icon.)
+  3. The very first start takes a few seconds longer (it prepares its
+     sound and picture cache). After that it starts quickly.
+
+"WINDOWS PROTECTED YOUR PC" (blue SmartScreen box)
+  Windows shows this for any program that isn't signed with a paid
+  publisher certificate. Click "More info", then "Run anyway". You only
+  have to do this once.
+  If your antivirus quarantines ClashClone.exe, that is a false alarm that
+  happens to many games packed with PyInstaller - restore it / add the
+  folder as an exception.
+
+KEEP THE FOLDER TOGETHER
+  ClashClone.exe needs the "_internal" and "assets" folders next to it.
+  Move or copy the whole ClashClone folder, never the .exe on its own
+  (use a shortcut instead).
+
+YOUR SAVES
+  Your progress is NOT stored in this folder, so you can delete it or
+  unzip a newer version any time without losing anything. Saves live in:
+      %APPDATA%\ClashClone
+  (paste that into the File Explorer address bar to open it; Settings in
+  the game also has a button that opens it). Copy that folder to back up
+  your progress or move it to another PC.
+
+CONTROLS
+  Mouse: click a card in your hand, then click the arena (or drag it there).
+  Esc goes back, F11 or Alt+Enter toggles fullscreen.
+  Drag the window edge to resize it - the whole game scales.
+
+IF SOMETHING GOES WRONG
+  * Nothing happens / it closes right away: make sure you extracted the
+    zip (step 1) and that the folder isn't inside a OneDrive folder that
+    is still downloading ("cloud" icons). Try extracting to C:\Games.
+  * No sound: check the Windows volume mixer and that a speaker /
+    headphone device is set as default; then restart the game.
+  * Black or tiny window on a high-DPI laptop: right-click ClashClone.exe
+    > Properties > Compatibility > "Change high DPI settings" > tick
+    "Override high DPI scaling behaviour" (Application) > OK.
+
+UNINSTALL
+  Delete the ClashClone folder (and %APPDATA%\ClashClone if you also want
+  to remove your saves). Nothing else is installed anywhere.

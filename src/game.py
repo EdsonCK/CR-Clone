@@ -167,6 +167,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self.screen = pygame.display.set_mode((cfg.WINDOW_W, cfg.WINDOW_H))
         self.clock = pygame.time.Clock()
         sprites.ensure_sprites()
+        try:
+            pygame.display.set_icon(sprites.get_sprite("barbarians", 32))
+        except Exception:
+            pass
 
         self.font_s = pygame.font.SysFont("arial", 13)
         self.font_sb = pygame.font.SysFont("arial", 14, bold=True)

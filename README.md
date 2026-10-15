@@ -10,6 +10,16 @@ assets — and it's fully swappable (see below).
 
 ## Quick start
 
+**Windows, nothing installed:** download `clash-clone-v1.4.9-windows.zip`,
+right-click it > *Extract All...*, open the extracted `ClashClone` folder and
+double-click **ClashClone.exe**. Python, pygame and everything else are
+inside the folder (64-bit Windows 10/11). On the blue *"Windows protected
+your PC"* box click *More info* > *Run anyway* (it appears for any unsigned
+program). Keep the folder together - make a shortcut rather than moving the
+.exe. `READ ME FIRST.txt` in the folder has the details and troubleshooting.
+
+**From source (any OS):**
+
 ```bash
 pip install -r requirements.txt
 python src/main.py
@@ -41,6 +51,10 @@ old game folder into the save folder by hand. From now on just unzip new
 versions anywhere - nothing to copy.
 
 ## What's in it (v1.4)
+
+**New in v1.4.9**: **Card Mastery** (3 tasks x 3 tiers for every card),
+a **2v2 Battle** mode with an AI teammate, a **Windows .exe** that needs
+nothing installed, and smaller achievement rewards. See "v1.4.9 changes".
 
 **New in v1.4.5**: collected rewards pop up and fly to the top bar, champion
 abilities have a short wind-up, Champions go in the flex or Hero slot, real
@@ -94,6 +108,24 @@ Evolutions and Heroes the higher you climb.
   How To Play and Quit. Esc goes back to the Battle tab.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.4.9 changes
+
+* **Achievements pay less**: still 52 of them, but each pays about a third
+  of the gold (x0.35) and gems (x0.3) and half the Evo shards, Hero coins
+  and King XP it used to - all of them together now pay ~19,900 gold,
+  ~1,800 gems and ~2,050 XP (was ~57,000 / ~5,900 / ~4,100).
+* **Card Mastery** (Cards screen > *Mastery*): win 5 Battles with a card to
+  unlock its Mastery (+100 gold), then work on 3 tasks at once, each with 3
+  tiers - see *Card Mastery* below.
+* **2v2 Battle** (Modes tab): you and an AI teammate against two AIs - see
+  *2v2 Battle* below.
+* **Windows version**: a ready-to-run `ClashClone.exe` with everything
+  included - see *Quick start*.
+* The camera nudge on the heaviest hits (added in 1.4.8) is gone - it could
+  throw off your timing. (The old shakes - tower destroyed, big spells,
+  Mega Knight landing - stay, and Settings > *Screen shake* turns them off.)
+* `tests/` holds the regression tests: `python tests/run_all.py`.
 
 ## v1.4.8 changes
 
@@ -397,6 +429,35 @@ use Settings > Reset progress to start over).
 * **Sandbox** (Settings) unlocks every Level, Evolution and Hero for free
   play without touching your saved progress.
 
+## Card Mastery
+
+Open a card on the **Cards** screen and press **Mastery** (a red dot - and a
+gold star on the card's tile - means rewards are waiting).
+
+* **Unlock**: win **5 Battles** with the card in your deck: +100 gold.
+* Then the card has **3 tasks running at the same time**, each with
+  **3 tiers**:
+
+| Task | Opens | What it asks |
+|---|---|---|
+| 1 | when Mastery unlocks | win Battles with the card in your deck (10 / 30 / 75) |
+| 2 | at card **level 13** | deal damage with it - or, for win conditions (Hog Rider, Golem, Goblin Barrel...), damage to Crown Towers |
+| 3 | at card **level 15** | destroy enemy troops with it - or, for cards that rarely kill anything, play it |
+
+* **Rewards**: every task's tier 1 pays **500 gold**, tier 2 **1000 gold**
+  and tier 3 **100 gems** (9 tiers per card: 4,500 gold + 300 gems, plus
+  the 100 gold for unlocking). Claim them on the Mastery page; the stars
+  show how many of the 9 you have.
+* The damage / troop / play goals are sized per card from what it really
+  does in an average match (`src/mastery_data.py`, measured by
+  `tools/mastery_calib.py` over 3000 AI games), so every card takes about as
+  long: tier 3 is ~75 wins or ~150-180 matches' worth of that card. Fully
+  mastering a card takes a long time even if you play it every game.
+* What counts: Battles (Trophy Road and Friendly), Special Battles and 2v2
+  - not Levels, Endless or the Sandbox. A task only gathers progress while
+  it's open (so level the card up!), and a squad / spawner counts what its
+  members and spawns do.
+
 ## Evolutions & Heroes
 
 Your deck's slot 1 is the **EVO slot**, slot 2 the **flex slot** (an
@@ -533,6 +594,29 @@ each pays a Hero coin.
 | Rage Battle | every troop is permanently raged |
 | Random Decks | random decks for both sides |
 | Double Trouble | x2 elixir, double-strength towers, 5 minutes |
+| 2v2 Battle | you + an AI teammate against two AIs (below) |
+
+### 2v2 Battle
+
+Played like the real game's 2v2: four players, **each with their own deck,
+hand of 4, next card and elixir bar** (normal elixir speed, double elixir in
+the last minute, overtime as usual). The two players of a team share their
+three towers, crowns and the clock, and both can deploy anywhere on their
+side of the arena. Everything a player plays - and everything it spawns -
+is theirs: champions' ability buttons, Evolution charge, Mirror and damage
+stats are per player.
+
+* **Your teammate** is an AI with its own deck (picked at random from the
+  AI decks, named in its panel), at the intelligence chosen at the top of
+  the Modes tab, with cards at your deck's level and as many Evolutions /
+  Heroes as you bring. Its hand, next card and elixir show in the panel
+  right of your half of the arena, and an **"Ally"** marker pops up where it
+  plays. It sees your troops as its own, so it won't pile onto a push you
+  already answered.
+* **The two enemies** are AIs at that same intelligence with level-12 cards
+  (like every Special Battle) and different decks.
+* No trophies; it pays like the other Special Battles and counts for Card
+  Mastery. The Match Stats screen splits You / Ally / Enemies.
 
 **Endless Survival** uses the Levels rules (your Level Deck, no enemy towers,
 the miasma) with waves that never end: each wave has a growing elixir budget
@@ -1003,7 +1087,9 @@ src/
   king.py     King levels: XP curve, reward track;  kingscreen.py  its screen
   shop.py     Shop offers and prices
   sandbox.py  the Training Sandbox
-  modes.py    Special Battles, Draft and Endless Survival
+  modes.py    Special Battles, Draft, 2v2 and Endless Survival
+  mastery.py  Card Mastery rules;  masteryscreen.py  its page;
+              mastery_data.py  per-card averages that size the goals
   levels.py   the 30 Levels, the wave runner and the Endless generator
   profile_data.py  currencies, card / King / Tower Troop levels, unlocks (profile.json)
   savedata.py the save folder outside the game + importing old saves
@@ -1018,7 +1104,30 @@ tools/
   balance.py        card benchmark & auto-balancer
   apply_balance.py  writes balanced stats into src/cards.py
   sfx/              builds the recorded battle sounds (see Music & sound)
+  mastery_calib.py  measures what each card does per match -> mastery_data.py
+  windows/          Windows build: ClashClone.spec (PyInstaller), build_windows.bat,
+                    READ ME FIRST.txt (goes into the Windows zip)
+tests/
+  run_all.py        runs every test_*.py (headless, throw-away save folder)
+.github/workflows/windows-build.yml   builds the Windows zip on GitHub
+                    (Actions tab > Build Windows > Run workflow)
 ```
+
+### Tests
+
+`python tests/run_all.py` runs the 12 regression tests (about 40 s): pathing,
+mechanics, placement, electric attacks, every Evolution and Hero, deck
+slots, the home screen, rewards, sounds, music, Card Mastery and 2v2. Add
+`-v` to see their output, or a word to run only some (`run_all.py 2v2`).
+They never touch your real saves.
+
+### Building the Windows version
+
+The release zip was built with PyInstaller 6.10 and pygame 2.6.1 on Python
+3.11 (64-bit). To rebuild it after changing the code: on Windows install
+Python 3.11 from python.org and double-click `tools\windows\build_windows.bat`
+(result: `dist\ClashClone\ClashClone.exe`), or run the *Build Windows*
+workflow on GitHub and download the zip from the run's Artifacts.
 
 ## Cards included (123, including 8 Champions)
 
