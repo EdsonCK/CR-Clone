@@ -529,9 +529,7 @@ def run_later(match, kind, d):
             return
         from engine import Effect
         best.take_damage(d["dmg"])
-        match.effects.append(Effect("chain", team, d["x"], d["y"], 0, 0.3,
-                                    card_key=d.get("key"),
-                                    points=[(d["x"], d["y"]), (best.x, best.y)]))
+        match.bolt(team, (d["x"], d["y"]), best, d.get("key") or "electro_dragon")
         if d["left"] > 1:
             match.later_add(0.4, "bounce", team=team, x=best.x, y=best.y,
                             px=d["x"], py=d["y"], dmg=d["dmg"], left=d["left"] - 1,

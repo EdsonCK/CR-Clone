@@ -175,6 +175,9 @@ class CardDef:
                                 #   Electro Dragon 4).
     beam: bool = False          # attack renders as an instant full-length beam
                                 #   (Tesla) - no projectile travel time.
+    zap: bool = False           # electric shooter: the bolt lands the moment it
+                                #   is fired (no projectile flight), drawn as a
+                                #   lightning bolt pinned to shooter and target
     reflect: Optional[Tuple[float, int, float]] = None
                                 # (radius, damage, stun) zap released when this
                                 #   unit TAKES damage (Electro Giant).
@@ -458,7 +461,7 @@ _CARD_LIST = [
     CardDef("princess", "Princess", 3, rarity="legendary",
             hp=102, damage=84, hit_speed=3.0, range=9.0, speed=SPEED_MEDIUM,
             attacks=AG, splash=2.0, deploy_time=1.2),
-    CardDef("electro_wizard", "Electro Wizard", 4, rarity="legendary",
+    CardDef("electro_wizard", "Electro Wizard", 4, rarity="legendary", zap=True,
             hp=339, damage=70, hit_speed=1.8, range=5.0, speed=SPEED_FAST,
             attacks=AG, stun=0.5, multi_target=2,
             spawn_damage=(2.5, 93), spawn_stun=0.5),
@@ -562,7 +565,7 @@ _CARD_LIST = [
     CardDef("guards", "Guards", 3, rarity="epic",
             hp=37, damage=69, hit_speed=1.1, range=0.9, speed=SPEED_MEDIUM,
             count=3, attacks=G, shield_hp=168, spawn_radius=0.9),
-    CardDef("zappies", "Zappies", 4, rarity="rare",
+    CardDef("zappies", "Zappies", 4, rarity="rare", zap=True,
             hp=153, damage=49, hit_speed=1.8, range=4.5, speed=SPEED_MEDIUM,
             count=3, attacks=AG, stun=0.4, spawn_radius=1.0),
     # -------- ranged / splash specialists --------
@@ -595,7 +598,7 @@ _CARD_LIST = [
     CardDef("flying_machine", "Flying Machine", 4, rarity="rare",
             hp=326, damage=82, hit_speed=1.1, range=6.0, speed=SPEED_FAST,
             attacks=AG, flying=True),
-    CardDef("electro_dragon", "Electro Dragon", 5, rarity="epic",
+    CardDef("electro_dragon", "Electro Dragon", 5, rarity="epic", zap=True,
             hp=570, damage=83, hit_speed=1.9, range=3.5, speed=SPEED_MEDIUM,
             attacks=AG, flying=True, stun=0.5, chain=(4, 2.0)),
             # bolt chains up to 4 targets (2-tile jumps), no repeats
@@ -738,7 +741,7 @@ _CARD_LIST = [
             ability_value=0.8),
             # takes 80% less damage for 4s and deflects incoming single-target
             # projectiles back at whoever fired them
-    CardDef("goblinstein", "Goblinstein", 5, rarity="champion",
+    CardDef("goblinstein", "Goblinstein", 5, rarity="champion", zap=True,
             hp=570, damage=65, hit_speed=1.4, range=4.5, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True, companion=("goblin_monster", 1),
             # the Doctor (ranged) deploys together with his Monster
@@ -990,7 +993,7 @@ _CARD_LIST = [
     CardDef("ma_decoy", "Decoy", 0, deployable=False,
             hp=137, damage=0, range=0, speed=0.0, attacks=G, lifetime=7.0,
             passive=True),
-    CardDef("spirit_empress_air", "Spirit Empress", 6, deployable=False,
+    CardDef("spirit_empress_air", "Spirit Empress", 6, deployable=False, zap=True,
             rarity="legendary", hp=693, damage=110, hit_speed=1.4, range=5.0,
             speed=SPEED_MEDIUM, attacks=AG, flying=True),
 ]

@@ -101,7 +101,7 @@ PROJ_STYLES = {
     "electro_dragon": ("zap", (140, 190, 255)),
     "zappies":        ("zap", (255, 240, 140)),
     # (tesla now fires an instant beam via the "chain" effect, no projectile)
-    "sparky":         ("orb", (255, 240, 150)),
+    "sparky":         ("sparkorb", (140, 210, 255)),
     "royal_giant":    ("cannonball", (65, 62, 72)),
     "cannon":         ("cannonball", (65, 62, 72)),
     "xbow":           ("xbolt", (235, 225, 205)),
@@ -127,6 +127,12 @@ PROJ_STYLES = {
 STEEL_COL = (225, 228, 236)
 
 # Colour of chain / link lightning per source card (default electric blue).
+# electric bolts ("bolt" effects): colour per shooter (default electric blue)
+BOLT_COLORS = {"goblinstein": (150, 255, 170), "electro_wizard": (150, 225, 255)}
+BOLT_BLUE = (120, 200, 255)
+# splash rings that shouldn't use the card's own colour
+AOE_COLORS = {"sparky": (140, 210, 255)}
+
 CHAIN_COLORS = {
     "golden_knight": (255, 210, 80),
     "goblinstein": (150, 255, 170),
@@ -2700,6 +2706,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         bx = px + ox - spr.get_width() // 2
         by = py + oy + size // 2 - (spr.get_height() + int(size * sy)) // 2
         self.screen.blit(spr, (bx, by))
+        e._body_px = (px + ox, py + oy)          # where bolts aim (see _draw_bolt)
         if e.card.generates_elixir:
             self._draw_collector_gauge(e, px, py, size)
         self._draw_swing(e, px, py, size)
@@ -3253,6 +3260,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             pygame.draw.ellipse(self.screen, (238, 180, 90), rect)
             pygame.draw.ellipse(self.screen, (255, 230, 150), rect.inflate(-6, -4))
             return
+        if fx.kind == "bolt":
+            self._draw_bolt(fx)
+            return
         if fx.kind in ("chain", "link"):
             # electric arcs between chained points (Electro units, Tesla beam,
             # Goblinstein's Lightning Link) - gold for Golden Knight's dash
@@ -3279,7 +3289,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         if fx.kind == "aoe":
             # brief expanding ring showing a splash hit's true radius
             prog = min(1.0, fx.elapsed / fx.duration)
-            col = sprites.CARD_COLORS.get(fx.card_key, (255, 245, 220))
+            col = AOE_COLORS.get(fx.card_key) or sprites.CARD_COLORS.get(fx.card_key,
+                                                                         (255, 245, 220))
             rad = int(fx.radius * cfg.TILE_SIZE * (0.55 + 0.45 * prog))
             alpha = int(160 * (1.0 - prog))
             surf = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
@@ -3311,6 +3322,86 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             color = (150, 110, 70, 160)
         pygame.draw.circle(surf, color, (rad, rad), rad)
         self.screen.blit(surf, (px - rad, py - rad))
+
+    def _bolt_end(self, ent, xy):
+        """Screen point a bolt attaches to: the unit's drawn body (it
+        follows the unit), else the stored tile point."""
+        if ent is not None:
+            c = getattr(ent, "_body_px", None)
+            if c is not None and not ent.is_tower:
+                return c
+            return tile_to_px(ent.x, ent.y)
+        return tile_to_px(*xy)
+
+    def _draw_bolt(self, fx):
+        """An electric bolt: a jagged, flickering lightning path from the
+        shooter to the target (pinned to both, so its end sits exactly on the
+        target), a soft glow, a couple of forks and a flash where it lands."""
+        prog = min(1.0, fx.elapsed / fx.duration)
+        alpha = (1.0 - prog ** 1.6) * (0.8 + 0.2 * math.sin(fx.elapsed * 70))
+        if alpha <= 0.02:
+            return
+        a, b = fx.ends if fx.ends else (None, None)
+        ax, ay = self._bolt_end(a, fx.points[0])
+        bx, by = self._bolt_end(b, fx.points[-1])
+        w = fx.radius or 1.0
+        col = BOLT_COLORS.get(fx.card_key, BOLT_BLUE)
+        dx, dy = bx - ax, by - ay
+        ln = math.hypot(dx, dy)
+        if ln < 2:
+            ln = 2.0
+        nx, ny = -dy / ln, dx / ln
+        rng = random.Random(id(fx) * 7 + int(fx.elapsed / 0.045))   # re-zigzag ~22x/s
+        n = max(3, int(ln / 11))
+        amp = min(11.0, 3.5 + ln * 0.05) * (0.7 + 0.3 * w)
+        pts = []
+        for i in range(n + 1):
+            t = i / n
+            o = rng.uniform(-1, 1) * amp * math.sin(math.pi * t) if 0 < i < n else 0.0
+            pts.append((ax + dx * t + nx * o, ay + dy * t + ny * o))
+        forks = []
+        for _ in range(2 if ln > 40 else 1):
+            i = rng.randint(1, n - 1)
+            fx0, fy0 = pts[i]
+            ang = math.atan2(dy, dx) + rng.choice((-1, 1)) * rng.uniform(0.4, 0.9)
+            fl = min(22.0, ln * rng.uniform(0.12, 0.22))
+            mid = (fx0 + math.cos(ang) * fl * 0.5 + rng.uniform(-3, 3),
+                   fy0 + math.sin(ang) * fl * 0.5 + rng.uniform(-3, 3))
+            forks.append([(fx0, fy0), mid, (fx0 + math.cos(ang) * fl, fy0 + math.sin(ang) * fl)])
+        # soft glow on its own layer
+        pad = int(14 * w) + 12
+        x0 = int(min(p[0] for p in pts)) - pad
+        y0 = int(min(p[1] for p in pts)) - pad
+        gw = int(max(p[0] for p in pts)) - x0 + pad
+        gh = int(max(p[1] for p in pts)) - y0 + pad
+        glow = pygame.Surface((max(gw, 1), max(gh, 1)), pygame.SRCALPHA)
+        rel = [(x - x0, y - y0) for x, y in pts]
+        for width, al in ((int(11 * w), 45), (int(6 * w), 90)):
+            pygame.draw.lines(glow, col + (int(al * alpha),), False, rel, max(1, width))
+            for q in rel[1:-1]:
+                pygame.draw.circle(glow, col + (int(al * alpha),), (int(q[0]), int(q[1])),
+                                   max(1, width // 2))
+        er = int((7 + 5 * w) * (1.0 - 0.4 * prog))        # landing flash
+        pygame.draw.circle(glow, col + (int(110 * alpha),), (int(bx - x0), int(by - y0)), er)
+        pygame.draw.circle(glow, (235, 248, 255, int(170 * alpha)),
+                           (int(bx - x0), int(by - y0)), max(2, er // 2))
+        self.screen.blit(glow, (x0, y0))
+        # the bolt itself: coloured body + white-hot core
+        main = max(1, int(round(3.2 * w * (0.6 + 0.4 * alpha))))
+        pygame.draw.lines(self.screen, col, False, pts, main)
+        if main > 2:
+            for q in pts[1:-1]:
+                pygame.draw.circle(self.screen, col, (int(q[0]), int(q[1])), main // 2)
+        pygame.draw.lines(self.screen, (245, 252, 255), False, pts, max(1, int(1.4 * w)))
+        for f in forks:
+            pygame.draw.lines(self.screen, col, False, f, max(1, int(1.5 * w)))
+            pygame.draw.lines(self.screen, (230, 245, 255), False, f, 1)
+        # little sparks spraying off the target
+        for k in range(4):
+            sa = rng.uniform(0, math.tau)
+            sl = rng.uniform(4, 9) * w
+            pygame.draw.line(self.screen, (230, 245, 255), (bx, by),
+                             (bx + math.cos(sa) * sl, by + math.sin(sa) * sl), 1)
 
     def _draw_timed_bomb(self, fx, px, py):
         """Mighty Miner's dropped bomb / a death bomb: fuse sparks + countdown
@@ -3453,6 +3544,21 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 a = t * 20 + i * 2.09
                 pygame.draw.line(self.screen, (255, 255, 210), (px, py),
                                  (px + math.cos(a) * 6, py + math.sin(a) * 6), 1)
+        elif kind == "sparkorb":
+            # Sparky's blast: a fast blue ball of lightning with a streak
+            tail = (px - ax * 22, py - ay * 22)
+            streak = pygame.Surface((60, 60), pygame.SRCALPHA)
+            o = (30 - px, 30 - py)
+            pygame.draw.line(streak, col + (90,), (tail[0] + o[0], tail[1] + o[1]), (30, 30), 9)
+            pygame.draw.circle(streak, col + (110,), (30, 30), 12)
+            self.screen.blit(streak, (px - 30, py - 30))
+            pygame.draw.line(self.screen, col, tail, (px, py), 4)
+            pygame.draw.circle(self.screen, col, (px, py), 7)
+            pygame.draw.circle(self.screen, (240, 250, 255), (px, py), 4)
+            for i in range(4):
+                a = t * 30 + i * 1.57
+                pygame.draw.line(self.screen, (220, 240, 255), (px, py),
+                                 (px + math.cos(a) * 10, py + math.sin(a) * 10), 1)
         elif kind == "orb":
             pygame.draw.circle(self.screen, dk_c(col, 60), (px, py), 8)
             pygame.draw.circle(self.screen, col, (px, py), 6)

@@ -1083,7 +1083,7 @@ class Entity:
                 maxt, jump = self.card.chain
                 match.chain_damage(self.team, self.x, self.y, self.target,
                                    self.dmg, self.card.stun, maxt, jump,
-                                   self.key)
+                                   self.key, src=self)
                 self.alive = False
                 return
             if self.card.death_damage:
@@ -1176,10 +1176,7 @@ class Entity:
         if self.card.beam:
             match.apply_hit(self, self.target, dmg, 0,
                             self.card.stun, self.card.slow)
-            match.effects.append(Effect(
-                "chain", self.team, self.x, self.y, 0, 0.15,
-                card_key=self.key,
-                points=[(self.x, self.y), (self.target.x, self.target.y)]))
+            match.bolt(self.team, self, self.target, self.key)
             return
 
         stun = self.card.stun
@@ -1231,9 +1228,12 @@ class Entity:
             while len(targets) < self.card.multi_target:
                 targets.append(self.target)
             for t in targets:
-                match.projectiles.append(Projectile(
-                    self.team, self.x, self.y, t, dmg, self.card.splash,
-                    self.attacks, stun, slow, style=self.key, owner=self))
+                pj = Projectile(self.team, self.x, self.y, t, dmg, self.card.splash,
+                                self.attacks, stun, slow, style=self.key, owner=self)
+                if self.card.zap:
+                    match.zap_now(pj)
+                else:
+                    match.projectiles.append(pj)
             return
 
         if self.range >= PROJECTILE_RANGE_MIN:
@@ -1241,6 +1241,9 @@ class Entity:
                             dmg, self.card.splash, self.attacks, stun, slow,
                             style=self.key, owner=self)
             pj.shrapnel = self.card.shrapnel
+            if self.card.zap:
+                match.zap_now(pj)              # electric: lands as it's fired
+                return
             match.projectiles.append(pj)
             if self.card.recoil and not self.is_building:
                 # Firecracker: the launcher kicks her back a step
@@ -1319,12 +1322,20 @@ class Entity:
 # ===========================================================================
 # Per-shooter projectile speed (tiles/sec). Anything not listed flies at
 # cfg.PROJECTILE_SPEED. Fast = bullets/bolts, slow = lobbed bombs/rocks.
+# electric bolts: seconds between the hops of a rippling chain, and the
+# look of each shooter's bolt (thickness multiplier, seconds on screen)
+CHAIN_HOP_DELAY = {"electro_spirit": 0.2, "electro_dragon": 0.2}
+BOLT_WIDTH = {"electro_spirit": 1.45, "electro_dragon": 1.25, "tesla": 1.3,
+              "electro_giant": 1.25, "electro_wizard": 1.05, "zappies": 0.85,
+              "goblinstein": 1.15, "spirit_empress_air": 1.0}
+BOLT_LIFE = {"electro_spirit": 0.3, "electro_dragon": 0.3, "tesla": 0.24}
+
 PROJ_SPEEDS = {
     "musketeer": 14, "three_musketeers": 14, "hunter": 13, "xbow": 16,
     "archers": 11, "magic_archer": 12, "dart_goblin": 13, "princess": 10,
     "princess_tower": 12, "king_tower": 10, "cannon": 11, "royal_giant": 9,
     "mortar": 6, "bomber": 7, "bomb_tower": 7, "bowler": 6, "executioner": 7,
-    "sparky": 7, "flying_machine": 12, "tesla": 18,
+    "sparky": 30, "flying_machine": 12, "tesla": 18,
     "firecracker": 9, "firecracker_spark": 8, "goblin_machine_rocket": 8,
     "goblin_demolisher": 7, "skeleton_dragons": 9, "minion_giant": 8,
     "mother_witch": 10, "rascal_girl": 12, "ram_rider_bola": 10,
@@ -1371,6 +1382,7 @@ class Projectile:
         self.speed = PROJ_SPEEDS.get(style, cfg.PROJECTILE_SPEED)
         self.alive = True
         self.shrapnel = None   # (pieces, spread, length): burst on impact
+        self.instant = False   # an electric zap: landed the moment it was fired
         self.tower_dmg = None  # crown-tower damage of a splash shot
 
     def update(self, dt, match):
@@ -1490,10 +1502,13 @@ class Projectile:
                 and self.target and self.target.alive):
             maxt, jump = card.chain
             maxt = evo_engine.chain_targets(self.owner, maxt)
-            match.chain_damage(self.team, self.x, self.y, self.target,
-                               self.dmg, self.stun, maxt, jump, self.style)
+            done = None
             if self.owner is not None and self.owner.evo:
-                evo_engine.after_chain(self, match)
+                done = (lambda pts: evo_engine.after_chain(self, match))
+            src = self.owner if self.instant and self.owner is not None else None
+            ox, oy = (src.x, src.y) if src is not None else (self.x, self.y)
+            match.chain_damage(self.team, ox, oy, self.target, self.dmg, self.stun,
+                               maxt, jump, self.style, src=src, on_done=done)
             return
         if self.splash > 0:
             match.effects.append(Effect("aoe", self.team, self.x, self.y,
@@ -1798,6 +1813,7 @@ class Match:
         self.entities = []
         self.projectiles = []
         self.effects = []
+        self.chains = []           # chain lightning rippling target to target
 
         self.elixir = [cfg.ELIXIR_START, cfg.ELIXIR_START + cfg.AI_ELIXIR_START_BONUS]
         self.crowns = [0, 0]
@@ -2423,8 +2439,7 @@ class Match:
         prev = self._src, self._src_ent
         self._src, self._src_ent = (e.team, e.key), e
         for a in hit:
-            self.effects.append(Effect("chain", e.team, e.x, e.y, 0.3, 0.25,
-                                       card_key="zap", points=[(e.x, e.y), (a.x, a.y)]))
+            self.bolt(e.team, e, a, e.key)
             a.take_damage(rdmg * e.power[1])
             a.stun_timer = max(a.stun_timer, rstun)
         self.emit("impact", "zap", e.x, e.y, e.team, radius=rad)
@@ -2501,39 +2516,106 @@ class Match:
                     e.reset_charge()
 
     def chain_damage(self, team, origin_x, origin_y, first_target, dmg,
-                     stun, max_targets, jump_range, source_key):
+                     stun, max_targets, jump_range, source_key, src=None, on_done=None):
         """Lightning that arcs from target to nearest target.
 
         Starts at `first_target`, then repeatedly jumps to the closest enemy
         within `jump_range` of the last victim. Each entity is hit at most
-        once; the whole chain stops after `max_targets` hits. Emits a "chain"
-        effect whose points trace the arcs (drawn as blue bolts).
+        once; the whole chain stops after `max_targets` hits. Every arc is a
+        lightning "bolt" effect pinned to the two units it joins.
+
+        Electro Spirit / Electro Dragon chains ripple outward: each further
+        hop happens CHAIN_HOP_DELAY seconds after the previous one (and picks
+        its next victim at that moment). on_done(points) runs when the last
+        hop has landed (Evolved Electro Dragon keeps bouncing from there).
         """
-        pts = [(origin_x, origin_y)]
-        visited = set()
-        cur = first_target
-        hits = 0
-        while cur is not None and hits < max_targets:
-            if cur.alive:
-                cur.take_damage(dmg)
-                if stun:
-                    cur.stun_timer = max(cur.stun_timer, stun)
-            visited.add(id(cur))
-            pts.append((cur.x, cur.y))
-            hits += 1
-            nxt, nd = None, 1e9
+        c = {"team": team, "prev": src, "prev_xy": (origin_x, origin_y),
+             "cur": first_target, "visited": set(), "left": max_targets,
+             "dmg": dmg, "stun": stun, "jump": jump_range, "key": source_key,
+             "src_ent": self._src_ent, "pts": [(origin_x, origin_y)], "t": 0.0,
+             "hop": CHAIN_HOP_DELAY.get(source_key, 0.0), "done": on_done, "hits": 0}
+        self._chain_step(c)
+        if c["cur"] is not None and c["hop"] > 0:
+            self.chains.append(c)
+        else:
+            while c["cur"] is not None:
+                self._chain_step(c)
+            self._chain_finish(c)
+        return c["hits"]
+
+    def _chain_step(self, c):
+        """Land one hop of a chain on c["cur"] and pick the next victim."""
+        cur = c["cur"]
+        if cur.alive:
+            cur.take_damage(c["dmg"])
+            if c["stun"]:
+                cur.stun_timer = max(cur.stun_timer, c["stun"])
+        self.bolt(c["team"], c["prev"] if c["prev"] is not None else c["prev_xy"],
+                  cur, c["key"])
+        c["visited"].add(id(cur))
+        c["pts"].append((cur.x, cur.y))
+        c["hits"] += 1
+        c["left"] -= 1
+        nxt, nd = None, 1e9
+        if c["left"] > 0:
             for e in self.entities:
-                if id(e) in visited or not e.alive or e.team == team:
+                if id(e) in c["visited"] or not e.alive or e.team == c["team"]:
                     continue
                 d = dist(cur.x, cur.y, e.x, e.y)
-                if d <= jump_range + e.radius * 0.5 and d < nd:
+                if d <= c["jump"] + e.radius * 0.5 and d < nd:
                     nxt, nd = e, d
-            cur = nxt
-        if len(pts) >= 2:
-            self.effects.append(Effect("chain", team, pts[0][0], pts[0][1],
-                                       0, 0.3, card_key=source_key, points=pts))
-        self._last_chain = pts
-        return hits
+        c["prev"], c["prev_xy"], c["cur"] = cur, (cur.x, cur.y), nxt
+
+    def _chain_finish(self, c):
+        self._last_chain = c["pts"]
+        if c["done"] is not None:
+            c["done"](c["pts"])
+
+    def _update_chains(self, dt):
+        """Advance rippling chains (one hop every CHAIN_HOP_DELAY s)."""
+        if not self.chains:
+            return
+        keep = []
+        for c in self.chains:
+            c["t"] += dt
+            prev = self._src, self._src_ent
+            self._src, self._src_ent = (c["team"], c["key"]), c["src_ent"]
+            while c["cur"] is not None and c["t"] >= c["hop"]:
+                c["t"] -= c["hop"]
+                self._chain_step(c)
+            self._src, self._src_ent = prev
+            if c["cur"] is None:
+                self._chain_finish(c)
+            else:
+                keep.append(c)
+        self.chains = keep
+
+    def bolt(self, team, a, b, key, life=None):
+        """An electric bolt drawn from a to b (entities - the bolt follows
+        them, so its end always sits on the target - or (x, y) points)."""
+        ax, ay = (a.x, a.y) if hasattr(a, "x") else a
+        bx, by = (b.x, b.y) if hasattr(b, "x") else b
+        fx = Effect("bolt", team, ax, ay, BOLT_WIDTH.get(key, 1.0),
+                    life or BOLT_LIFE.get(key, 0.26), card_key=key,
+                    points=[(ax, ay), (bx, by)])
+        fx.ends = (a if hasattr(a, "x") else None, b if hasattr(b, "x") else None)
+        self.effects.append(fx)
+        return fx
+
+    def zap_now(self, pj):
+        """Fire an electric 'projectile' that lands instantly: the bolt is
+        drawn from the shooter to the target and the hit (or chain) happens
+        right away, exactly as if the shot had arrived."""
+        pj.instant = True
+        t = pj.target
+        card = cards.CARDS.get(pj.style)
+        if not (card is not None and card.chain):
+            self.bolt(pj.team, pj.owner if pj.owner is not None else (pj.x, pj.y), t,
+                      pj.style)
+        pj.x, pj.y = t.x, t.y
+        pj.tx, pj.ty = t.x, t.y
+        pj._impact(self)
+        pj.alive = False
 
     # ---- champions ---------------------------------------------------------
     def _collect_souls(self, dead):
@@ -2921,6 +3003,7 @@ class Match:
             self._src_ent = p.owner
             p.update(dt, self)
         self._src_ent = None
+        self._update_chains(dt)
         self._run_later()
         if self.chef:
             self._update_chef(dt)
