@@ -42,6 +42,12 @@ versions anywhere - nothing to copy.
 
 ## What's in it (v1.4)
 
+**New in v1.4.5**: collected rewards pop up and fly to the top bar, champion
+abilities have a short wind-up, Champions go in the flex or Hero slot, real
+sight ranges for the win conditions, everything but slow units moves 10%
+slower, and a round of card fixes (Mortar, Cannon, X-Bow, The Log, Dart
+Goblin, Archer Queen, Monk, Tomb Queen). See "v1.4.5 changes".
+
 **New in v1.4.4**: real-game **stat ratios** (towers, Hog Rider and the
 staple cards follow the real level-11 numbers exactly, everything else was
 rebalanced around them), **grid snapping** for every placement, real
@@ -88,6 +94,35 @@ Evolutions and Heroes the higher you climb.
   How To Play and Quit. Esc goes back to the Battle tab.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.4.5 changes
+
+* **Reward animations**: every reward you collect - battle rewards,
+  achievements, the Shop, the Trophy Road, King rewards - pops up in the
+  middle of the screen, one kind after another (trophies, XP, gold, gems,
+  Evo shards, Hero coins), and flies to its counter in the top bar, which
+  counts up as it lands. Screens without the top bar (battle result,
+  Achievements...) show just the icons and numbers along the top for the
+  occasion, fading out 2 seconds after the last one lands.
+* **Champions** may only sit in the flex slot (2) or the Hero slot (3); the
+  deck editor moves them there. Their abilities now have a short wind-up
+  before they happen (0.25-0.5s, set per champion: Golden Knight and Boss
+  Bandit 0.25s ... Skeleton King 0.5s). The **Monk** can't move or attack
+  while his Pensive Protection is up.
+* **Movement**: every unit except the Slow ones moves 10% slower (Medium
+  1.53, Fast 2.07, Very Fast 2.61 tiles/s); the **Tomb Queen** is Slow.
+* **Sight ranges** of the win conditions match the real game: Hog Rider and
+  Royal Hogs 9.5 tiles, Balloon 7.7, Giant / Goblin Giant / Royal Giant /
+  Electro Giant / Rune Giant 7.5, Golem / Elixir Golem 7, Lava Hound, Battle
+  Ram and Ram Rider 5.5 - so buildings lure them from as far as they do in
+  Clash Royale.
+* **Mortar** +25% hp (885 -> 1106) and its first shot comes 0.4s after it
+  locks on (was 1s). **Cannon** hp halfway to its real ratio (982 -> 700).
+  **X-Bow** halfway to its real ratio (hp 1183 -> 996, damage 29 -> 25).
+* **The Log** (99 -> 135 damage), **Dart Goblin** (138 -> 132 hp) and
+  **Archer Queen** (454/107 -> 506/114) on their exact real ratios: the Log
+  kills Dart Goblin, Goblins and Princess again, and so does a Valkyrie
+  swing on a Dart Goblin.
 
 ## v1.4.4 changes
 
@@ -597,8 +632,10 @@ card level. Below is the full collection.
 
 ### Champions
 
-Once a champion is on the field, the yellow button (bottom-left of the arena)
-activates its ability for a little extra elixir. Each ability can be used
+A Champion goes in your deck's flex slot (2) or Hero slot (3). Once it's on
+the field, the yellow button (bottom-left of the arena) activates its ability
+for a little extra elixir, after a short wind-up (0.25-0.5s, depending on the
+champion). Each ability can be used
 **once** per champion deployment. The exception is the Boss Bandit, who gets
 **2 uses, 3 seconds apart**.
 

@@ -226,6 +226,8 @@ class CardDef:
     ability_cost: int = 0       # extra elixir to activate
     ability_uses: int = 1       # times the ability can be used per champion
                                 #   deployment (1 = one-shot)
+    ability_delay: float = 0.0  # wind-up between pressing the ability and it
+                                #   happening (0.25-0.5s, per champion)
     ability_cooldown: float = 0.0  # seconds between uses (only matters when
                                 #   ability_uses > 1)
     ability_duration: float = 0.0
@@ -413,21 +415,21 @@ _CARD_LIST = [
     # -------------------- WIN CONDITIONS (target buildings) --------------------
     CardDef("giant", "Giant", 5, rarity="rare",
             hp=2008, damage=128, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
-            attacks=B, no_knockback=True),   # tanky, but now clearly below P.E.K.K.A (2600 hp)
+            attacks=B, no_knockback=True, sight=7.5),   # tanky, but now clearly below P.E.K.K.A (2600 hp)
     CardDef("hog_rider", "Hog Rider", 4, rarity="rare",
             hp=859, damage=160, hit_speed=1.6, range=1.2, speed=SPEED_VERY_FAST,
-            attacks=B, river_jump=True),   # vaults the river, no bridge needed
+            attacks=B, river_jump=True, sight=9.5),   # vaults the river, no bridge needed
     CardDef("royal_giant", "Royal Giant", 6, rarity="common",
             hp=2002, damage=164, hit_speed=1.7, range=5.0, speed=SPEED_SLOW,
-            attacks=B, no_knockback=True),
+            attacks=B, no_knockback=True, sight=7.5),
     CardDef("balloon", "Balloon", 5, rarity="epic",
             hp=656, damage=433, hit_speed=2.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, flying=True, death_damage=(2.0, 186), death_bomb=1.0,
-            first_hit=1.0),
+            first_hit=1.0, sight=7.7),
     CardDef("golem", "Golem", 8, rarity="epic",
             hp=2358, damage=191, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 242), death_spawn=("golemite", 2),
-            sub_hp_mult=0.56, sub_dmg_mult=0.74, first_hit=1.0, deploy_time=3.0, no_knockback=True),
+            sub_hp_mult=0.56, sub_dmg_mult=0.74, first_hit=1.0, deploy_time=3.0, no_knockback=True, sight=7.0),
 
     # -------------------- AIR TROOPS --------------------
     CardDef("minions", "Minions", 3, rarity="common",
@@ -448,7 +450,7 @@ _CARD_LIST = [
 
     # -------------------- SUPPORT / SPECIALIST --------------------
     CardDef("dart_goblin", "Dart Goblin", 3, rarity="rare",
-            hp=138, damage=77, hit_speed=0.7, range=6.0, speed=SPEED_VERY_FAST,
+            hp=132, damage=77, hit_speed=0.7, range=6.0, speed=SPEED_VERY_FAST,
             attacks=AG),   # outranges Cannon, but NOT Tesla (see tesla range)
     CardDef("princess", "Princess", 3, rarity="legendary",
             hp=102, damage=84, hit_speed=3.0, range=9.0, speed=SPEED_MEDIUM,
@@ -474,7 +476,7 @@ _CARD_LIST = [
 
     # -------------------- BUILDINGS --------------------
     CardDef("cannon", "Cannon", 3, category="building", rarity="common",
-            hp=982, damage=156, hit_speed=0.9, range=5.5, attacks=G,
+            hp=700, damage=156, hit_speed=0.9, range=5.5, attacks=G,
             lifetime=30.0),
     CardDef("tesla", "Tesla", 4, category="building", rarity="common",
             hp=756, damage=116, hit_speed=1.1, range=6.8, attacks=AG,
@@ -490,11 +492,11 @@ _CARD_LIST = [
             hp=915, damage=146, hit_speed=1.6, range=6.0, attacks=G,
             splash=1.5, lifetime=35.0, death_damage=(2.0, 233), death_bomb=1.0),
     CardDef("mortar", "Mortar", 4, category="building", rarity="common",
-            hp=885, damage=200, hit_speed=5.0, range=11.5, attacks=G,
+            hp=1106, damage=200, hit_speed=5.0, range=11.5, attacks=G,
             splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5, siege=True),
             # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
-            hp=1183, damage=29, hit_speed=0.3, range=11.5, attacks=G,
+            hp=996, damage=25, hit_speed=0.3, range=11.5, attacks=G,
             lifetime=40.0, deploy_time=3.5, siege=True),
             # locks onto the first ground target in range (troop or building)
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
@@ -526,7 +528,7 @@ _CARD_LIST = [
     CardDef("zap", "Zap", 2, category="spell", rarity="common",
             spell_radius=2.5, spell_damage=97, tower_damage=29, stun=0.5),
     CardDef("the_log", "The Log", 2, category="spell", rarity="legendary",
-            spell_radius=2.0, spell_damage=99, tower_damage=40,
+            spell_radius=2.0, spell_damage=135, tower_damage=20,
             rolling=True, knockback=1.5, own_side=True),
     CardDef("arrows", "Arrows", 3, category="spell", rarity="common",
             spell_radius=4.0, spell_damage=185, tower_damage=47),
@@ -595,7 +597,7 @@ _CARD_LIST = [
     CardDef("lava_hound", "Lava Hound", 7, rarity="legendary",
             hp=2157, damage=31, hit_speed=1.3, range=2.5, speed=SPEED_SLOW,
             attacks=B, flying=True, death_spawn=("lava_pup", 6),
-            sub_hp_mult=0.72, sub_dmg_mult=0.84, no_knockback=True),
+            sub_hp_mult=0.72, sub_dmg_mult=0.84, no_knockback=True, sight=5.5),
     # -------- tanks / bruisers --------
     CardDef("mega_knight", "Mega Knight", 7, rarity="legendary",
             hp=1373, damage=106, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
@@ -607,7 +609,7 @@ _CARD_LIST = [
             hp=1693, damage=84, hit_speed=1.7, range=1.2, speed=SPEED_MEDIUM,
             attacks=B, death_spawn=("spear_goblin", 2),
             back_riders=("spear_goblin", 2),
-            sub_hp_mult=0.71, sub_dmg_mult=0.83, no_knockback=True),
+            sub_hp_mult=0.71, sub_dmg_mult=0.83, no_knockback=True, sight=7.5),
             # 2 spear goblins ride on his back and shoot while he's alive,
             # then hop off as real units when he dies (death_spawn)
     CardDef("cannon_cart", "Cannon Cart", 5, rarity="epic",
@@ -626,7 +628,7 @@ _CARD_LIST = [
             hp=606, damage=110, hit_speed=1.5, range=1.3, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, death_spawn=("barbarian", 2),
             breaks_on_hit=True,
-            sub_hp_mult=1.16, sub_dmg_mult=1.09),
+            sub_hp_mult=1.16, sub_dmg_mult=1.09, sight=5.5),
     CardDef("wall_breakers", "Wall Breakers", 2, rarity="epic",
             hp=212, damage=209, hit_speed=1.0, range=1.0, speed=SPEED_VERY_FAST,
             count=2, attacks=B, kamikaze=True,
@@ -642,7 +644,7 @@ _CARD_LIST = [
             # never the same target twice
     CardDef("electro_giant", "Electro Giant", 7, rarity="epic",
             hp=1490, damage=92, hit_speed=1.7, range=1.2, speed=SPEED_SLOW,
-            attacks=B, reflect=(3.0, 56, 0.5), no_knockback=True),
+            attacks=B, reflect=(3.0, 56, 0.5), no_knockback=True, sight=7.5),
             # counter-zap: anything within 3 tiles gets damaged+stunned
             # whenever he takes a hit
     CardDef("battle_healer", "Battle Healer", 4, rarity="rare",
@@ -652,7 +654,7 @@ _CARD_LIST = [
     CardDef("elixir_golem", "Elixir Golem", 3, rarity="rare",
             hp=1362, damage=137, hit_speed=1.3, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_spawn=("elixir_golemite", 2),
-            sub_hp_mult=0.98, sub_dmg_mult=0.98),
+            sub_hp_mult=0.98, sub_dmg_mult=0.98, sight=7.0),
             # splits twice; the final blobs feed the enemy elixir when killed
 
     # -------- expansion spells --------
@@ -685,15 +687,15 @@ _CARD_LIST = [
             ramp_stages=((0.0, 1.0), (2.0, 2.0), (4.0, 3.0)),
             # drill: 3 damage stages (x1 -> x2 after 2s -> x3 after 4s on the
             # same target). Melee drill, NOT an inferno beam. Max ~240 dps.
-            ability_name="Explosive Escape", ability_type="escape",
+            ability_name="Explosive Escape", ability_delay=0.35, ability_type="escape",
             ability_cost=1, ability_duration=1.0,
             ability_radius=2.5, ability_value=353, no_knockback=True),
             # drops a bomb (explodes after 1s) and burrows to the OTHER lane:
             # his new spot is mirrored across the arena's vertical centre line
     CardDef("archer_queen", "Archer Queen", 5, rarity="champion",
-            hp=454, damage=107, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
+            hp=506, damage=114, hit_speed=1.2, range=5.0, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True,
-            ability_name="Cloaking Cape", ability_type="cloak", ability_cost=1,
+            ability_name="Cloaking Cape", ability_delay=0.30, ability_type="cloak", ability_cost=1,
             ability_duration=3.5, ability_value=2.0),
             # invisible (untargetable) + attacks twice as fast for 3.5s
     CardDef("little_prince", "Little Prince", 3, rarity="champion",
@@ -701,7 +703,7 @@ _CARD_LIST = [
             attacks=AG, is_champion=True,
             ramp_stages=((0.0, 1.0), (2.0, 1.6), (4.0, 2.3)), ramp_kind="speed",
             # keeps shooting faster the longer he attacks (normal shots)
-            ability_name="Royal Rescue", ability_type="rescue",
+            ability_name="Royal Rescue", ability_delay=0.40, ability_type="rescue",
             ability_cost=3, ability_radius=1.0,
             ability_value=140),
             # the Guardian charges in, knocking back + damaging enemies on
@@ -709,7 +711,7 @@ _CARD_LIST = [
     CardDef("golden_knight", "Golden Knight", 4, rarity="champion",
             hp=766, damage=87, hit_speed=1.2, range=1.2, speed=SPEED_FAST,
             attacks=G, is_champion=True,
-            ability_name="Dashing Dash", ability_type="chain_dash",
+            ability_name="Dashing Dash", ability_delay=0.25, ability_type="chain_dash",
             ability_cost=1, ability_radius=5.5,
             ability_value=205),
             # chain-dashes through up to 10 enemies (each within 5.5 tiles of
@@ -717,7 +719,7 @@ _CARD_LIST = [
     CardDef("skeleton_king", "Skeleton King", 4, rarity="champion",
             hp=853, damage=101, hit_speed=1.4, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.3, is_champion=True,
-            ability_name="Soul Summoning", ability_type="skeletons",
+            ability_name="Soul Summoning", ability_delay=0.50, ability_type="skeletons",
             ability_cost=2, ability_value=6, no_knockback=True),
             # 6 skeletons + 1 per soul collected from nearby deaths (max 10)
     CardDef("monk", "Monk", 5, rarity="champion",
@@ -726,7 +728,7 @@ _CARD_LIST = [
             # 3-hit combo: every 3rd strike splashes and knocks enemies back
             # (every champion ability below is ONE use per deployment, except
             #  the Boss Bandit's, which has 2 uses with a 3s cooldown)
-            ability_name="Pensive Protection", ability_type="protect",
+            ability_name="Pensive Protection", ability_delay=0.30, ability_type="protect",
             ability_cost=1, ability_duration=4.0,
             ability_value=0.8),
             # takes 80% less damage for 4s and deflects incoming single-target
@@ -735,7 +737,7 @@ _CARD_LIST = [
             hp=570, damage=65, hit_speed=1.4, range=4.5, speed=SPEED_MEDIUM,
             attacks=AG, is_champion=True, companion=("goblin_monster", 1),
             # the Doctor (ranged) deploys together with his Monster
-            ability_name="Lightning Link", ability_type="link",
+            ability_name="Lightning Link", ability_delay=0.45, ability_type="link",
             ability_cost=2, ability_duration=4.0,
             ability_radius=0.7, ability_value=149,
             sub_hp_mult=0.63, sub_dmg_mult=0.63),
@@ -746,7 +748,7 @@ _CARD_LIST = [
             attacks=G, is_champion=True, dash=(3.5, 5.0), dash_immune=True,
             charge_mult=2.0,
             # dashes like the Bandit (invulnerable, double-damage landing)
-            ability_name="Getaway Grenade", ability_type="getaway",
+            ability_name="Getaway Grenade", ability_delay=0.25, ability_type="getaway",
             ability_cost=1, ability_uses=2, ability_cooldown=3.0,
             ability_value=4.5),
             # 2 uses, 3s apart: she teleports straight back from her target
@@ -812,7 +814,7 @@ _CARD_LIST = [
     CardDef("royal_hogs", "Royal Hogs", 5, rarity="rare",
             hp=490, damage=40, hit_speed=1.2, range=0.7, speed=SPEED_VERY_FAST,
             count=4, attacks=B, river_jump=True, formation="line",
-            formation_gap=1.25),
+            formation_gap=1.25, sight=9.5),
     CardDef("mirror", "Mirror", 1, category="spell", rarity="epic",
             spell_kind="mirror"),
             # replays your last card one level higher for its cost + 1
@@ -833,7 +835,7 @@ _CARD_LIST = [
             spawn_knockback=1.0, sub_hp_mult=1.57, sub_dmg_mult=1.68),
     CardDef("rune_giant", "Rune Giant", 4, rarity="epic",
             hp=1786, damage=70, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
-            attacks=B, enchant=(2, 8.5, 112, 3, 5.0)),
+            attacks=B, enchant=(2, 8.5, 112, 3, 5.0), sight=7.5),
             # enchants the 2 closest allied troops: every 3rd hit +120
     CardDef("void", "Void", 5, category="spell", rarity="epic",
             spell_radius=2.5, duration=4.0, hits=3, spell_kind="void",
@@ -861,7 +863,7 @@ _CARD_LIST = [
             hp=881, damage=125, hit_speed=1.8, range=0.8, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, river_jump=True,
             back_riders=("ram_rider_bola", 1),
-            sub_hp_mult=0.99, sub_dmg_mult=0.99),
+            sub_hp_mult=0.99, sub_dmg_mult=0.99, sight=5.5),
             # the rider throws snaring bolas at troops while the ram charges
     CardDef("ronin", "Ronin", 5, rarity="legendary",
             hp=794, damage=166, hit_speed=1.3, range=1.2, speed=SPEED_FAST,
@@ -893,7 +895,7 @@ _CARD_LIST = [
             lifetime=10.0, spawn_damage=(2.0, 103)),
     CardDef("golemite", "Golemite", 0, deployable=False,
             hp=1050, damage=84, hit_speed=2.5, range=1.2, speed=SPEED_SLOW,
-            attacks=B, death_damage=(1.5, 84), first_hit=1.0),
+            attacks=B, death_damage=(1.5, 84), first_hit=1.0, sight=7.0),
     CardDef("bat", "Bat", 0, deployable=False,
             hp=32, damage=30, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             attacks=AG, flying=True),
@@ -931,7 +933,7 @@ _CARD_LIST = [
             death_damage=(2.5, 205), death_knockback=1.5),
     CardDef("cursed_hog", "Cursed Hog", 0, deployable=False,
             hp=318, damage=27, hit_speed=1.2, range=0.75, speed=SPEED_VERY_FAST,
-            attacks=B, river_jump=True),
+            attacks=B, river_jump=True, sight=9.5),
     CardDef("phoenix_egg", "Phoenix Egg", 0, deployable=False,
             hp=121, damage=0, range=0, speed=0.0, attacks=G, passive=True,
             lifetime=3.8, hatch="phoenix_reborn"),
@@ -974,7 +976,7 @@ _CARD_LIST = [
             attacks=B, charge=True, charge_mult=2.0),
     CardDef("tomb_queen", "Tomb Queen", 0, deployable=False,
             hp=2137, damage=214, hit_speed=1.5, range=1.2, sight=7.0,
-            speed=SPEED_MEDIUM, attacks=B, death_spawn=("skeleton", 6), no_knockback=True),
+            speed=SPEED_SLOW, attacks=B, death_spawn=("skeleton", 6), no_knockback=True),
     CardDef("skeletrooper", "Skeletrooper", 0, deployable=False,
             hp=239, damage=103, hit_speed=1.1, range=0.9, speed=SPEED_VERY_FAST,
             attacks=G),
@@ -1005,7 +1007,7 @@ FIRST_HIT = {
     "goblin_brawler": 0.2, "golem": 1.0, "hog_rider": 0.6, "hunter": 0.7,
     "ice_golem": 1.0, "ice_wizard": 0.5, "knight": 0.5, "lumberjack": 0.4,
     "magic_archer": 0.7, "mega_knight": 0.5, "mega_minion": 0.4,
-    "mini_pekka": 0.5, "minion_horde": 0.5, "minions": 0.5, "mortar": 1.0,
+    "mini_pekka": 0.5, "minion_horde": 0.5, "minions": 0.5, "mortar": 0.4,
     "mother_witch": 0.3, "musketeer": 0.7, "pekka": 0.5, "phoenix": 0.5,
     "princess": 0.3, "ram_rider": 0.6, "rascal_boy": 0.4, "royal_ghost": 0.6,
     "royal_giant": 0.9, "royal_hogs": 0.4, "royal_recruits": 0.5,
@@ -1166,14 +1168,37 @@ def _special_front(ev_ok, he_ok, rest, rng=None):
     return [k for k in front if k is not None] + rest
 
 
+def champion_to_slot(deck):
+    """A Champion may only sit in the flex slot (2) or the Hero slot (3):
+    move it there (swapping with what's there). Returns True if it moved."""
+    import evos
+    champ = next((i for i, k in enumerate(deck) if k in CARDS and CARDS[k].is_champion), None)
+    if champ is None or champ in (1, 2):
+        return False
+    if len(deck) < 2:
+        return False                  # not placeable yet (it's the only card)
+    if len(deck) == 2:
+        j = 1
+    else:
+        # prefer the Hero slot, unless it holds a Hero card and the flex slot
+        # holds nothing special
+        hero3 = deck[2] in evos.HEROES
+        plain2 = deck[1] not in evos.HEROES and deck[1] not in evos.EVOS
+        j = 1 if hero3 and plain2 else 2
+    deck[champ], deck[j] = deck[j], deck[champ]
+    return True
+
+
 def _arrange_specials(deck):
     """Order a deck for its specials: an Evolution-capable card in slot 1,
     another Evo- or Hero-capable card in the flex slot 2 and a Hero-capable
     card in slot 3 (the AI brings whatever is there)."""
     import evos
     d = list(deck)
-    return _special_front([k for k in d if k in evos.EVOS],
-                          [k for k in d if k in evos.HEROES], d)
+    out = _special_front([k for k in d if k in evos.EVOS],
+                         [k for k in d if k in evos.HEROES], d)
+    champion_to_slot(out)
+    return out
 
 
 AI_DECK_PRESETS = {k: _arrange_specials(v) for k, v in AI_DECK_PRESETS.items()}
@@ -1202,7 +1227,9 @@ def deck_variant(name, rng, swap_chance=0.4):
     rng.shuffle(he_ok)
     rest = list(deck)
     rng.shuffle(rest)
-    return _special_front(ev_ok, he_ok, rest, rng)
+    out = _special_front(ev_ok, he_ok, rest, rng)
+    champion_to_slot(out)
+    return out
 
 
 def random_deck():
@@ -1210,6 +1237,7 @@ def random_deck():
     while True:
         d = random.sample([c.key for c in DEPLOYABLE_CARDS], DECK_SIZE)
         if sum(CARDS[k].is_champion for k in d) <= 1:
+            champion_to_slot(d)
             return d
 
 

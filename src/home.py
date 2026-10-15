@@ -237,9 +237,11 @@ class HomeMixin:
         self.screen.blit(grad_rect(W, TOP_H, (40, 44, 66), (24, 26, 40), 0), (0, 0))
         pygame.draw.line(self.screen, (92, 84, 64), (0, TOP_H - 1), (W, TOP_H - 1), 2)
         cy = TOP_H // 2
+        # counters lag behind while collected rewards fly in (rewardfx.py)
+        slots = self._rfx_slots()
         # King level: blue XP badge with a progress ring
         br = self._xp_badge_rect()
-        lv, into, need = king.progress(pr.king_xp)
+        lv, into, need = king.progress(self._rfx_shown("xp"))
         pygame.draw.circle(self.screen, (16, 20, 34), br.center, 19)
         frac = into / need if need else 1.0
         if frac > 0:
@@ -249,23 +251,16 @@ class HomeMixin:
         self._text(str(lv), self.font_sb, center=br.center)
         if br.collidepoint(pygame.mouse.get_pos()):
             pygame.draw.circle(self.screen, (255, 222, 110), br.center, 20, 1)
-        x = br.right + 6
-        for kind, val, col in (("trophy", pr.trophies, GOLD_COL),
-                               ("gold", pr.gold, GOLD_COL),
-                               ("gems", pr.gems, (90, 220, 120)),
-                               ("shards", pr.shards, SHARD_COL),
-                               ("coins", pr.hero_coins, (255, 200, 70))):
-            s = "%d" % val
-            w = self.font_sb.size(s)[0] + 30
-            chip = pygame.Rect(x, cy - 13, w, 26)
+        for kind in ("trophy", "gold", "gems", "shards", "coins"):
+            (ix, iy), chip = slots[kind]
             pygame.draw.rect(self.screen, (18, 20, 30), chip, border_radius=13)
             pygame.draw.rect(self.screen, (70, 74, 96), chip, 1, border_radius=13)
             if kind == "trophy":
-                self._trophy_icon(chip.x + 12, cy, 8)
+                self._trophy_icon(ix, iy, 8)
             else:
-                self._reward_icon(kind, chip.x + 12, cy, 8)
-            self._text(s, self.font_sb, col, topleft=(chip.x + 23, cy - 9))
-            x = chip.right + 4
+                self._reward_icon(kind, ix, iy, 8)
+            self._text("%d" % self._rfx_shown(kind), self.font_sb, self._rfx_col(kind),
+                       topleft=(chip.x + 23, cy - 9))
         # the three-bar menu button
         r = self._menu_btn_rect()
         hover = r.collidepoint(pygame.mouse.get_pos()) or getattr(self, "dropdown", False)

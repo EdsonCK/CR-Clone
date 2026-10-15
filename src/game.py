@@ -44,6 +44,7 @@ from sandbox import SandboxMixin
 from home import HomeMixin
 from trophyroad import TrophyMixin
 from kingscreen import KingMixin
+from rewardfx import RewardFXMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -135,7 +136,8 @@ CHAIN_COLORS = {
 }
 
 
-class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxMixin):
+class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFXMixin,
+           SandboxMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.SR, -16, 2, 512)
@@ -199,6 +201,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         pr.active_slot = max(0, min(pr.active_slot, profile_data.DECK_SLOTS - 1))
         for d in pr.decks:
             d["cards"] = [k for k in d.get("cards", []) if k in cards.CARDS][:cfg.DECK_SIZE]
+            cards.champion_to_slot(d["cards"])
         self.player_deck = pr.decks[pr.active_slot]["cards"]
         self.drag_card = None          # hand index being dragged (drag to deploy)
         self.match = None
@@ -231,6 +234,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
         self.aideck_return = "menu" # where the AI Deck screen goes back to
         self.stats = self._load_stats()   # per-intelligence crown/win records
         self._king_startup()              # old saves -> King levels; due rewards
+        self._rfx_init()                  # reward fly-in animations start here
         if self.imported_from:
             self._toast([("Progress imported from %s" % os.path.basename(
                 os.path.normpath(self.imported_from)), {})])
@@ -1563,6 +1567,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             return
         deck.append(card.key)
         self.deck_msg = ""
+        if cards.champion_to_slot(deck):
+            self.deck_msg = "Champions go in slot 2 (flex) or 3 (hero)."
 
     def _deck_click(self, pos, button=1):
         """Left click: add / remove.  Right click: remove only.
@@ -1602,6 +1608,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
                             "Evo" if deck[i] in fe else "Hero", cards.CARDS[deck[i]].name)
                         return
                     left, right = self._deck_arrow_rects(r)
+                    before = list(deck)
                     if button == 1 and left.collidepoint(pos) and i > 0:
                         deck[i - 1], deck[i] = deck[i], deck[i - 1]
                     elif button == 1 and right.collidepoint(pos) and i < len(deck) - 1:
@@ -1609,6 +1616,13 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
                     else:
                         deck.pop(i)
                     self.deck_msg = ""
+                    if deck != before and len(deck) == len(before) and any(
+                            cards.CARDS[k].is_champion and n not in (1, 2)
+                            for n, k in enumerate(deck)):
+                        deck[:] = before          # a Champion can't leave slots 2-3
+                        self.deck_msg = "Champions go in slot 2 (flex) or 3 (hero)."
+                    else:
+                        cards.champion_to_slot(deck)
                 return
         # card collection (only within the scrollable viewport)
         top, bottom = self._deck_viewport()
@@ -1673,6 +1687,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
     # ================================================================= DRAW
     def _draw(self):
         self._draw_screen()
+        self._rfx_draw()
         self._draw_toast()
 
     def _draw_screen(self):
@@ -2032,8 +2047,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             "badge). Gold upgrades Tower Troops up to King level.",
             "Evo shards unlock Evos, Hero coins Heroes; gems: Shop.",
             "",
-            "Deck slot 1 = EVO, slot 2 = FLEX (Evo or Hero), slot 3 =",
-            "HERO. An Evolution glows purple in hand when charged;",
+            "Deck slot 1 = EVO, slot 2 = FLEX (Evo, Hero or Champion),",
+            "slot 3 = HERO (or Champion). Charged Evos glow purple;",
             "a Hero's one-time ability is the gold button (bottom",
             "right).",
             "Champions (max 1): yellow button bottom-left.",
@@ -2186,7 +2201,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, SandboxM
             self._text(self._fit(line, self.font_s, cfg.WINDOW_W - 20), self.font_s,
                        (225, 225, 200), center=(cx, info_y))
         else:
-            self._text("Slot 1: EVO   2: EVO or HERO   3: HERO   < > move   click: remove",
+            self._text("1: EVO  2: EVO/HERO/CHAMP  3: HERO/CHAMP   < > move",
                        self.font_s, (150, 158, 178), center=(cx, info_y))
         pygame.draw.line(self.screen, (60, 66, 88), (12, top - 4),
                          (cfg.WINDOW_W - 12, top - 4), 1)

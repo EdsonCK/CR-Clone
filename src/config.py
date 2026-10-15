@@ -25,7 +25,7 @@ This file controls the GLOBAL rules of the game and the AI settings.
 # tile counts so the battlefield "feels" the same shape. TILE_SIZE just
 # controls how big each tile is drawn on screen (bigger = bigger window).
 
-GAME_VERSION = "1.4.4"  # shown on the menu; bump when you ship a new build
+GAME_VERSION = "1.4.5"  # shown on the menu; bump when you ship a new build
 
 TILE_SIZE   = 18       # pixels per tile. Lower this if the window is too tall.
 GRID_COLS   = 18       # arena width  in tiles (Clash Royale standard)
@@ -211,9 +211,9 @@ SPELL_FLIGHT_SPEED   = {
 # Named movement speeds (tiles/second). Cards reference these by name so you
 # can retune "fast" globally. Clash Royale speed tiers, roughly.
 SPEED_SLOW      = 1.1
-SPEED_MEDIUM    = 1.7
-SPEED_FAST      = 2.3
-SPEED_VERY_FAST = 2.9
+SPEED_MEDIUM    = 1.53   # v1.4.5: all but Slow units -10%
+SPEED_FAST      = 2.07
+SPEED_VERY_FAST = 2.61
 
 
 # ---------------------------------------------------------------------------

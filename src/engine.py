@@ -210,6 +210,7 @@ class Entity:
         self.ability_uses = card.ability_uses if card.is_champion else 0
         self.souls = 0            # Skeleton King soul counter
         self.protect_timer = 0.0   # Monk: damage reduction + projectile deflect
+        self.ability_windup = 0.0  # champion: seconds until its ability fires
         self.partner = None        # Goblinstein Doctor <-> Monster link
         self.combo_n = 0           # Monk combo counter
         self.ramp_time = 0.0           # for inferno ramping / ramp_stages
@@ -527,6 +528,8 @@ class Entity:
                 self._grounded = False
                 self.flying = True        # Vines let go: back in the air
             return
+        if self.protect_timer > 0 and self.card.ability_type == "protect":
+            return                        # Monk meditating: no moving, no attacks
         if self.deploy_timer > 0:
             self.deploy_timer -= dt
             return
@@ -1756,6 +1759,7 @@ class Match:
         self.last_played = {PLAYER: None, ENEMY: None}   # for Mirror
         self.tower_troops = {PLAYER: towers.DEFAULT, ENEMY: towers.DEFAULT}
         self.chef = {}             # team -> Royal Chef cooking state
+        self.pending_abilities = []  # champions winding up their ability
         self.evo_cards = {PLAYER: set(), ENEMY: set()}
         self.hero_cards = {PLAYER: set(), ENEMY: set()}
         for t in (PLAYER, ENEMY):
@@ -2570,8 +2574,33 @@ class Match:
         self.emit("ability", champ.key, champ.x, champ.y, team)
         champ.ability_uses -= 1
         champ.ability_cd = card.ability_cooldown
-        self._do_ability(champ, card)
+        if card.ability_delay > 0:
+            # a short wind-up (0.25-0.5s, per champion) before it happens
+            champ.ability_windup = card.ability_delay
+            self.pending_abilities.append(champ)
+        else:
+            self._do_ability(champ, card)
         return True
+
+    def _update_pending_abilities(self, dt):
+        for champ in list(self.pending_abilities):
+            champ.ability_windup -= dt
+            if not champ.alive:
+                self.pending_abilities.remove(champ)
+            elif champ.ability_windup <= 0:
+                if champ.is_dashing():
+                    continue                  # lands first, then it fires
+                self.pending_abilities.remove(champ)
+                if not self.ability_has_target(champ):
+                    # its target vanished during the wind-up: refunded
+                    champ.ability_uses += 1
+                    champ.ability_cd = 0.0
+                    self.add_elixir(champ.team, champ.card.ability_cost)
+                    continue
+                prev = self._src, self._src_ent
+                self._src, self._src_ent = (champ.team, champ.key), champ
+                self._do_ability(champ, champ.card)
+                self._src, self._src_ent = prev
 
     def ability_has_target(self, champ):
         """Abilities that need someone to hit refuse to fire into thin air."""
@@ -2860,6 +2889,7 @@ class Match:
                 self._counter_zap(e)
         self._src = None
         self._src_ent = None
+        self._update_pending_abilities(dt)
         self._resolve_collisions(dt)
         for p in list(self.projectiles):
             self._src = (p.team, p.owner.key if p.owner is not None else (p.style or "?"))
