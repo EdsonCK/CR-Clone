@@ -380,7 +380,7 @@ use Settings > Reset progress to start over).
   in Special Battles, achievements and King rewards. **Heroes** cost 8.
   (Saves from before 1.4.3 keep their shards and get 16 Hero coins, plus
   the XP / coins / gems of achievements already claimed.)
-* **Gems** - big achievements (up to 1000 for 10,000 trophies), arenas and
+* **Gems** - big achievements (up to 300 for 10,000 trophies), arenas and
   King level-ups. Spend them in the **Shop**: 1000 gold for 60 gems, an Evo
   shard for 40, a Hero coin for 30 (bigger packs a bit cheaper), plus three
   daily deals.

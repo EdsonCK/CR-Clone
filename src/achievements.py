@@ -10,7 +10,8 @@ the Achievements screen. Add your own by appending to ACHIEVEMENTS:
     (id, title, description, reward, progress_function)
 
 where reward is R(gold, shards, coins, gems, xp) - Evo shards, Hero coins,
-gems and King XP - and progress_function(game) returns (current, goal).
+gems and King XP, scaled down by REWARD_SCALE - and progress_function(game)
+returns (current, goal).
 The biggest milestones pay the most gems.
 
 Also here: the FIRST WIN OF THE DAY bonus (any mode) - see daily_bonus().
@@ -59,9 +60,26 @@ def _modes_won(g):
                if k != "endless" and g.profile.special.get(k, {}).get("wins", 0))
 
 
+# v1.4.9: achievements pay much less than the numbers written below, which
+# were the original rewards - progression was too fast (two decks near
+# level 15 by 2500 trophies). Tune all of them at once here.
+REWARD_SCALE = {"gold": 0.35, "gems": 0.3, "shards": 0.5, "coins": 0.5, "xp": 0.5}
+
+
+def _scaled(kind, v):
+    if not v:
+        return 0
+    x = v * REWARD_SCALE[kind]
+    if kind == "gold":
+        return max(10, int(round(x / 10.0)) * 10)
+    if kind == "gems":
+        return max(5, int(round(x / 5.0)) * 5)
+    return max(1, int(round(x)))
+
+
 def R(gold=0, shards=0, coins=0, gems=0, xp=0):
-    return {k: v for k, v in (("gold", gold), ("shards", shards), ("coins", coins),
-                              ("gems", gems), ("xp", xp)) if v}
+    return {k: _scaled(k, v) for k, v in (("gold", gold), ("shards", shards), ("coins", coins),
+                                         ("gems", gems), ("xp", xp)) if v}
 
 
 def _maxed(g):
