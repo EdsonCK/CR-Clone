@@ -112,6 +112,13 @@ def ring_on(p, a, b, t, width, col, thick=5.0):
 
 # ---------------------------------------------------------------- painter
 OW = 2.7   # default outline width (in 128-grid units)
+# Cel-shade every outlined polygon / stroke (bodies, limbs, weapons, roofs...):
+# a darker crescent on the side away from the light (top-left) and a light rim
+# on the lit edge, both sized to the shape - not just the round parts.
+SHADE = True
+SHADE_DK = 0.28       # how much darker the shadow side is
+SHADE_LT = 0.32       # how much lighter the lit rim is
+GRAD = (16, 0.84)     # big shapes: + this much light at the top, x this at the bottom
 
 
 class P:
@@ -181,7 +188,9 @@ class P:
     def ball(self, x, y, r, col, ol=OUT, w=OW, shade=True, hl=True):
         if ol:
             self._circle(x, y, r + w, ol)
-        if shade:
+        if shade and SHADE and len(col) == 3 and r >= 3:
+            self._shaded(lambda: self._circle(x, y, r, col), col)
+        elif shade:
             self._circle(x, y, r, dk(col, 0.2))
             self._circle(x - r * 0.09, y - r * 0.09, r * 0.86, col)
         else:
@@ -192,7 +201,9 @@ class P:
     def oval(self, x, y, rx, ry, col, ol=OUT, w=OW, shade=True, hl=False):
         if ol:
             self._ellipse(x, y, rx + w, ry + w, ol)
-        if shade:
+        if shade and SHADE and len(col) == 3 and min(rx, ry) >= 3:
+            self._shaded(lambda: self._ellipse(x, y, rx, ry, col), col)
+        elif shade:
             self._ellipse(x, y, rx, ry, dk(col, 0.2))
             self._ellipse(x - rx * 0.08, y - ry * 0.08, rx * 0.86, ry * 0.86, col)
         else:
@@ -200,22 +211,86 @@ class P:
         if hl:
             self._ellipse(x - rx * 0.36, y - ry * 0.45, rx * 0.3, ry * 0.18, lt(col, 0.5))
 
-    def shape(self, pts, col, ol=OUT, w=OW):
+    def shape(self, pts, col, ol=OUT, w=OW, shade=None):
         if ol:
             n = len(pts)
             for i in range(n):
                 self._seg(pts[i], pts[(i + 1) % n], w * 2, ol)
-        self._poly(pts, col)
+        if self._want_shade(shade, ol, col):
+            self._shaded(lambda: self._poly(pts, col), col)
+        else:
+            self._poly(pts, col)
 
-    def stroke(self, pts, width, col, ol=OUT, w=OW, closed=False):
+    def stroke(self, pts, width, col, ol=OUT, w=OW, closed=False, shade=None):
         segs = list(zip(pts, pts[1:]))
         if closed:
             segs.append((pts[-1], pts[0]))
         if ol:
             for a, b in segs:
                 self._seg(a, b, width + 2 * w, ol)
-        for a, b in segs:
-            self._seg(a, b, width, col)
+
+        def fill():
+            for a, b in segs:
+                self._seg(a, b, width, col)
+        if self._want_shade(shade, ol, col) and width >= 3.0:
+            self._shaded(fill, col, thin=width)
+        else:
+            fill()
+
+    # --- cel shading for polygons / strokes ---------------------------
+    @staticmethod
+    def _want_shade(shade, ol, col):
+        if shade is not None:
+            return shade
+        return SHADE and bool(ol) and len(col) == 3
+
+    def _shaded(self, fill, col, thin=None):
+        """Run fill() on a scratch layer, then paint it with a shadow
+        crescent (bottom-right) and a lit rim (top-left) cut from its own
+        silhouette, and composite it onto the canvas."""
+        old = self.surf
+        tmp = pygame.Surface(old.get_size(), pygame.SRCALPHA)
+        self.surf = tmp
+        try:
+            fill()
+        finally:
+            self.surf = old
+        box = tmp.get_bounding_rect()
+        if box.w < 2 or box.h < 2:
+            return
+        size = min(box.w, box.h) if thin is None else min(self.L(thin), box.w, box.h)
+        d = int(max(1, min(size * 0.16, self.L(6.0))))
+        if size < self.L(4.0):                    # tiny detail: leave it flat
+            old.blit(tmp, box.topleft, box)
+            return
+        sub = tmp.subsurface(box)
+        base = pygame.mask.from_surface(sub, 127)
+        dark = base.copy()
+        dark.erase(base, (-d, -d))
+        hl = base.copy()
+        hd = max(1, int(d * 0.45))
+        hl.erase(base, (hd, hd))
+        hl.erase(dark, (0, 0))
+        out = sub.copy()
+        if box.h >= self.L(14.0) and box.w >= self.L(8.0):
+            # soft form shading on big shapes: lit from above, darker below
+            add, mul = GRAD
+            g_add = pygame.Surface((1, 2), pygame.SRCALPHA)
+            g_add.fill((add, add, add, 0), (0, 0, 1, 1))
+            g_add.fill((0, 0, 0, 0), (0, 1, 1, 1))
+            g_mul = pygame.Surface((1, 2), pygame.SRCALPHA)
+            m = int(255 * mul)
+            g_mul.fill((255, 255, 255, 255), (0, 0, 1, 1))
+            g_mul.fill((m, m, m, 255), (0, 1, 1, 1))
+            out.blit(pygame.transform.smoothscale(g_add, box.size), (0, 0),
+                     special_flags=pygame.BLEND_RGB_ADD)
+            out.blit(pygame.transform.smoothscale(g_mul, box.size), (0, 0),
+                     special_flags=pygame.BLEND_RGB_MULT)
+        out.blit(dark.to_surface(setcolor=dk(col, SHADE_DK) + (255,), unsetcolor=(0, 0, 0, 0)),
+                 (0, 0))
+        out.blit(hl.to_surface(setcolor=lt(col, SHADE_LT) + (255,), unsetcolor=(0, 0, 0, 0)),
+                 (0, 0))
+        old.blit(out, box.topleft)
 
     def line(self, a, b, width, col, ol=OUT, w=OW):
         self.stroke([a, b], width, col, ol, w)
@@ -3491,6 +3566,331 @@ def _royal_chef(p):
     p.shape([(spatula[0] + 4, spatula[1] - 30), (spatula[0] + 18, spatula[1] - 34),
              (spatula[0] + 16, spatula[1] - 44), (spatula[0] + 4, spatula[1] - 40)], STEEL, w=1.8)
     arm(p, f, 1, (245, 245, 245), SKIN)
+
+
+# ===========================================================================
+#  v1.5 REDRAWS (these replace the earlier art for the same keys)
+# ===========================================================================
+def hog_body(p, body, cx=64, gy=112, tusks=True, eye=None, ear_in=(242, 150, 150),
+             hoof=(84, 56, 44), tail=True, spots=None):
+    """A chunky 3/4-view hog facing left: far legs in shade, barrel body with a
+    lighter belly, split hooves, inner ears, nostrils, tusks, glinting eyes."""
+    far = dk(body, 0.24)
+    p.shadow(cx + 2, gy + 6, 42, 7)
+    for x in (cx - 15, cx + 22):                                     # far legs
+        p.line((x, gy - 16), (x + 1, gy - 3), 7, far)
+        p.oval(x + 1, gy - 1, 4.6, 3, dk(hoof, 0.25), w=1.6, shade=False)
+    if tail:
+        p.stroke([(cx + 37, 85), (cx + 45, 79), (cx + 49, 85), (cx + 43, 89), (cx + 46, 94)],
+                 2.6, body, w=2.0)
+    p.oval(cx + 4, gy - 24, 36, 20, body)                            # barrel body
+    p.oval(cx + 2, gy - 12, 25, 6.5, lt(body, 0.16), ol=None, shade=False)   # belly
+    if spots:
+        for sx_, sy_, r in ((cx + 14, gy - 32, 7), (cx - 4, gy - 30, 5), (cx + 26, gy - 22, 5)):
+            p.oval(sx_, sy_, r, r * 0.7, spots, ol=None, shade=False)
+    for x in (cx - 23, cx + 14):                                     # near legs
+        p.line((x, gy - 14), (x - 1, gy - 2), 8, body)
+        p.oval(x - 1, gy, 5.6, 3.3, hoof, w=1.8, shade=False)
+        p.line((x - 1, gy - 2.6), (x - 1, gy + 2.6), 1.3, dk(hoof, 0.45), ol=None)
+    hx, hy = cx - 30, gy - 27
+    p.shape([(hx + 3, hy - 12), (hx + 14, hy - 25), (hx + 15, hy - 8)], far, w=2)   # far ear
+    p.oval(hx, hy, 18, 16, body)                                     # head
+    p.shape([(hx - 11, hy - 10), (hx - 15, hy - 27), (hx - 1, hy - 14)], body, w=2)  # near ear
+    p.shape([(hx - 10.5, hy - 12), (hx - 13, hy - 22.5), (hx - 4, hy - 14.5)], ear_in, ol=None)
+    sx, sy = hx - 12, hy + 8                                         # snout
+    p.oval(sx, sy, 10, 7.5, lt(body, 0.2), w=2.2)
+    for s in (-1, 1):
+        p.oval(sx + s * 3.4, sy + 0.5, 1.5, 2.4, (110, 50, 54), ol=None, shade=False)
+    if tusks:
+        for s in (-1, 1):
+            p.shape([(sx + s * 6.5, sy + 4), (sx + s * 12, sy - 7), (sx + s * 9.5, sy + 5.5)],
+                    BONE, w=1.6)
+    for ex, ey, r in ((hx - 6, hy - 4, 3.4), (hx + 5, hy - 5, 2.9)):  # eyes
+        if eye:
+            p.glow(ex, ey, r * 3.2, eye, 140, steps=4)
+        p.oval(ex, ey, r, r * 1.1, WHITE if not eye else lt(eye, 0.5), w=1.5, shade=False)
+        p._circle(ex - 0.7, ey + 0.4, r * 0.58, eye or OUT)
+        p._circle(ex - 1.5, ey - 0.8, r * 0.22, WHITE)
+    p.line((hx - 11, hy - 10), (hx - 1, hy - 7), 2.6, dk(body, 0.55), ol=None)   # brows
+    p.line((hx + 2, hy - 9), (hx + 10, hy - 10), 2.2, dk(body, 0.55), ol=None)
+    return hx, hy
+
+
+@art("hog_rider")
+def _v15_hog_rider(p):
+    cx = 64
+    hog_body(p, (234, 156, 134))
+    f = Fig("normal")
+    with p.at(cx + 8, 50, 0.74):
+        torso(p, f, SKIN_TAN)
+        belt(p, f, LEATHER, DSTEEL)
+        arm(p, f, 0, SKIN_TAN, SKIN_TAN, to=(36, 96))
+        head(p, f, SKIN_TAN)
+        face(p, f, "dot", "open", brows="angry")
+        p.shape([(f.hx - 6, f.hy - f.hr + 4), (f.hx - 8, f.hy - f.hr - 20), (f.hx + 2, f.hy - f.hr - 26),
+                 (f.hx + 22, f.hy - f.hr - 18), (f.hx + 16, f.hy - f.hr - 6), (f.hx + 8, f.hy - f.hr + 4)],
+                (44, 38, 44))                                                # mohawk
+        hammer(p, f.hand[1][0], f.hand[1][1], a=58, L=46, size=1.2)
+        arm(p, f, 1, SKIN_TAN, SKIN_TAN)
+
+
+@art("royal_hogs")
+def _v15_royal_hog(p):
+    cx = 64
+    blue, trim = (58, 98, 196), GOLD
+    hx, hy = hog_body(p, (236, 162, 140))
+    # royal saddle blanket with a gold-trimmed hem and tassels
+    p.shape([(cx - 12, 70), (cx + 22, 69), (cx + 30, 97), (cx - 16, 98)], blue)
+    p.band((cx - 16, 96), (cx + 30, 95), 4.5, trim, w=1.8)
+    for x in (cx - 12, cx + 2, cx + 16, cx + 28):
+        p.line((x, 98), (x, 104), 2.2, trim, w=1.4)
+        p.ball(x, 105, 2.2, trim, w=1.2, hl=False)
+    p.shape([(cx + 2, 76), (cx + 8, 82), (cx + 2, 88), (cx - 4, 82)], trim, w=1.6)   # emblem
+    f = Fig("small")
+    f.hx, f.hy, f.hr = hx + 2, hy - 2, 12
+    crown(p, f, GOLD, w=0.62, h=0.62, dy=-3)
+
+
+@art("cursed_hog")
+def _v15_cursed_hog(p):
+    body = (164, 112, 192)
+    for x, y, r in ((36, 54, 16), (60, 46, 13), (84, 52, 14)):     # curse wisps
+        p.glow(x, y, r, (170, 100, 240), 90, steps=5)
+    hog_body(p, body, eye=(170, 255, 120), spots=dk(body, 0.2), ear_in=(200, 140, 220))
+    for x, y in ((50, 40), (86, 44)):
+        p.spark(x, y, 5, (200, 255, 150), n=4)
+
+
+@art("rhino")
+def _v15_rhino(p):
+    cx, gy = 64, 112
+    hide = (112, 108, 126)
+    far = dk(hide, 0.24)
+    p.shadow(cx + 2, gy + 6, 46, 8)
+    for x in (cx - 14, cx + 24):
+        p.line((x, gy - 18), (x, gy - 3), 10, far)
+        p.oval(x, gy - 1, 6, 3.4, (52, 48, 58), w=1.6, shade=False)
+    p.stroke([(cx + 40, 84), (cx + 47, 88), (cx + 46, 95)], 2.4, hide, w=1.8)       # tail
+    p.oval(cx + 6, gy - 26, 40, 23, hide)                            # body
+    for x in (cx - 6, cx + 14, cx + 32):                             # hide folds
+        p.stroke(arcpts(x, gy - 26, 6, 18, 110, 250, 6), 1.8, dk(hide, 0.3), ol=None)
+    # armoured saddle plate
+    p.shape([(cx - 8, 68), (cx + 24, 66), (cx + 30, 88), (cx - 12, 90)], (230, 226, 214))
+    p.band((cx - 12, 89), (cx + 30, 87), 4, GOLD, w=1.6)
+    for x in (cx - 22, cx + 16):
+        p.line((x, gy - 16), (x, gy - 2), 11, hide)
+        p.oval(x, gy, 7, 3.6, (52, 48, 58), w=1.8, shade=False)
+    hx, hy = cx - 32, gy - 26
+    p.oval(hx + 2, hy - 2, 20, 17, hide)                             # head
+    p.shape([(hx - 2, hy - 14), (hx + 4, hy - 26), (hx + 8, hy - 13)], hide, w=1.8)  # ear
+    p.oval(hx - 14, hy + 6, 11, 9, lt(hide, 0.1), w=2.2)            # muzzle
+    p.shape([(hx - 18, hy - 2), (hx - 34, hy - 26), (hx - 10, hy - 6)], (246, 228, 182), w=2)
+    p.shape([(hx - 6, hy - 10), (hx - 12, hy - 22), (hx - 1, hy - 12)], (236, 220, 180), w=1.8)
+    p.oval(hx - 18, hy + 8, 1.6, 2.2, (60, 50, 60), ol=None, shade=False)       # nostril
+    p.oval(hx - 4, hy - 5, 3.2, 3.4, (255, 226, 120), w=1.4, shade=False)
+    p._circle(hx - 4.6, hy - 4.6, 1.8, OUT)
+    p.line((hx - 10, hy - 11), (hx + 1, hy - 8), 2.6, dk(hide, 0.55), ol=None)
+
+
+@art("battle_ram")
+def _v15_battle_ram(p):
+    p.shadow(64, 118, 50, 7)
+    f = Fig("normal")
+    for x in (40, 88):                                                # two barbs
+        with p.at(x, 62, 0.62):
+            hair_back(p, f, BLOND, length=1.0, width=1.15)
+            legs(p, f, (130, 88, 54), boot=(90, 60, 40))
+            torso(p, f, SKIN_TAN)
+            head(p, f, SKIN_TAN)
+            face(p, f, "dot", "open", brows="angry")
+            mustache(p, f, BLOND, size=1.2, droop=1.3)
+            helmet(p, f, STEEL, depth=0.42, nose=False, band=DSTEEL)
+            horns(p, f)
+    # the log: bark, end grain, iron bands and a spiked iron ram head
+    a, b = (22, 92), (104, 92)
+    p.line(a, b, 21, WOOD)
+    for t in (0.18, 0.42, 0.66):
+        q = lerp(a, b, t)
+        p.stroke([(q[0] - 3, q[1] - 7), (q[0] + 2, q[1] - 1), (q[0] - 2, q[1] + 6)], 1.5,
+                 dk(WOOD, 0.32), ol=None)
+    for t in (0.3, 0.55):
+        ring_on(p, a, b, t, 23, DSTEEL, thick=4.5)
+    p.oval(20, 92, 6.5, 10.5, (226, 182, 122), w=2)
+    p.stroke(arcpts(20, 92, 3.4, 6, 0, 360, 10), 1.2, dk(WOOD, 0.2), ol=None)
+    p.shape([(98, 80), (112, 80), (119, 92), (112, 104), (98, 104)], (96, 100, 118))   # ram head
+    for y in (84, 92, 100):
+        p.shape([(116, y - 3.5), (125, y), (116, y + 3.5)], STEEL, w=1.5)
+    p.ball(106, 92, 3, GOLD, w=1.4, hl=False)
+    for x in (40, 88):                                                # arms gripping the log
+        for s_ in (-1, 1):
+            p.line((x + s_ * 9, 72), (x + s_ * 11, 82), 5, SKIN_TAN, w=1.8)
+            p.oval(x + s_ * 11, 83, 4.2, 3.2, SKIN_TAN, w=1.8, shade=False)
+
+
+@art("mortar")
+def _v15_mortar(p):
+    plinth(p, y=110, rx=44, ry=12)
+    # timber cradle with two cheeks
+    p.shape([(26, 106), (34, 80), (94, 80), (102, 106)], WOOD)
+    for x in (42, 58, 74, 88):
+        p.line((x, 84), (x + 1, 104), 1.5, dk(WOOD, 0.3), ol=None)
+    p.band((28, 100), (100, 100), 5, IRON, w=1.8)
+    for x in (32, 96):
+        p.ball(x, 100, 2.4, DSTEEL, w=1.2, hl=False)
+    # stubby bronze-banded barrel tilted toward the sky
+    tube = (74, 76, 94)
+    p.shape([(36, 92), (82, 92), (96, 44), (54, 32)], tube)
+    for t, wd in ((0.25, 9), (0.62, 8)):
+        a = lerp((36, 92), (54, 32), t)
+        b = lerp((82, 92), (96, 44), t)
+        p.band(a, b, wd, GOLD, w=2)
+    p.oval(75, 38, 23, 10, lt(tube, 0.12), w=2.4)                    # muzzle
+    p._ellipse(75, 38, 16, 6, (22, 22, 30))
+    p.ball(58, 90, 10, DSTEEL, w=2, hl=True)                         # trunnion
+    for x, y in ((104, 96), (112, 102), (100, 104)):                 # shot pile
+        p.ball(x, y, 6, (60, 60, 74), w=1.8)
+
+
+@art("goblin_banner")
+def _v15_goblin_banner(p):
+    p.shadow(64, 116, 26, 6)
+    for x, y in ((50, 110), (64, 113), (78, 110)):                   # base stones
+        p.oval(x, y, 9, 5, (150, 146, 138), w=1.8)
+    p.line((62, 112), (62, 14), 5.5, DWOOD)                          # pole + crossbar
+    p.line((38, 24), (90, 22), 4.5, DWOOD)
+    for x in (38, 90):
+        p.ball(x, 23, 3.4, GOLD, w=1.4, hl=False)
+    cloth = (100, 186, 72)
+    p.shape([(40, 25), (88, 23), (90, 80), (77, 72), (64, 84), (51, 72), (38, 80)], cloth)
+    p.band((40, 32), (88, 30), 4, dk(cloth, 0.3), w=1.4)
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 64, 52, 11
+    goblin_ears(p, f, skin=(234, 230, 210), length=0.9)
+    skull(p, f, eyecol=(255, 90, 60), jaw=True)
+    p.ball(62, 11, 4.5, GOLD, hl=True)
+
+
+def bricks(p, x0, x1, y0, y1, col, rows=4, ol=None):
+    """Staggered brick / stone courses inside a wall."""
+    h = (y1 - y0) / rows
+    for r in range(1, rows):
+        y = y0 + r * h
+        p.line((x0 + 1, y), (x1 - 1, y), 1.5, col, ol=None)
+    for r in range(rows):
+        off = 0 if r % 2 else 0.5
+        n = 4
+        for i in range(n):
+            x = x0 + (x1 - x0) * (i + off) / n
+            if x0 + 3 < x < x1 - 3:
+                p.line((x, y0 + r * h + 1), (x, y0 + (r + 1) * h - 1), 1.4, col, ol=None)
+
+
+@art("bomb_tower")
+def _v15_bomb_tower(p):
+    plinth(p)
+    stone = (164, 156, 144)
+    p.shape([(32, 106), (36, 62), (92, 62), (96, 106)], stone)
+    bricks(p, 34, 94, 64, 104, dk(stone, 0.22), rows=3)
+    p.band((34, 64), (94, 64), 6, (176, 70, 54), w=2)               # red trim
+    for x in (40, 55, 73, 88):                                        # merlons
+        p.shape([(x - 7, 64), (x - 6, 50), (x + 6, 50), (x + 7, 64)], lt(stone, 0.08), w=2.2)
+    p.shape([(52, 106), (52, 90)] + arcpts(64, 90, 12, 10, 180, 0, 8) + [(76, 106)],
+            (70, 50, 40))                                             # door
+    p.line((64, 82), (64, 106), 1.4, (46, 32, 26), ol=None)
+    # the bomber's stash: a big bomb on top with a lit fuse, two spare ones
+    for x in (40, 88):
+        p.ball(x, 46, 7, (52, 52, 66), w=1.8)
+    bomb(p, 64, 36, 16)
+
+
+@art("tombstone")
+def _v15_tombstone(p):
+    p.shadow(64, 116, 36, 7)
+    p.oval(64, 108, 34, 9, (104, 150, 76))                           # grave mound
+    for x, y in ((40, 104), (90, 106)):
+        p.shape([(x - 4, y + 2), (x - 1, y - 6), (x + 2, y + 2)], (130, 190, 90), ol=None)
+    stone = (172, 170, 180)
+    p.shape([(42, 108), (42, 46)] + arcpts(64, 46, 22, 22, 180, 0, 12) + [(86, 108)], stone)
+    p.stroke(arcpts(64, 46, 16, 16, 180, 0, 10), 2.0, dk(stone, 0.2), ol=None)   # carved rim
+    p.stroke([(58, 34), (62, 40), (60, 46), (64, 52)], 1.8, dk(stone, 0.35), ol=None)  # crack
+    for x, y in ((48, 98), (80, 92)):                                 # moss
+        p.oval(x, y, 6, 3, (110, 160, 80), ol=None, shade=False)
+    f = Fig("small")
+    f.hx, f.hy, f.hr = 64, 70, 12
+    skull(p, f, eyecol=(150, 255, 160), jaw=True)
+    p.stroke([(54, 92), (74, 92)], 2.6, dk(stone, 0.3), ol=None)
+    p.ball(86, 110, 6, (90, 140, 70), hl=False, w=2)
+    p.line((30, 112), (30, 96), 2.4, DWOOD, w=1.4)                    # little cross
+    p.line((25, 101), (35, 101), 2.4, DWOOD, w=1.4)
+
+
+@art("tesla")
+def _v15_tesla(p):
+    plinth(p, (150, 156, 170))
+    steel = (108, 124, 158)
+    p.shape([(38, 106), (44, 66), (84, 66), (90, 106)], steel)
+    for y in (76, 88, 100):
+        p.line((42, y), (86, y), 2.6, dk(steel, 0.25), ol=None)
+    for x in (48, 80):                                               # rivets
+        for y in (72, 94):
+            p._circle(x, y, 1.6, lt(steel, 0.4))
+    p.shape([(50, 68), (78, 68), (72, 40), (56, 40)], (150, 166, 200))
+    for y in (46, 53, 60):                                           # copper coil
+        p.oval(64, y, 13 - (60 - y) * 0.12, 3.4, (214, 150, 70), w=1.6)
+    p.glow(64, 26, 34, ELEC, 170)
+    p.ball(64, 26, 13, (170, 230, 255))
+    p.ball(64, 26, 6.5, WHITE, ol=None, hl=False)
+    for a in (15, 150, 205, 330):
+        q = pol(64, 26, a, 14)
+        p.bolt([q, pol(*q, a + 25, 8), pol(*q, a - 10, 16)], (220, 250, 255), 2, glowcol=ELEC)
+
+
+# ---- spell icons: a glowing rune medallion behind every spell ----------------
+def spell_bg(p, col):
+    p.glow(64, 64, 60, col, 100, steps=7)
+    with p.layer(110):
+        p._circle(64, 64, 50, dk(col, 0.55))
+    with p.layer(200):
+        p.stroke(arcpts(64, 64, 50, 50, 0, 360, 40), 2.4, lt(col, 0.35), ol=None)
+        p.stroke(arcpts(64, 64, 44, 44, 0, 360, 40), 1.2, lt(col, 0.15), ol=None)
+        for i in range(8):                                           # rune ticks
+            a = i * 45 + 22.5
+            p.line(pol(64, 64, a, 44), pol(64, 64, a, 50), 1.6, lt(col, 0.4), ol=None)
+    for a, r in ((60, 4.5), (200, 3.5), (310, 3.0)):
+        p.spark(*pol(64, 64, a, 54), r, lt(col, 0.6), n=4)
+
+
+@art("earthquake")
+def _v15_earthquake(p):
+    spell_bg(p, (210, 150, 80))
+    dirt, grass = (150, 100, 60), (110, 168, 72)
+    # a slab of ground split by glowing cracks, chunks heaved up
+    p.shape([(14, 82), (38, 64), (64, 70), (92, 60), (114, 76), (106, 102), (70, 112), (24, 102)],
+            dirt)
+    p._poly([(22, 82), (38, 68), (64, 74), (90, 64), (106, 76), (92, 80), (60, 84), (32, 88)], grass)
+    p.stroke([(26, 96), (42, 86), (56, 100), (70, 88), (86, 100), (102, 88)], 4.2, (255, 170, 70),
+             ol=(70, 40, 26), w=1.4)
+    for x, y, s in ((36, 52, 1.0), (64, 40, 1.25), (92, 50, 0.9), (50, 30, 0.6), (80, 26, 0.7)):
+        pts = [(x - 8 * s, y + 6 * s), (x - 3 * s, y - 7 * s), (x + 8 * s, y - 3 * s), (x + 5 * s, y + 8 * s)]
+        p.shape(pts, (176, 124, 72), w=2)
+        p._poly([(x - 7 * s, y + 4 * s), (x - 3 * s, y - 6 * s), (x + 6 * s, y - 3 * s), (x, y + 0.5 * s)],
+                grass)
+    for x, y in ((24, 70), (104, 66), (60, 58)):
+        p.oval(x, y, 3, 2, (190, 150, 100), ol=None, shade=False)
+
+
+@art("arrows")
+def _v15_arrows(p):
+    spell_bg(p, (255, 236, 190))
+    for dx, dy, s in ((-30, -4, 0.9), (-10, -16, 1.0), (12, 2, 1.05), (32, -12, 0.92)):
+        x, y = 64 + dx, 64 + dy
+        with p.layer(110):                                            # motion streak
+            p.line((x + 22 * s, y - 46 * s), (x + 10 * s, y - 20 * s), 2.2, WHITE, ol=None)
+        p.line((x + 14 * s, y - 32 * s), (x - 6 * s, y + 22 * s), 3.4, WOOD)
+        p.shape([(x - 12 * s, y + 18 * s), (x - 1 * s, y + 22 * s), (x - 10 * s, y + 36 * s)], STEEL, w=2)
+        for k in (0, 6):
+            p.shape([(x + 14 * s - k * 0.37, y - 32 * s + k), (x + 22 * s - k * 0.37, y - 38 * s + k),
+                     (x + 18 * s - k * 0.37, y - 28 * s + k)], RED, w=1.5)
 
 
 # ===========================================================================

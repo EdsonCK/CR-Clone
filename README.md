@@ -52,6 +52,10 @@ versions anywhere - nothing to copy.
 
 ## What's in it (v1.4)
 
+**New in v1.5.0**: 2v2 has **twin King Towers**, a Tornado can **wake the
+King** with an enemy Hog Rider, Poison hits in **8 ticks**, and every sprite
+and spell effect got an art pass. See "v1.5.0 changes".
+
 **New in v1.4.9**: **Card Mastery** (3 tasks x 3 tiers for every card),
 a **2v2 Battle** mode with an AI teammate, a **Windows .exe** that needs
 nothing installed, and smaller achievement rewards. See "v1.4.9 changes".
@@ -108,6 +112,41 @@ Evolutions and Heroes the higher you climb.
   How To Play and Quit. Esc goes back to the Battle tab.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.5.0 changes
+
+* **2v2: two King Towers side by side** (each player's own, touching): they
+  share one HP pool - a 1v1 King's worth, one health bar across both -
+  wake together and each shoots on its own. Your teammate's spells fly from
+  its King.
+* **King Towers are their real 4x4 size** for hits (they used to be hit
+  like a 3x3 Princess Tower). In 2v2 a **Firecracker** shooting a Princess
+  Tower from its lane wakes the twin Kings with her sparks; in 1v1 the
+  single King stays out of reach, as in the real game.
+* **Tornado King activation**: a sleeping King Tower can be targeted when
+  it's nearer than its standing Princess Towers (as in the real game), so a
+  Tornado that drags a Hog Rider off your Princess Tower onto the King makes
+  the Hog hit it and wakes it. The Tornado pulls harder (6 tiles/s, was
+  3.4) so this is actually possible: place it on the King's front corner
+  (around the tile just inside the King, toward the lane) as the Hog
+  arrives. Works in 1v1 and 2v2.
+* **Poison**: same total damage (392, 152 to crown towers at level 11) but
+  dealt as **8 ticks, one every 0.5 s, over 4 s** (was 49/s for 8 s); the
+  cloud pulses on every tick.
+* **Spirit Empress** (on her dragon) is not electric any more: a spirit
+  blast projectile, no lightning, no stun, new attack sound.
+* **Art pass**:
+  * every sprite is re-painted with real **cel shading** on all its parts
+    (bodies, limbs, weapons, roofs, walls - before only the round parts were
+    shaded): a shadow side, a lit rim and soft top-to-bottom form shading;
+  * redrawn from scratch: **Hog Rider's hog, Royal Hogs, Cursed Hog, the
+    Rhino, Battle Ram, Mortar, Goblin Banner, Bomb Tower, Tombstone,
+    Tesla**, and the **Earthquake** and **Arrows** cards;
+  * every **spell card** sits on a glowing rune medallion;
+  * spells in the arena: **Fireball / Rocket** explode with a white-hot
+    flare, flame tongues and a shockwave; **Arrows** rain down as a visible
+    volley and stick in the ground; **Earthquake** splits the ground with
+    glowing faults and heaving rubble; **Poison** pulses each tick.
 
 ## v1.4.9 changes
 
@@ -601,11 +640,13 @@ each pays a Hero coin.
 Played like the real game's 2v2: four players, **each with their own deck,
 hand of 4, next card and elixir bar** (normal elixir speed, double elixir in
 the last minute, overtime as usual). The two players of a team share their
-three towers, crowns and the clock, and both can deploy anywhere on their
+towers (two Princess Towers and twin Kings), crowns and the clock, and both can deploy anywhere on their
 side of the arena. Everything a player plays - and everything it spawns -
 is theirs: champions' ability buttons, Evolution charge, Mirror and damage
 stats are per player.
 
+* **Twin King Towers**: each side has two King Towers side by side (each
+  player's own) sharing one HP pool, waking together and both shooting.
 * **Your teammate** is an AI with its own deck (picked at random from the
   AI decks, named in its panel), at the intelligence chosen at the top of
   the Modes tab, with cards at your deck's level and as many Evolutions /

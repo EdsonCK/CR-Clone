@@ -191,15 +191,17 @@ class FX:
         R = (c.spell_radius if c and c.spell_radius else 1.5) * TS
         r = self.rng
         if key == "fireball":
+            self._fire_burst(x, y, R, big=False)
             self.burst(x, y, 30, 150, 0.7, 3.2, (255, 170, 60), "ember", grav=60,
                        col2=(180, 40, 20))
-            self.burst(x, y, 10, 40, 1.3, 9, (80, 74, 70), "smoke", grow=14, up=20)
+            self.burst(x, y, 8, 40, 1.2, 9, (126, 112, 100), "smoke", grow=14, up=20)
             self.decals.append(Decal(x, y, R * 0.8, 3.5, "scorch"))
         elif key == "rocket":
+            self._fire_burst(x, y, R, big=True)
             self.burst(x, y, 50, 220, 0.9, 3.6, (255, 200, 90), "ember", grav=80,
                        col2=(200, 30, 20))
             self.burst(x, y, 22, 110, 1.0, 3.5, (110, 100, 90), "debris", grav=320, up=120)
-            self.burst(x, y, 16, 60, 1.8, 12, (70, 66, 64), "smoke", grow=18, up=25)
+            self.burst(x, y, 12, 60, 1.6, 12, (118, 106, 98), "smoke", grow=18, up=25)
             self.decals.append(Decal(x, y, R * 0.9, 5.0, "scorch"))
             self.flash = max(self.flash, 0.35)
         elif key == "arrows":
@@ -255,6 +257,22 @@ class FX:
         elif key == "goblin_curse":
             self.burst(x, y, 18, 80, 0.8, 3, (150, 220, 90), "bubble")
 
+    def _fire_burst(self, x, y, R, big):
+        """A fireball / rocket blast: a white-hot flare, flame tongues licking
+        outward and a shockwave ring."""
+        r = self.rng
+        self.add(P(x, y, 0, 0, 0.3 if big else 0.24, R * (0.75 if big else 0.62),
+                   (255, 236, 170), "flare"))
+        n = 14 if big else 11
+        for i in range(n):
+            a = i * math.tau / n + r.uniform(-0.2, 0.2)
+            sp = R * r.uniform(2.2, 3.2)
+            self.add(P(x + math.cos(a) * R * 0.15, y + math.sin(a) * R * 0.15,
+                       math.cos(a) * sp, math.sin(a) * sp, r.uniform(0.28, 0.42),
+                       R * r.uniform(0.22, 0.32), (255, 214, 90), "flame",
+                       col2=(200, 46, 18), rot=a, drag=4.0))
+        self.add(P(x, y, 0, 0, 0.35, R * 0.4, (255, 226, 170), "ring", grow=R * 9))
+
     # ------------------------------------------------------------ update
     def update(self, dt, match=None):
         self.now += dt
@@ -299,6 +317,19 @@ class FX:
         r = self.rng
         for fx in match.effects:
             k = fx.kind
+            if (k == "incoming" and fx.card_key == "arrows" and not getattr(fx, "_rain", False)
+                    and fx.duration - fx.elapsed < 0.22):
+                fx._rain = True                       # the volley streaks down
+                cx, cy = t2p(fx.x, fx.y)
+                R = fx.radius * TS
+                left = max(0.06, fx.duration - fx.elapsed)
+                for _ in range(20):
+                    a, d = r.uniform(0, math.tau), R * math.sqrt(r.random())
+                    tx_, ty_ = cx + math.cos(a) * d, cy + math.sin(a) * d
+                    t = left * r.uniform(0.7, 1.15)
+                    vx, vy = r.uniform(-40, 40), 520.0
+                    self.add(P(tx_ - vx * t, ty_ - vy * t, vx, vy, t, 2, (255, 255, 255),
+                               "arrow", drag=0.0))
             if k == "incoming" and fx.origin is not None:
                 (x, y), _ = self._flight_pos(fx)
                 ck = fx.card_key
@@ -315,6 +346,13 @@ class FX:
                     self.add(P(x, y, r.uniform(-10, 10), r.uniform(-10, 10), 0.4,
                                2, (240, 248, 255), "snow"))
             elif k == "poison" and fx.card_key == "poison":
+                if fx.tick_every and fx.ticks_done != getattr(fx, "_seen_ticks", 0):
+                    fx._seen_ticks = fx.ticks_done            # a damage tick: pulse
+                    x, y = t2p(fx.x, fx.y)
+                    R = fx.radius * TS
+                    self.add(P(x, y, 0, 0, 0.4, R * 0.35, (190, 255, 120), "ring",
+                               grow=R * 5.5))
+                    self.burst(x, y, 10, R * 1.6, 0.5, 3, (170, 240, 100), "bubble", up=20)
                 if r.random() < dt * 30:
                     a, d = r.uniform(0, math.tau), fx.radius * TS * math.sqrt(r.random())
                     x, y = t2p(fx.x, fx.y)
@@ -379,9 +417,11 @@ class FX:
                 for a, dd, tilt in d.data:
                     x = d.x + math.cos(a) * dd
                     y = d.y + math.sin(a) * dd
-                    pygame.draw.line(surf, (110, 80, 50), (x, y), (x + tilt * 5, y - 7), 2)
-                    pygame.draw.line(surf, (235, 235, 240), (x + tilt * 5, y - 7),
-                                     (x + tilt * 6, y - 9), 2)
+                    tx_, ty_ = x + tilt * 6, y - 11
+                    pygame.draw.line(surf, (60, 44, 30), (x, y + 1), (x + 3, y + 2), 2)   # hole
+                    pygame.draw.line(surf, (122, 86, 54), (x, y), (tx_, ty_), 2)
+                    pygame.draw.line(surf, (226, 70, 58), (tx_ - 2, ty_ + 1), (tx_ + 2, ty_ - 1), 3)
+                    pygame.draw.line(surf, (250, 240, 236), (tx_, ty_ - 1), (tx_ + tilt, ty_ - 3), 2)
 
     def draw_particles(self, surf):
         for p in self.parts:
@@ -410,6 +450,37 @@ class FX:
                 pygame.draw.line(surf, p.col, (p.x - dx, p.y - dy), (p.x + dx, p.y + dy), 2)
             elif k == "bubble":
                 pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(1, int(p.size)), 1)
+            elif k == "flare":
+                a = 255 * f * f
+                g = self._circle(p.size * (1.2 - 0.4 * f), p.col, a)
+                surf.blit(g, (int(p.x) - g.get_width() // 2, int(p.y) - g.get_height() // 2),
+                          special_flags=pygame.BLEND_RGB_ADD)
+                self._blit_circle(surf, p.x, p.y, p.size * 0.45 * f + 1, (255, 255, 240), 230 * f)
+            elif k == "flame":
+                col = _mixc(p.col2, p.col, f)
+                L, w = p.size * (0.6 + 0.6 * f), p.size * 0.42 * f + 1
+                ca, sa = math.cos(p.rot), math.sin(p.rot)
+                tip = (p.x + ca * L, p.y + sa * L)
+                pts = [(p.x - sa * w, p.y + ca * w), tip, (p.x + sa * w, p.y - ca * w),
+                       (p.x - ca * w * 0.8, p.y - sa * w * 0.8)]
+                pygame.draw.polygon(surf, col, pts)
+                if f > 0.4:
+                    pygame.draw.polygon(surf, (255, 246, 190),
+                                        [(p.x - sa * w * 0.4, p.y + ca * w * 0.4),
+                                         (p.x + ca * L * 0.55, p.y + sa * L * 0.55),
+                                         (p.x + sa * w * 0.4, p.y - ca * w * 0.4)])
+            elif k == "arrow":
+                ln = 12
+                vx, vy = p.vx, p.vy
+                d = math.hypot(vx, vy) or 1
+                ux, uy = vx / d, vy / d
+                tail = (p.x - ux * ln, p.y - uy * ln)
+                pygame.draw.line(surf, (255, 255, 255), (tail[0] - ux * 14, tail[1] - uy * 14),
+                                 tail, 1)
+                pygame.draw.line(surf, (120, 84, 52), tail, (p.x, p.y), 2)
+                pygame.draw.line(surf, (236, 236, 244), (p.x - ux * 3, p.y - uy * 3), (p.x, p.y), 3)
+                pygame.draw.line(surf, (220, 60, 50), tail, (tail[0] - ux * 3 + uy * 2,
+                                                             tail[1] - uy * 3 - ux * 2), 2)
             elif k == "ring":
                 pygame.draw.circle(surf, p.col, (int(p.x), int(p.y)), max(2, int(p.size)),
                                    max(1, int(3 * f)))
@@ -816,10 +887,27 @@ class FX:
                 cracks.append(pts)
             return cracks
         shake = math.sin(self.now * 60) * 1.5
-        for pts in self._data(fx, mk):
-            sp = [(x + px * R * 0.95 + shake, y + py * R * 0.95) for px, py in pts]
-            pygame.draw.lines(surf, (60, 40, 25), False, sp, 3)
-            pygame.draw.lines(surf, (200, 150, 90), False, sp, 1)
+        cr = self._data(fx, mk)
+        pygame.draw.circle(surf, (96, 66, 40), (int(x), int(y)), int(R), 2)
+        glow = 0.6 + 0.4 * math.sin(self.now * 14)
+        hot = (int(150 + 90 * glow), int(90 + 50 * glow), 40)
+        for i, pts in enumerate(cr):
+            if i % 2:
+                continue                              # fewer, bolder faults
+            sp = [(x + px * R * 0.92 + shake, y + py * R * 0.92) for px, py in pts]
+            pygame.draw.lines(surf, (46, 30, 18), False, sp, int(5 * f) + 1)
+            pygame.draw.lines(surf, hot, False, sp, 2)
+        rr = random.Random(id(fx) & 0xFFF)
+        for i in range(10):                           # rubble heaving on the rim
+            a = rr.uniform(0, math.tau)
+            d = R * rr.uniform(0.35, 0.95)
+            hop = abs(math.sin(self.now * 18 + i * 1.7)) * 3 * f
+            cx_, cy_ = x + math.cos(a) * d + shake, y + math.sin(a) * d - hop
+            s_ = rr.uniform(2.5, 4.5)
+            pts = [(cx_ - s_, cy_ + s_ * 0.6), (cx_ - s_ * 0.3, cy_ - s_), (cx_ + s_, cy_ - s_ * 0.3),
+                   (cx_ + s_ * 0.6, cy_ + s_ * 0.8)]
+            pygame.draw.polygon(surf, (150, 112, 72), pts)
+            pygame.draw.polygon(surf, (70, 48, 30), pts, 1)
 
     def _draw_rage(self, surf, fx):
         x, y = t2p(fx.x, fx.y)
