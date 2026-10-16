@@ -8,7 +8,7 @@ def fresh():
     for t in m.towers.values(): t.range = 0; t.attack_cd = 1e9
     return m
 # 1) instant zap: damage lands on the frame the attack fires
-for key in ("electro_wizard", "zappies", "goblinstein", "electro_dragon", "spirit_empress_air", "tesla"):
+for key in ("electro_wizard", "zappies", "goblinstein", "electro_dragon", "tesla"):
     m = fresh()
     sh = m.spawn_units(PLAYER, key, 1, 9, 22, deploy=0)[0]
     tg = m.spawn_units(ENEMY, "giant", 1, 9, 22 - min(sh.range, 3.0), deploy=0)[0]
@@ -43,3 +43,16 @@ for key in ("electro_spirit", "electro_dragon"):
     assert len(first) >= 3 and all(abs(g - 0.2) < 0.02 for g in gaps), (key, gaps)
 print("sparky speed", __import__("engine").PROJ_SPEEDS["sparky"])
 assert __import__("engine").PROJ_SPEEDS["sparky"] >= 30
+# the Spirit Empress's dragon is NOT electric: a real projectile, no bolt, no stun
+m = fresh()
+sh = m.spawn_units(PLAYER, "spirit_empress_air", 1, 9, 22, deploy=0)[0]
+tg = m.spawn_units(ENEMY, "giant", 1, 9, 18, deploy=0)[0]
+tg.speed = 0
+flew = stunned = bolts = False
+for f in range(60 * 4):
+    m.update(1 / 60)
+    flew |= any(p.style == "spirit_empress_air" for p in m.projectiles)
+    stunned |= tg.stun_timer > 0
+    bolts |= any(x.kind == "bolt" for x in m.effects)
+print("spirit empress air: projectile", flew, "stun", stunned, "bolt", bolts, "dmg", tg.max_hp - tg.hp)
+assert flew and not stunned and not bolts and tg.hp < tg.max_hp

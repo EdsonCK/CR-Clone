@@ -116,7 +116,7 @@ PROJ_STYLES = {
     "mother_witch":   ("magic", (170, 255, 140)),
     "rascal_girl":    ("pellet", (200, 160, 110)),
     "ram_rider_bola": ("bola", (210, 190, 150)),
-    "spirit_empress_air": ("zap", (150, 220, 255)),
+    "spirit_empress_air": ("spirit", (196, 170, 255)),
     "ronin":          ("bullet", (255, 255, 255)),
     "furnace":        ("fire", (255, 130, 40)),
     "bowler_barrage": ("boulder", (150, 120, 176)),
@@ -3594,6 +3594,14 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 a = t * 30 + i * 1.57
                 pygame.draw.line(self.screen, (220, 240, 255), (px, py),
                                  (px + math.cos(a) * 10, py + math.sin(a) * 10), 1)
+        elif kind == "spirit":
+            # Spirit Empress's dragon: a glowing spirit wisp with a fading tail
+            for i in range(4, 0, -1):
+                tx_, ty_ = px - ax * 4 * i, py - ay * 4 * i
+                pygame.draw.circle(self.screen, dk_c(col, 30 + 18 * i), (int(tx_), int(ty_)),
+                                   max(1, 6 - i))
+            pygame.draw.circle(self.screen, col, (px, py), 6)
+            pygame.draw.circle(self.screen, (246, 240, 255), (px, py), 3)
         elif kind == "orb":
             pygame.draw.circle(self.screen, dk_c(col, 60), (px, py), 8)
             pygame.draw.circle(self.screen, col, (px, py), 6)

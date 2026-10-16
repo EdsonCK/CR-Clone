@@ -1350,7 +1350,7 @@ class Entity:
 CHAIN_HOP_DELAY = {"electro_spirit": 0.2, "electro_dragon": 0.2}
 BOLT_WIDTH = {"electro_spirit": 1.45, "electro_dragon": 1.25, "tesla": 1.3,
               "electro_giant": 1.25, "electro_wizard": 1.05, "zappies": 0.85,
-              "goblinstein": 1.15, "spirit_empress_air": 1.0}
+              "goblinstein": 1.15}
 BOLT_LIFE = {"electro_spirit": 0.3, "electro_dragon": 0.3, "tesla": 0.24}
 
 PROJ_SPEEDS = {
@@ -1589,6 +1589,8 @@ class Effect:
         self.ends = ends             # (entity, entity) for a "link" beam
         self.origin = None           # (x, y) a thrown spell flies from
         self.tick = 0.0
+        self.tick_every = 0.0         # poison: seconds between damage ticks (0 = continuous)
+        self.ticks_done = 0
         self.curse = None            # poison zone that curses (Goblin Curse)
         self.curse_pow = None
         self.tiers = ()              # Void damage tiers
@@ -1708,6 +1710,17 @@ class Effect:
         elif self.kind == "snowroll":       # Evolved Giant Snowball rolling on
             evo_engine.snowroll_effect(self, dt, match)
         elif self.kind == "poison":
+            # Poison deals its damage in ticks (tick_every apart, the first
+            # one as it lands); other damage zones burn continuously
+            step = dt
+            if self.tick_every:
+                self.tick -= dt
+                if self.tick > 0 or self.ticks_done >= round(self.duration / self.tick_every):
+                    step = 0.0
+                else:
+                    self.tick += self.tick_every
+                    self.ticks_done += 1
+                    step = self.tick_every
             for e in match.entities:
                 if e.alive and e.team != self.team and dist(self.x, self.y, e.x, e.y) <= self.radius:
                     if self.curse and not e.is_tower and not e.is_building:
@@ -1720,7 +1733,8 @@ class Effect:
                         mult = 3.5 if self.card_key == "earthquake" else 1.0
                     else:
                         mult = 1.0
-                    e.take_damage(self.dps * dt * mult)
+                    if step:
+                        e.take_damage(self.dps * step * mult)
                     if self.slow:
                         e.slow_factor = self.slow[0]
                         e.slow_timer = self.slow[1]
@@ -2450,6 +2464,7 @@ class Match:
                                        card.duration, dps=card.spell_damage * pw,
                                        slow=card.slow, building_mult=bm,
                                        card_key=card.key))
+            self.effects[-1].tick_every = card.dot_tick
             return
         # instant-hit spells (arrows/fireball/zap/rocket/lightning/freeze/snowball)
         self.area_damage(team, x, y, card.spell_radius, card.spell_damage * pw,

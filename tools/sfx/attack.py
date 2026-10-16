@@ -534,7 +534,6 @@ reg(ATTACK, "electro_dragon", electric(-2.0, 0.3, boom=-10), loud=-16)
 reg(ATTACK, "electro_spirit", electric(3.0, 0.25), loud=-17)
 reg(ATTACK, "tesla", electric(-1.0, 0.26, boom=-12), loud=-18)
 reg(ATTACK, "goblinstein", electric(-3.0, 0.3, boom=-8), loud=-16)
-reg(ATTACK, "spirit_empress_air", electric(4.0, 0.2), loud=-17)
 
 
 def sparky(v, key):
@@ -559,6 +558,7 @@ def magic(p=0.0, pool=K.MAGIC, ln=0.45, whoosh=True):
 
 reg(ATTACK, "witch", magic(0.0, K.SPELL, 0.4), loud=-17)
 reg(ATTACK, "mother_witch", magic(2.0, K.MAGIC, 0.4), loud=-17)
+reg(ATTACK, "spirit_empress_air", magic(3.0, K.MAGIC, 0.4), loud=-17)   # spirit blast (not electric)
 
 
 def frost(p=0.0, ln=0.35):
