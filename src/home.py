@@ -206,8 +206,59 @@ class HomeMixin:
                 self._levels_drag_to(y)
 
     # ------------------------------------------------------------ drawing
+    # ------------------------------------------------------------ backdrop
+    # each tab sits on a slowly drifting diagonal checkerboard in its colour
+    TAB_COLORS = {
+        "menu":   ((34, 74, 150), (54, 104, 188)),      # Battle: royal blue
+        "deck":   ((28, 98, 56), (46, 130, 78)),        # Deck: green
+        "shop":   ((74, 42, 130), (100, 62, 166)),      # Shop: purple
+        "modes":  ((98, 26, 42), (130, 40, 60)),        # Modes: maroon
+        "levels": ((170, 88, 34), (200, 112, 50)),      # Levels: burnt orange
+    }
+    CHECK = 34                    # half the diagonal of one checker square
+
+    def _checker_tile(self, state):
+        cache = self.__dict__.setdefault("_checker_cache", {})
+        cols = self.TAB_COLORS.get(state, self.TAB_COLORS["menu"])
+        if cols in cache:
+            return cache[cols]
+        s = self.CHECK
+        W, H = cfg.WINDOW_W + 4 * s, REAL_H + 4 * s
+        surf = pygame.Surface((W, H))
+        surf.fill(cols[0])
+        # diamonds touching only at their corners: a checkerboard turned 45°
+        for i in range(-1, W // (2 * s) + 2):
+            for j in range(-1, H // (2 * s) + 2):
+                x, y = i * 2 * s, j * 2 * s
+                pygame.draw.polygon(surf, cols[1], [(x, y - s), (x + s, y), (x, y + s), (x - s, y)])
+        # light from above, darker toward the bottom and the edges
+        shade = pygame.Surface((cfg.WINDOW_W, REAL_H), pygame.SRCALPHA)
+        for y in range(REAL_H):
+            f = y / REAL_H
+            a = int(40 * max(0.0, f - 0.25) / 0.75 * 1.6)
+            pygame.draw.line(shade, (0, 0, 0, min(90, a)), (0, y), (cfg.WINDOW_W, y))
+        glow = pygame.Surface((cfg.WINDOW_W, REAL_H), pygame.SRCALPHA)
+        for k in range(14):
+            rr = int(cfg.WINDOW_W * (0.9 - k * 0.05))
+            pygame.draw.ellipse(glow, (255, 255, 255, 4),
+                                pygame.Rect(cfg.WINDOW_W // 2 - rr, -rr // 2, 2 * rr, rr + 60))
+        for i in range(22):
+            a = int(4 * (22 - i) / 22 * 8)
+            pygame.draw.rect(shade, (0, 0, 0, a), (i * 2, i * 2, cfg.WINDOW_W - i * 4,
+                                                    REAL_H - i * 4), 2, border_radius=24)
+        shade.blit(glow, (0, 0))
+        cache[cols] = (surf, shade)
+        return cache[cols]
+
+    def _checker_backdrop(self, state):
+        tile, shade = self._checker_tile(state)
+        s2 = 2 * self.CHECK
+        d = (self._now() * 10.0) % s2               # slow diagonal drift
+        self.screen.blit(tile, (-s2 + d, -s2 + d))
+        self.screen.blit(shade, (0, 0))
+
     def _draw_home(self):
-        self._menu_backdrop(floating=False)
+        self._checker_backdrop(self.state)
         if self.state == "menu":
             self._draw_battle_tab()
         elif self.state == "shop":
@@ -374,9 +425,17 @@ class HomeMixin:
 
     def _battle_tab_buttons(self):
         L = self._battle_tab_layout()
-        return [Button(L["battle"], "Battle", self._start_trophy_battle, "gold"),
-                Button(L["friendly"], "Friendly Battle", self._open_prematch, "primary"),
-                Button(L["ach"], "Achievements", self._open_achievements, "primary")]
+        swords = lambda s_, x, y, sz: self._tab_icon_at("menu", x, y, sz / 30.0)
+        cup = lambda s_, x, y, sz: self._trophy_icon(x, y, int(sz * 0.42))
+        return [Button(L["battle"], "Battle", self._start_trophy_battle, "gold", chunky=True,
+                       icon=swords),
+                Button(L["friendly"], "Friendly Battle", self._open_prematch, "primary",
+                       chunky=True),
+                Button(L["ach"], "Achievements", self._open_achievements, "primary",
+                       chunky=True, icon=cup)]
+
+    def _tab_icon_at(self, st, cx, cy, s):
+        self._tab_icon(st, int(cx), int(cy), s)
 
     @property
     def menu_buttons(self):

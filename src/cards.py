@@ -626,8 +626,9 @@ _CARD_LIST = [
             hp=470, damage=95, hit_speed=1.1, range=5.0, speed=SPEED_MEDIUM,
             attacks=G, shield_hp=344),   # shielded mobile cannon
     CardDef("ice_golem", "Ice Golem", 2, rarity="rare",
-            hp=1127, damage=38, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
+            hp=736, damage=38, hit_speed=1.5, range=1.2, speed=SPEED_SLOW,
             attacks=B, death_damage=(2.0, 56), death_slow=(0.6, 2.0)),
+            # hp: 75% of the way from 1127 to its real ratio (1197 x 0.506 = 606)
     # -------- win conditions --------
     CardDef("miner", "Miner", 3, rarity="legendary",
             hp=906, damage=70, hit_speed=1.2, range=1.2, speed=SPEED_FAST,

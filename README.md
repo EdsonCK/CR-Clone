@@ -117,6 +117,27 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.5.3 changes
+
+* **Champion and Hero ability buttons** moved into the scenery margins left
+  and right of the arena (with their names underneath), so no arena tile is
+  ever covered. In 2v2 the teammate panel moved up to make room.
+* **Ice Golem** hp 1127 -> 736: 75% of the way to its real ratio (real
+  level-11 1197 x 0.506 = 606).
+* **Princess** (and the Tower Princess): dark hair and a dark blue dress
+  with light grey trim and sash.
+* **Furnace** looks like the real troop: a knight in full dark plate with a
+  glowing visor and flame crest, a fire burning behind vertical bars in the
+  middle of his breastplate, and a brazier staff he shoots from.
+* **Evolution deploy sound**: a short, soft heroic horn call over a gentle
+  timpani tap instead of the harp / glockenspiel flourish - about 8 dB
+  quieter.
+* **Home screen**: every tab sits on a slowly drifting diagonal
+  checkerboard - blue for Battle, green for Deck, purple for the Shop,
+  maroon for Modes and burnt orange for Levels - and the Battle tab's
+  buttons are thick, glossy 3D buttons (with icons on Battle and
+  Achievements). The top bar and tab bar are unchanged.
+
 ## v1.5.2 changes
 
 * **Music in random order**, in the menus and in battles: a random theme

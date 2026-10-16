@@ -1723,10 +1723,12 @@ def _dart_goblin(p):
 @art("princess", "tower_princess")
 def _princess(p):
     f = Fig("slim")
-    dress = (250, 128, 180)
+    dress = (40, 58, 120)                   # dark blue gown...
+    trim = (206, 212, 222)                  # ...with light grey accents
+    hair = (58, 40, 44)                     # dark hair
     p.shadow()
-    hair_back(p, f, BLOND, length=1.35, width=1.15, dy=0.5)
-    robe(p, f, dress, trim=WHITE, flare=1.45)
+    hair_back(p, f, hair, length=1.35, width=1.15, dy=0.5)
+    robe(p, f, dress, trim=trim, flare=1.45)
     torso(p, f, dress)
     arm(p, f, 0, dress, SKIN, to=(30, 82))
     bow(p, 30, 82, h=50, col=(240, 200, 80), face_dir=-1, arrow_col=FIRE)
@@ -1734,8 +1736,10 @@ def _princess(p):
     p.ball(30, 82, f.handr, SKIN, hl=False)
     head(p, f, SKIN)
     face(p, f, "big", "smile", blush=True, eyecol=(70, 110, 200))
-    hair_cap(p, f, BLOND, depth=0.4, bangs=3)
+    hair_cap(p, f, hair, depth=0.4, bangs=3)
     crown(p, f, GOLD, w=0.45, h=0.45, dy=-2, gem=(120, 180, 255))
+    p.band((f.tx - f.trx * 0.75, f.ty - f.try_ * 0.15), (f.tx + f.trx * 0.75, f.ty - f.try_ * 0.15),
+           4, trim, w=1.6)                  # grey sash across the bodice
     arm(p, f, 1, dress, SKIN)
 
 
@@ -3891,6 +3895,63 @@ def _v15_arrows(p):
         for k in (0, 6):
             p.shape([(x + 14 * s - k * 0.37, y - 32 * s + k), (x + 22 * s - k * 0.37, y - 38 * s + k),
                      (x + 18 * s - k * 0.37, y - 28 * s + k)], RED, w=1.5)
+
+
+@art("furnace")
+def _v15_furnace(p):
+    """The Furnace troop: a knight in full dark plate with a fire burning
+    inside his chest (seen through a barred grate) and a brazier staff he
+    shoots fireballs from."""
+    f = Fig("bulky")
+    plate, dplate = (92, 88, 104), (62, 58, 72)
+    trim = (176, 120, 70)                                     # bronze rivets / trim
+    p.shadow(rx=36)
+    # armoured legs: greaves + sabatons
+    for x in f.lx:
+        p.line((x, f.ly - 8), (x, f.ly + 4), f.lrx * 1.9, dplate)
+        p.oval(x, f.ly + f.lry - 1, f.lrx + 2, 4.6, (52, 48, 60))
+        p.band((x - f.lrx, f.ly - 2), (x + f.lrx, f.ly - 2), 3, trim, w=1.2)
+    # the staff (behind the right hand): iron shaft, caged brazier on top
+    hx, hy = f.hand[1]
+    sx = hx + 1
+    p.line((sx, hy + 14), (sx, 26), 4.6, (70, 60, 56))
+    p.glow(sx, 18, 18, FIRE, 170)
+    p.shape([(sx - 9, 26), (sx + 9, 26), (sx + 6, 16), (sx - 6, 16)], (64, 60, 72), w=2)
+    p.shape([(sx - 5, 18), (sx - 2, 6), (sx + 1, 13), (sx + 4, 4), (sx + 6, 18)], FIRE, w=1.6)
+    p.shape([(sx - 2, 18), (sx + 0.5, 10), (sx + 3, 18)], FIRE_Y, ol=None)
+    for dx in (-6, 0, 6):
+        p.line((sx + dx, 26), (sx + dx * 0.8, 16), 1.6, (40, 36, 46), ol=None)
+    # body: breastplate with a barred furnace window in the middle
+    torso(p, f, plate)
+    win = [(f.tx - 10, f.ty - 12), (f.tx + 10, f.ty - 12), (f.tx + 11, f.ty + 10),
+           (f.tx - 11, f.ty + 10)]
+    p.shape(win, (40, 20, 18), w=2.4)
+    p.glow(f.tx, f.ty, 18, FIRE, 190)
+    p._poly([(f.tx - 9, f.ty + 9), (f.tx - 6, f.ty - 2), (f.tx - 3, f.ty + 3), (f.tx, f.ty - 9),
+             (f.tx + 3, f.ty + 2), (f.tx + 6, f.ty - 4), (f.tx + 9, f.ty + 9)], FIRE)
+    p._poly([(f.tx - 5, f.ty + 9), (f.tx - 2, f.ty + 1), (f.tx, f.ty + 5), (f.tx + 3, f.ty - 1),
+             (f.tx + 5, f.ty + 9)], FIRE_Y)
+    for dx in (-6.5, -2.2, 2.2, 6.5):                          # vertical bars
+        p.line((f.tx + dx, f.ty - 12), (f.tx + dx * 1.05, f.ty + 10), 2.2, (48, 44, 56), ol=None)
+    p.band((f.tx - 12, f.ty - 13), (f.tx + 12, f.ty - 13), 3.4, trim, w=1.4)
+    p.band((f.tx - 12.5, f.ty + 11), (f.tx + 12.5, f.ty + 11), 3.4, trim, w=1.4)
+    belt(p, f, (60, 50, 50), trim, dy=0.62)
+    # left arm: gauntlet
+    arm(p, f, 0, plate, (70, 66, 80))
+    # head: a great-helm with a glowing visor slit and a flame crest
+    p.shape([(f.hx - 6, f.hy - f.hr + 2), (f.hx - 3, f.hy - f.hr - 14), (f.hx + 1, f.hy - f.hr - 6),
+             (f.hx + 5, f.hy - f.hr - 17), (f.hx + 8, f.hy - f.hr + 2)], FIRE, w=1.6)
+    head(p, f, plate)
+    p._ellipse(f.hx - f.hr * 0.38, f.hy - f.hr * 0.55, f.hr * 0.22, f.hr * 0.12, lt(plate, 0.5))
+    p.band((f.hx - f.hr * 0.85, f.hy + 1), (f.hx + f.hr * 0.85, f.hy + 1), 6, (30, 22, 24), w=1.4)
+    p.glow(f.hx, f.hy + 1, 14, FIRE, 150)
+    p.line((f.hx - f.hr * 0.65, f.hy + 1), (f.hx + f.hr * 0.65, f.hy + 1), 2.2, FIRE_Y, ol=None)
+    p.line((f.hx, f.hy + 5), (f.hx, f.hy + f.hr * 0.85), 2.4, dplate, ol=None)   # face guard
+    for s_ in (-1, 1):                                         # pauldrons
+        p.ball(f.tx + s_ * (f.trx - 2), f.ty - f.try_ * 0.62, 10, dplate, w=2.2)
+        p._circle(f.tx + s_ * (f.trx - 2), f.ty - f.try_ * 0.62, 1.8, trim)
+    # right arm holding the staff
+    arm(p, f, 1, plate, (70, 66, 80), to=(hx, hy))
 
 
 # ===========================================================================

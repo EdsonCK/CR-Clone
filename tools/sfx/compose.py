@@ -304,11 +304,13 @@ def j_hero_ability(s, b):
 
 
 def j_evo_deploy(s, b):
-    for k, n in enumerate(["A4", "C#5", "E5", "A5", "C#6", "E6"]):
-        s.add(b["harp"], k * 0.07, M(n), 1, 0.65, 0.3 + 0.08 * k)
-    s.chord(b["vln_sus"], 0.25, [M("A4"), M("E5"), M("A5")], 1.4, 0.5, 0.4)
-    s.add(b["glock"], 0.4, M("E6"), 1, 0.6, 0.7)
-    s.add(b["tri"], 0.4, 81, 1, 0.5, 0.7)
+    # an Evolution takes the field: a short, soft heroic horn call (rising
+    # fifth, then the octave) over a gentle timpani tap - valiant, not loud
+    for bt, n, d, v in ((0, "A3", 0.4, 0.55), (0.4, "E4", 0.4, 0.6), (0.8, "A4", 1.1, 0.62)):
+        s.add(b["horn"], bt, M(n), d, v, 0.45)
+    s.chord(b["horn"], 0.8, [M("C#4"), M("E4")], 1.1, 0.35, 0.4)
+    s.add(b["timp"], 0.8, 45, 0.6, 0.4, 0.5)
+    s.add(b["glock"], 0.8, M("A5"), 0.8, 0.25, 0.6)
 
 
 def j_wave(s, b):
@@ -342,7 +344,7 @@ JINGLES = {
     "overtime": (120, 5, j_overtime, -14),
     "ability": (140, 2, j_ability, -18),
     "hero_ability": (130, 3, j_hero_ability, -16),
-    "evo_deploy": (140, 2, j_evo_deploy, -17),
+    "evo_deploy": (140, 3, j_evo_deploy, -22),
 }
 
 

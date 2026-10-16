@@ -85,12 +85,39 @@ BUTTON_STYLES = {
 
 
 class Button:
-    def __init__(self, rect, label, cb, style="primary"):
+    def __init__(self, rect, label, cb, style="primary", chunky=False, icon=None):
         self.rect = pygame.Rect(rect)
         self.label = label
         self.cb = cb
         self.style = style
         self.enabled = True
+        self.chunky = chunky          # the home screen's thick 3D buttons
+        self.icon = icon              # chunky: fn(surf, cx, cy, size) drawn left of the label
+
+    def _draw_chunky(self, surf, font, top, bot, border, hover, pressed):
+        """A thick, glossy 3D button: the face sits on a darker 'side' that
+        shows below it and sinks into it when pressed."""
+        depth = max(4, self.rect.h // 9)
+        rad = min(16, self.rect.h // 3)
+        r = self.rect
+        side = pygame.Rect(r.x, r.y + depth, r.w, r.h - depth)
+        face = pygame.Rect(r.x, r.y + (depth - 1 if pressed else 0), r.w, r.h - depth)
+        pygame.draw.rect(surf, (6, 8, 14), side.move(0, 4), border_radius=rad)     # shadow
+        pygame.draw.rect(surf, dk_c(bot, 70), side, border_radius=rad)            # thickness
+        pygame.draw.rect(surf, border, side, 2, border_radius=rad)
+        surf.blit(grad_rect(face.w, face.h, top, bot, rad), face.topleft)
+        gl = pygame.Surface((face.w - 10, max(2, face.h // 2 - 2)), pygame.SRCALPHA)
+        pygame.draw.rect(gl, (255, 255, 255, 46), gl.get_rect(), border_radius=rad - 3)
+        surf.blit(gl, (face.x + 5, face.y + 3))
+        pygame.draw.rect(surf, lt_c(top, 46), face.inflate(-6, -6), 1, border_radius=rad - 3)
+        pygame.draw.rect(surf, (255, 230, 130) if hover else border, face, 2, border_radius=rad)
+        txt = render_text(font, self.label, WHITE if self.enabled else (190, 190, 190))
+        x = face.centerx - txt.get_width() // 2
+        if self.icon:
+            isz = int(face.h * 0.62)
+            x += isz // 2 + 4
+            self.icon(surf, x - isz // 2 - 8, face.centery, isz)
+        surf.blit(txt, (x, face.centery - txt.get_height() // 2))
 
     def draw(self, surf, font):
         mouse = pygame.mouse.get_pos()
@@ -101,6 +128,9 @@ class Button:
             top, bot = (80, 82, 90), (56, 58, 66)
         elif hover:
             top, bot = lt_c(top, 18), lt_c(bot, 14)
+        if self.chunky:
+            self._draw_chunky(surf, font, top, bot, border, hover, pressed)
+            return
         r = self.rect.move(0, 2 if pressed else 0)
         # drop shadow (shorter when pressed)
         pygame.draw.rect(surf, (10, 12, 18), self.rect.move(0, 4), border_radius=11)

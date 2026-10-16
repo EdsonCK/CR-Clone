@@ -34,7 +34,7 @@ BASE = sprite_art.BASE  # sprites are painted at 128x128, then scaled to fit
 
 # Bump this whenever the built-in art changes so it regenerates on next run.
 # Sprites you add yourself (not in the manifest) are never overwritten.
-SPRITE_VERSION = 11
+SPRITE_VERSION = 12
 
 # Main colour of each card. The game uses these to tint effects such as the
 # splash (AoE) rings, so they roughly match each card's art.

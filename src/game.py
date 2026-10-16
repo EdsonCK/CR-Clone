@@ -920,7 +920,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 else:
                     self.sfx.play_var(key + "_deploy", 0.85 if mine else 0.7, pan, min_gap=0.02)
                 if ev.get("evo"):
-                    self.sfx.play("evo_deploy", 0.8, pan, min_gap=0.0)
+                    self.sfx.play("evo_deploy", 0.5, pan, min_gap=0.0)
                     if mine:
                         self.profile.totals["evo_plays"] = self.profile.totals.get("evo_plays", 0) + 1
             elif kind == "impact":
@@ -1274,11 +1274,18 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         return [pygame.Rect(x0 + i * (slot_w + gap), y0, slot_w, 88)
                 for i in range(n)]
 
+    # Champion / Hero buttons sit in the scenery margins beside the arena
+    # (left / right), level with your King - never over an arena tile.
+    BTN_R = 27
+
+    def _margin_btn_rect(self, side):
+        r = self.BTN_R
+        cx = cfg.ARENA_X0 // 2 if side == 0 else cfg.ARENA_X0 + cfg.ARENA_PX_W + cfg.ARENA_X0 // 2
+        cy = cfg.ARENA_Y0 + cfg.ARENA_PX_H - r - 26
+        return pygame.Rect(cx - r, cy - r, 2 * r, 2 * r)
+
     def _ability_btn_rect(self):
-        # sits in the arena's bottom-left corner, just above the card hand
-        r = 24
-        return pygame.Rect(cfg.ARENA_X0 + 8,
-                           cfg.ARENA_Y0 + cfg.ARENA_PX_H - 2 * r - 8, 2 * r, 2 * r)
+        return self._margin_btn_rect(0)
 
     def _match_click(self, pos, button):
         if button == 3:
@@ -4059,7 +4066,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         m = self.match
         x0 = cfg.ARENA_X0 + cfg.ARENA_PX_W + 4
         w = cfg.WINDOW_W - x0 - 4
-        r = pygame.Rect(x0, cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.56), w, 224)
+        r = pygame.Rect(x0, cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.45), w, 224)
         panel = pygame.Surface(r.size, pygame.SRCALPHA)
         pygame.draw.rect(panel, (18, 24, 40, 205), panel.get_rect(), border_radius=10)
         self.screen.blit(panel, r.topleft)
@@ -4099,9 +4106,17 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self.screen.blit(sprites.get_sprite(nk, 26), (r.right - 34, ny))
 
     def _hero_btn_rect(self):
-        r = 24
-        return pygame.Rect(cfg.ARENA_X0 + cfg.ARENA_PX_W - 2 * r - 8,
-                           cfg.ARENA_Y0 + cfg.ARENA_PX_H - 2 * r - 8, 2 * r, 2 * r)
+        return self._margin_btn_rect(1)
+
+    def _btn_label(self, text, r, col, border):
+        """Ability name on a chip under a margin button (fits the margin)."""
+        txt = self._fit(text, self.font_s, cfg.ARENA_X0 - 12)
+        label = self.font_s.render(txt, True, col)
+        chip = pygame.Rect(0, 0, label.get_width() + 10, 18)
+        chip.midtop = (r.centerx, r.bottom + 5)
+        pygame.draw.rect(self.screen, (20, 24, 34), chip, border_radius=6)
+        pygame.draw.rect(self.screen, border, chip, 1, border_radius=6)
+        self.screen.blit(label, (chip.x + 5, chip.y + 3))
 
     def _draw_hero_button(self):
         h, ready, cost = self.match.hero_status(PLAYER)
@@ -4129,12 +4144,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self._text("USED", self.font_s, (230, 230, 230), center=(cx, cy))
         pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.x + 4, r.y + 4), 8)
         self._text(str(cost), self.font_s, (255, 255, 255), center=(r.x + 4, r.y + 4))
-        label = self.font_s.render(h.hero_def.ability, True,
-                                   (255, 226, 150) if not used else (150, 150, 150))
-        chip = pygame.Rect(r.x - label.get_width() - 16, cy - 9, label.get_width() + 10, 18)
-        pygame.draw.rect(self.screen, (20, 24, 34), chip, border_radius=6)
-        pygame.draw.rect(self.screen, (170, 140, 70), chip, 1, border_radius=6)
-        self.screen.blit(label, (chip.x + 5, chip.y + 3))
+        self._btn_label(h.hero_def.ability, r,
+                        (255, 226, 150) if not used else (150, 150, 150), (170, 140, 70))
 
     def _draw_ability_button(self):
         champ, ready, cost = self.match.ability_status(PLAYER)
@@ -4162,9 +4173,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             for k in range(champ.card.ability_uses):
                 lit = k < champ.ability_uses
                 pygame.draw.circle(self.screen, (255, 230, 120) if lit else (60, 60, 60),
-                                   (cx - 5 + k * 10, r.bottom + 5), 4)
+                                   (cx - 5 + k * 10, r.y - 6), 4)
                 pygame.draw.circle(self.screen, (20, 20, 20),
-                                   (cx - 5 + k * 10, r.bottom + 5), 4, 1)
+                                   (cx - 5 + k * 10, r.y - 6), 4, 1)
         # cooldown wedge (between uses)
         if champ.ability_cd > 0 and not used_up:
             frac = min(1.0, champ.ability_cd / max(champ.card.ability_cooldown, 0.1))
@@ -4177,12 +4188,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         pygame.draw.circle(self.screen, cfg.COLOR_ELIXIR, (r.right - 4, r.y + 4), 8)
         self._text(str(cost), self.font_s, (255, 255, 255), center=(r.right - 4, r.y + 4))
         # ability name on a small chip to the right of the button
-        label = self.font_s.render(champ.card.ability_name, True,
-                                   (240, 230, 170) if not used_up else (150, 150, 150))
-        chip = pygame.Rect(r.right + 6, cy - 9, label.get_width() + 10, 18)
-        pygame.draw.rect(self.screen, (20, 24, 34), chip, border_radius=6)
-        pygame.draw.rect(self.screen, (150, 130, 70), chip, 1, border_radius=6)
-        self.screen.blit(label, (chip.x + 5, chip.y + 3))
+        self._btn_label(champ.card.ability_name, r,
+                        (240, 230, 170) if not used_up else (150, 150, 150), (150, 130, 70))
 
     def _star(self, cx, cy, r, filled):
         pts = []
