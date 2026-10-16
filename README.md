@@ -117,6 +117,14 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.5.2 changes
+
+* **Music in random order**, in the menus and in battles: a random theme
+  each time (never the same one twice in a row) and a new random one when a
+  track ends. A brand-new player's first menu track is the original theme;
+  after that - and after any update, since your saves are kept - it's
+  random from the start.
+
 ## v1.5.1 changes
 
 * **Sort your cards** in every deck builder: by level, elixir, rarity or
@@ -920,8 +928,13 @@ double elixir, overtime, abilities, evolutions) are played by a small
 from the CC0 VSCO-2 CE library (`tools/sfx/orch.py`, written out in
 `tools/sfx/compose.py`).
 
-**Music:** the menu and battles each **rotate through 4 themes** (the next
-one each time). Themes 1-2 are synthesised by `src/sounds.py`; the new
+**Music:** the menu and battles each have **4 themes, played in random
+order** - a random one each time you open the menu or start a battle, and
+another random one whenever a track finishes (never the same one twice in a
+row; the double-elixir "final" version follows the battle theme playing).
+On the very first launch (no save data yet) the menu opens with the
+original theme; every launch after that - updates included - is random from
+the start. Themes 1-2 are synthesised by `src/sounds.py`; the new
 themes 3-4 are:
 
 | | menu | battle |

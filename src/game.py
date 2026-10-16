@@ -195,8 +195,16 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         # first run with the save folder: bring in the old saves (game folder
         # or the previous version's folder next to this one)
         self.imported_from = savedata.migrate()
+        # a brand-new player (no saves at all, not even imported ones): the
+        # menu opens with the original theme; every later launch - updates
+        # included - plays the music in random order
+        self.first_launch = not any(os.path.exists(savedata.path(f)) for f in savedata.FILES)
         self.progress = self._load_progress()
         self.profile = profile_data.Profile()
+        if self.first_launch:
+            self.profile.save()        # from now on there is player data
+        self._music_rng = random.Random()          # (not the match RNG)
+        self._last_theme = {}
         self.sandbox = False           # Settings: unlock everything (free play)
         self.ai_card_mode = "ladder"   # Battles: AI card level "ladder" | "match"
         self.last_rewards = []         # [(label, reward dict)] for the result screen
@@ -821,6 +829,20 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
     def _pan(self, x):
         return max(0.0, min(1.0, x / cfg.GRID_COLS))
 
+    def _pick_theme(self, kind):
+        """A random theme number of `kind` ("menu" / "battle"), never the one
+        just played. A brand-new player's very first menu track is the
+        original theme."""
+        n = sounds.music_themes(kind)
+        last = self._last_theme.get(kind)
+        if kind == "menu" and self.first_launch and last is None:
+            pick = 1
+        else:
+            pool = [t for t in range(1, n + 1) if t != last] or [1]
+            pick = self._music_rng.choice(pool)
+        self._last_theme[kind] = pick
+        return pick
+
     def _update_audio(self, dt):
         self.sfx.tick(dt)
         m = self.match
@@ -832,19 +854,25 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 final = w is not None and w.boss
             else:
                 final = m.overtime or m.time_left <= cfg.DOUBLE_ELIXIR_AT
-            # battle themes rotate from one battle to the next
+            # a random battle theme each battle - and another random one
+            # whenever a track finishes (the "final" version follows it)
             if not (cur.startswith("battle") or cur.startswith("final")):
-                n = sounds.music_themes("battle")
-                self.battle_theme = getattr(self, "battle_theme", n) % n + 1
+                self.battle_theme = self._pick_theme("battle")
+            elif self.sfx.music_ended():
+                self.battle_theme = self._pick_theme("battle")
+                self.sfx.music_track = None
             sfx2 = "" if self.battle_theme == 1 else str(self.battle_theme)
             self.sfx.music(("final" if final else "battle") + sfx2)
         elif self.state == "result":
             self.sfx.music(None)
         else:
-            # menu themes rotate: the next one each time you come back
+            # menu themes play in random order (a new one when you come back
+            # or when a track finishes)
             if not cur.startswith("menu"):
-                n = sounds.music_themes("menu")
-                self.menu_theme = getattr(self, "menu_theme", n) % n + 1
+                self.menu_theme = self._pick_theme("menu")
+            elif self.sfx.music_ended():
+                self.menu_theme = self._pick_theme("menu")
+                self.sfx.music_track = None
             self.sfx.music("menu" if self.menu_theme == 1 else "menu%d" % self.menu_theme)
         if m is None or self.state not in ("match", "result"):
             return

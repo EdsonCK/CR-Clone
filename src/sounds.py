@@ -824,9 +824,22 @@ class SoundManager:
                 return
             self.pg.mixer.music.load(path)
             self.pg.mixer.music.set_volume(self.music_volume)
-            self.pg.mixer.music.play(-1, fade_ms=700)
+            # played once: the game picks another random track when it ends
+            self.pg.mixer.music.play(0, fade_ms=700)
+            self._music_t0 = self.clock
         except Exception:
             pass
+
+    def music_ended(self):
+        """True once the current music track has finished playing."""
+        if not self.ok or self.music_track is None:
+            return False
+        if self.clock - getattr(self, "_music_t0", -9.0) < 1.0:
+            return False                       # just started (still loading)
+        try:
+            return not self.pg.mixer.music.get_busy()
+        except Exception:
+            return False
 
     def set_music_on(self, on):
         self.music_on = on
