@@ -545,7 +545,8 @@ class ScreensMixin:
     # ============================================================ SETTINGS
     SETTING_DEFAULTS = {"music_vol": 0.45, "sfx_vol": 0.7, "speed": 1.0,
                         "colorblind": False, "drag_deploy": True,
-                        "dmg_numbers": False, "shake": True, "fullscreen": False}
+                        "dmg_numbers": False, "shake": True, "fullscreen": False,
+                        "deck_sort": "elixir", "deck_desc": False}
 
     def _load_extra_settings(self, d):
         for k, v in self.SETTING_DEFAULTS.items():

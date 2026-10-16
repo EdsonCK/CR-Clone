@@ -80,7 +80,7 @@ def battle_gold(win, ai_level, ai_elixir, crowns):
 
 
 # Special battles (fixed AI card level)
-SPECIAL_AI_LEVEL = 12
+SPECIAL_AI_LEVEL = 11      # Special Battles / 2v2: Tournament Standard - everyone at 11
 
 
 def special_gold(win, ai_level, crowns):
@@ -123,6 +123,7 @@ class Profile:
         self.best_trophies = 0
         self.road_paid = 0           # rewards granted up to this many trophies
         self.mastery = {}            # card key -> Card Mastery record (mastery.py)
+        self.card_plays = {}         # card key -> times you played it in a match
         self.load()
 
     # ---- persistence ----
@@ -159,6 +160,8 @@ class Profile:
         self.road_paid = int(d.get("road_paid", 0))
         self.mastery = {k: v for k, v in d.get("mastery", {}).items()
                         if k in cards.CARDS and isinstance(v, dict)}
+        self.card_plays = {k: int(v) for k, v in d.get("card_plays", {}).items()
+                           if k in cards.CARDS}
         if "king_xp" in d:
             self.king_xp = int(d["king_xp"])
         else:
@@ -186,6 +189,7 @@ class Profile:
                     "totals": self.totals, "special": self.special,
                     "trophies": self.trophies, "best_trophies": self.best_trophies,
                     "road_paid": self.road_paid, "mastery": self.mastery,
+                    "card_plays": self.card_plays,
                 }, f, indent=1)
         except Exception:
             pass
@@ -201,6 +205,7 @@ class Profile:
         self.endless_best = self.endless_runs = 0
         self.trophies = self.best_trophies = self.road_paid = 0
         self.mastery = {}
+        self.card_plays = {}
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}
         self.decks, self.active_slot = decks, slot
         self.save()

@@ -52,6 +52,10 @@ versions anywhere - nothing to copy.
 
 ## What's in it (v1.4)
 
+**New in v1.5.1**: deck builder **sorting** (level / elixir / rarity / times
+used), **Tournament Standard** (level 11) in Special Battles and 2v2, and a
+quieter wave cue. See "v1.5.1 changes".
+
 **New in v1.5.0**: 2v2 has **twin King Towers**, a Tornado can **wake the
 King** with an enemy Hog Rider, Poison hits in **8 ticks**, and every sprite
 and spell effect got an art pass. See "v1.5.0 changes".
@@ -112,6 +116,17 @@ Evolutions and Heroes the higher you climb.
   How To Play and Quit. Esc goes back to the Battle tab.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
+
+## v1.5.1 changes
+
+* **Sort your cards** in every deck builder: by level, elixir, rarity or
+  times used, with an up/down arrow to flip the order (see *Deck editor*).
+* **Tournament Standard in Special Battles and 2v2**: all cards and towers,
+  yours included, are level 11 (the AI used to be 12 and you played at
+  your own levels).
+* **Quieter wave cue** in Levels and Endless: each wave now gets two soft
+  war-drum hits and a low horn (a heavier timpani roll for boss waves)
+  instead of the full match-start fanfare, mixed well under the music.
 
 ## v1.5.0 changes
 
@@ -619,9 +634,10 @@ buildings like the Cannon and X-Bow).
 
 ## Special Modes
 
-Special Battles are 3-minute battles with a twist. The AI's cards are always
-**level 12** (so upgrading your cards makes them easier); pick its
-intelligence at the top of the screen. Each pays gold, and your first win in
+Special Battles (and 2v2) are 3-minute battles with a twist, played at
+**Tournament Standard**: every card and every tower - yours, the AIs' and
+your teammate's - is **level 11**, whatever your own levels are, so only
+decks and play decide. Pick the AI's intelligence at the top of the screen. Each pays gold, and your first win in
 each pays a Hero coin.
 
 | Mode | Twist |
@@ -796,6 +812,12 @@ card level. Below is the full collection.
 * The **mouse wheel** only scrolls; you can also drag the scrollbar.
 * Hover a card to see its stats. **Cancel** / Esc leaves without saving.
 * Max 1 Champion per deck.
+* **Sort** the collection (bar above it, in every deck builder - battle
+  decks, the Level Deck and the custom AI deck) by **Level**, **Elixir**,
+  **Rarity** or **Used** (how many times you've played the card in matches,
+  counted from v1.5.1). The arrow button flips the order (down = high to
+  low, up = low to high); tapping the chosen sort again flips it too. Level
+  and Used sorts show the value on each card. Your choice is remembered.
 
 ### Champions
 

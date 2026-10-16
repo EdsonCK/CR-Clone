@@ -311,8 +311,29 @@ def j_evo_deploy(s, b):
     s.add(b["tri"], 0.4, 81, 1, 0.5, 0.7)
 
 
+def j_wave(s, b):
+    # Levels / Endless: the next wave is coming - two soft war-drum hits and
+    # a quiet low horn (mostly percussion, so it sits under the music)
+    s.add(b["bd"], 0, 36, 0.5, 0.75, 0.5)
+    s.add(b["timp"], 0, 45, 1.0, 0.55, 0.5)
+    s.add(b["bd"], 0.5, 36, 0.5, 0.6, 0.5)
+    s.add(b["timp"], 0.5, 45, 1.0, 0.45, 0.5)
+    s.add(b["horn"], 0.5, M("D3"), 1.2, 0.45, 0.42)
+
+
+def j_wave_boss(s, b):
+    # a boss wave: three building timpani hits and a low, darker brass swell
+    for k, v in enumerate((0.5, 0.6, 0.8)):
+        s.add(b["timp"], k * 0.33, 45, 0.6, v, 0.5)
+        s.add(b["bd"], k * 0.33, 36, 0.4, v * 0.8, 0.5)
+    s.chord(b["tbn"], 1.0, [M("D2"), M("A2")], 1.6, 0.55, 0.55)
+    s.chord(b["horn"], 1.0, [M("D3"), M("F3")], 1.6, 0.45, 0.42)
+
+
 JINGLES = {
     "match_start": (120, 6, j_match_start, -14),
+    "wave": (120, 2, j_wave, -23),
+    "wave_boss": (110, 3, j_wave_boss, -20),
     "victory": (120, 8, j_victory, -14),
     "defeat": (84, 7, j_defeat, -17),
     "crown": (120, 3, j_crown, -16),

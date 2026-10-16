@@ -14,7 +14,7 @@ for i in range(5):
 print(seen)
 for k in ("menu", "battle", "final"):
     assert {t for t in seen if t.startswith(k)} == {k, k + "2", k + "3", k + "4"}, (k, seen)
-for nm in ("victory", "defeat", "crown", "match_start", "ui_click", "fireball_cast", "fireball_impact", "tick"):
+for nm in ("victory", "defeat", "crown", "match_start", "ui_click", "fireball_cast", "fireball_impact", "tick", "wave", "wave_boss"):
     ok = bool(g.sfx.play(nm, 0.5, min_gap=0.0))
     print(nm, ok)
     assert ok, nm

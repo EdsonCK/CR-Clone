@@ -949,8 +949,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             elif kind == "spawn":
                 self.sfx.play_var(key + "_spawn", 0.55 if mine else 0.45, pan, min_gap=0.1)
             elif kind == "wave":
-                self.sfx.play("overtime" if key == "boss" else "match_start", 0.9,
-                              min_gap=0.0)
+                # its own soft drum cue (not the match-start fanfare), kept
+                # under the music
+                self.sfx.play("wave_boss" if key == "boss" else "wave",
+                              0.55 if key == "boss" else 0.45, min_gap=0.0)
             elif kind == "portal":
                 self.sfx.play_var("portal", 0.6, pan, min_gap=0.15)
             elif kind == "land" and ev.get("slam"):
@@ -966,6 +968,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
 
     def _on_match_end(self):
         w = self.match.winner
+        self._count_card_plays()
         if self.mode == "endless":
             self.result_text = "GAME OVER"
             self.last_rewards = []
@@ -1059,6 +1062,14 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self.sfx.play("victory" if w == PLAYER else "defeat", 1.0, min_gap=0.0)
         self._record_result()
         self.state = "result"
+
+    def _count_card_plays(self):
+        """Times you played each card (any match; the deck builder sorts
+        by it). Saved with the profile at the end of the match."""
+        cp = self.profile.card_plays
+        for k, n in self.match.stats["played"][PLAYER].items():
+            if k in cards.CARDS:
+                cp[k] = cp.get(k, 0) + int(n)
 
     def _mastery_record(self, won):
         """Battles, Special Battles and 2v2 count towards Card Mastery."""
@@ -1519,7 +1530,81 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
     def _deck_viewport(self):
         """(top, bottom) y of the scrollable card collection."""
         slots = self._deck_slot_rects()
-        return slots[-1].bottom + 34, cfg.WINDOW_H - 50
+        return slots[-1].bottom + 62, cfg.WINDOW_H - 50
+
+    # ---- sorting the collection (every deck builder) ----
+    DECK_SORTS = [("level", "Level"), ("elixir", "Elixir"), ("rarity", "Rarity"),
+                  ("used", "Used")]
+    RARITY_ORDER = {"common": 0, "rare": 1, "epic": 2, "legendary": 3, "champion": 4}
+
+    def _deck_sort_rects(self):
+        """[(rect, sort key)] chips + (rect, "order") for the up/down arrow."""
+        top, _ = self._deck_viewport()
+        y, h, m = top - 30, 24, self.DECK_MARGIN
+        x = m + 40
+        arrow_w = 34
+        w = (cfg.WINDOW_W - x - m - arrow_w - 6 * len(self.DECK_SORTS)) // len(self.DECK_SORTS)
+        out = []
+        for k, _ in self.DECK_SORTS:
+            out.append((pygame.Rect(x, y, w, h), k))
+            x += w + 6
+        out.append((pygame.Rect(x, y, arrow_w, h), "order"))
+        return out
+
+    def _deck_sort_click(self, pos):
+        for r, k in self._deck_sort_rects():
+            if r.collidepoint(pos):
+                if k == "order":
+                    self.opt_deck_desc = not self.opt_deck_desc
+                elif k == self.opt_deck_sort:
+                    self.opt_deck_desc = not self.opt_deck_desc   # tap again: flip
+                else:
+                    self.opt_deck_sort = k
+                    # sensible first direction: best / most first, elixir cheap first
+                    self.opt_deck_desc = k != "elixir"
+                self._deck_set_scroll(0)
+                self._save_settings()
+                self.sfx.play("ui_click", 0.6, min_gap=0.0)
+                return True
+        return False
+
+    def _deck_cards(self):
+        """The collection in the chosen order (ties: elixir, then name)."""
+        k = getattr(self, "opt_deck_sort", "elixir")
+        p = self.profile
+        val = {"level": lambda c: p.level(c.key),
+               "elixir": lambda c: c.elixir,
+               "rarity": lambda c: self.RARITY_ORDER.get(c.rarity, 0),
+               "used": lambda c: p.card_plays.get(c.key, 0)}.get(k, lambda c: c.elixir)
+        sign = -1 if getattr(self, "opt_deck_desc", False) else 1
+        return sorted(cards.DEPLOYABLE_CARDS, key=lambda c: (sign * val(c), c.elixir, c.name))
+
+    def _draw_deck_sort(self):
+        mouse = pygame.mouse.get_pos()
+        rects = self._deck_sort_rects()
+        self._text("Sort", self.font_sb, (170, 178, 195),
+                   topleft=(self.DECK_MARGIN, rects[0][0].centery - 9))
+        desc = getattr(self, "opt_deck_desc", False)
+        for r, k in rects:
+            sel = k == getattr(self, "opt_deck_sort", "elixir")
+            bg = (70, 110, 170) if sel else (40, 46, 60)
+            if k == "order":
+                bg = (58, 64, 84)
+            if r.collidepoint(mouse):
+                bg = lt_c(bg, 16)
+            pygame.draw.rect(self.screen, bg, r, border_radius=7)
+            pygame.draw.rect(self.screen, (250, 222, 110) if sel else (82, 90, 112), r,
+                             2 if sel else 1, border_radius=7)
+            if k == "order":
+                # vertical arrow: down = descending (high -> low), up = ascending
+                cx, cy = r.center
+                d = 1 if desc else -1
+                pygame.draw.line(self.screen, WHITE, (cx, cy - 7 * d), (cx, cy + 6 * d), 3)
+                pygame.draw.polygon(self.screen, WHITE, [(cx - 6, cy + 2 * d), (cx + 6, cy + 2 * d),
+                                                         (cx, cy + 9 * d)])
+            else:
+                lbl = dict(self.DECK_SORTS)[k]
+                self._text(lbl, self.font_s, WHITE, center=r.center)
 
     def _deck_max_scroll(self):
         rows = (len(cards.DEPLOYABLE_CARDS) + self.DECK_COLS - 1) // self.DECK_COLS
@@ -1543,7 +1628,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         cell_w = (cfg.WINDOW_W - m * 2) // self.DECK_COLS
         top, _ = self._deck_viewport()
         rects = []
-        for idx, card in enumerate(cards.DEPLOYABLE_CARDS):
+        for idx, card in enumerate(self._deck_cards()):
             r = idx // self.DECK_COLS
             c = idx % self.DECK_COLS
             y = top + r * self.DECK_CELL_H - self.deck_scroll
@@ -1633,6 +1718,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             for b in self._deck_buttons():
                 if b.click(pos):
                     return
+            if self._deck_sort_click(pos):
+                return
             if self._deck_scrollbar_track().collidepoint(pos):
                 self.deck_drag = True
                 self._deck_drag_to(pos[1])
@@ -2236,7 +2323,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                            center=(r.centerx, r.bottom - 12))
         # ---- info line: message > hovered card > controls hint ----
         top, bottom = self._deck_viewport()
-        info_y = top - 17
+        info_y = top - 45
+        self._draw_deck_sort()
         hc = self._deck_hover_card()
         if self.deck_msg:
             self._text(self.deck_msg, self.font_m, (240, 140, 140), center=(cx, info_y))
@@ -2289,6 +2377,14 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                                    (ck[0] + 4, ck[1] - 3)], 2)
             self._text(self._fit(card.name, self.font_s, r.w - 4), self.font_s,
                        cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 11))
+            srt = getattr(self, "opt_deck_sort", "elixir")
+            if srt in ("level", "used"):           # show what it's sorted by
+                val = ("Lv%d" % self.profile.level(card.key) if srt == "level"
+                       else "x%d" % self.profile.card_plays.get(card.key, 0))
+                vw = self.font_s.size(val)[0] + 6
+                vr = pygame.Rect(r.right - vw - (18 if in_deck else 3), r.y + 3, vw, 14)
+                pygame.draw.rect(self.screen, (20, 22, 32), vr, border_radius=5)
+                self._text(val, self.font_s, (250, 222, 110), center=vr.center)
             if self.deck_mode == "level" and card.key in levels.BANNED:
                 # building-only cards are locked out of Levels: grey + "no" sign
                 shade = pygame.Surface(r.size, pygame.SRCALPHA)

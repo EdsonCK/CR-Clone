@@ -3,9 +3,10 @@
   MODES.PY  --  Special Battles + Endless Survival (mixed into game.Game)
 ============================================================================
 
-Special Battles are normal 3-minute battles against the AI with a twist.
-The AI's cards are always level SPECIAL_AI_LEVEL (12) so upgrading your own
-cards is what makes them easier; its intelligence is picked on the Special
+Special Battles are normal 3-minute battles against the AI with a twist,
+played at TOURNAMENT STANDARD: every card and every tower - yours, the
+AI's and (2v2) your teammate's - is level SPECIAL_AI_LEVEL (11), so only
+skill and decks decide; the AI's intelligence is picked on the Special
 Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
 
   Triple Elixir   triple elixir the whole match
@@ -108,7 +109,8 @@ class ModesMixin:
     def _draw_modes(self):
         mouse = pygame.mouse.get_pos()
         self._screen_title("Special Modes", 26)
-        self._text("AI intelligence  (AI cards are level %d)" % profile_data.SPECIAL_AI_LEVEL,
+        self._text("Tournament Standard: all cards & towers level %d   -   AI intelligence:"
+                   % profile_data.SPECIAL_AI_LEVEL,
                    self.font_s, (200, 204, 220), center=(cfg.WINDOW_W // 2, 70))
         for r, lv in self._modes_level_rects():
             sel = lv == self.ai_level
@@ -171,7 +173,8 @@ class ModesMixin:
         self._arena_surf = None
         self.level_run = None
         alv = profile_data.SPECIAL_AI_LEVEL
-        tk = self._towers_kw(alv)
+        # Tournament Standard: your towers too (your Tower Troop's kind stays)
+        tk = {"tower_levels": {PLAYER: alv, ENEMY: alv}, "king_levels": {PLAYER: alv, ENEMY: alv}}
         if key == "double":                                     # ~ x2 tower hp
             for d in tk.values():
                 for t in d:
@@ -181,7 +184,7 @@ class ModesMixin:
             specials["evo_cards"][ENEMY] = list(specials["evo_cards"][PLAYER])
             specials["hero_cards"][ENEMY] = list(specials["hero_cards"][PLAYER])
         self.match = Match(deck, ai_deck,
-                           card_levels={PLAYER: self.profile.deck_levels(deck), ENEMY: alv},
+                           card_levels={PLAYER: alv, ENEMY: alv},
                            **tk, **specials)
         m = self.match
         if key == "triple":
@@ -221,14 +224,14 @@ class ModesMixin:
         return list(cards.AI_DECK_PRESETS[foe])
 
     def _duo_setup(self, m, deck, specials, alv):
-        """Seat the teammate and the second enemy. Your teammate's cards are
-        your deck's level; it brings as many Evolutions / Heroes as you."""
+        """Seat the teammate and the second enemy (all cards at the
+        Tournament Standard level); each brings as many Evolutions / Heroes
+        as you."""
         ally_deck, foe2_deck = self.duo_decks
         n_e, n_h = len(specials["evo_cards"][PLAYER]), len(specials["hero_cards"][PLAYER])
         ae, ah = self._special_cards(ally_deck, owned=False, n_evo=n_e, n_hero=n_h)
         fe, fh = self._special_cards(foe2_deck, owned=False, n_evo=n_e, n_hero=n_h)
-        m.add_seats(ally_deck, foe2_deck, ally_level=self.profile.deck_level(deck),
-                    foe_level=alv, evo_cards={ALLY: ae, ENEMY2: fe},
+        m.add_seats(ally_deck, foe2_deck, ally_level=alv, foe_level=alv, evo_cards={ALLY: ae, ENEMY2: fe},
                     hero_cards={ALLY: ah, ENEMY2: fh})
         self._extra = (m, [AIController(m, team=PLAYER, level=self.ai_level, seat=ALLY),
                            AIController(m, team=ENEMY, level=self.ai_level, seat=ENEMY2)])
@@ -350,7 +353,7 @@ class ModesMixin:
             self._text(self._fit(c.name, self.font_m, r.w - 10), self.font_m,
                        center=(r.centerx, r.y + 140))
             kind = "Champion" if c.is_champion else c.category.title()
-            self._text("%s  -  Lv %d" % (kind, self.profile.level(c.key)), self.font_s,
+            self._text("%s  -  Lv %d" % (kind, profile_data.SPECIAL_AI_LEVEL), self.font_s,
                        (240, 210, 140), center=(r.centerx, r.y + 164))
             if c.category != "spell":
                 self._text("HP %d  dmg %d" % (c.hp, c.damage), self.font_s,
