@@ -2440,7 +2440,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
     def _arena_bg(self):
         """The static arena picture (grass, scenery border, river, bridges,
         tower pads), rendered once per match and cached."""
-        key = (bool(self.match and self.match.enemy_towers),)
+        key = (bool(self.match and self.match.enemy_towers),
+               bool(self.match and self.match.is_2v2))
         if getattr(self, "_arena_key", None) == key and self._arena_surf is not None:
             return self._arena_surf
         self._arena_key = key
@@ -2560,6 +2561,19 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             if not tw.alive:
                 continue
             px, py = ox + tw.x * ts, oy + tw.y * ts
+            if tw.twin is not None:
+                # 2v2 twin Kings: one long flagstone pad under both
+                if tw.x > tw.twin.x:
+                    continue
+                pad = pygame.Rect(0, 0, int(8.4 * ts), int(4.4 * ts))
+                pad.center = (int(px + 2 * ts), int(py))
+                pygame.draw.rect(surf, (120, 116, 106), pad.move(0, 2), border_radius=int(1.6 * ts))
+                pygame.draw.rect(surf, (158, 154, 144), pad, border_radius=int(1.6 * ts))
+                for k in range(1, 8):
+                    xx = pad.x + k * pad.w // 8
+                    pygame.draw.line(surf, (134, 130, 120), (xx, pad.y + 3), (xx, pad.bottom - 3), 1)
+                pygame.draw.rect(surf, (110, 106, 98), pad, 2, border_radius=int(1.6 * ts))
+                continue
             rad = int((2.1 if tw.is_king else 1.8) * ts)
             pygame.draw.circle(surf, (120, 116, 106), (int(px), int(py) + 2), rad)
             pygame.draw.circle(surf, (158, 154, 144), (int(px), int(py)), rad)
@@ -3161,6 +3175,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
 
     def _draw_tower(self, e, px, py):
         size = int(3.2 * cfg.TILE_SIZE) if e.is_king else int(2.8 * cfg.TILE_SIZE)
+        if e.twin is not None:
+            size = 4 * cfg.TILE_SIZE          # 2v2 twin Kings fill their 4x4 and touch
         col = self._team_color(e.team)
         dark = dk_c(col, 60)
         stone = (172, 168, 158)
@@ -3222,7 +3238,12 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                                  border_radius=2)
                 pygame.draw.rect(self.screen, (250, 196, 90),
                                  (r.x + 5, r.bottom - 9, int(bw * prog), 5), border_radius=2)
-        self._draw_hp_bar(e, px, r.y - 14, size + 6)
+        if e.twin is not None:
+            # the twin Kings share one HP pool: one bar across both
+            if e.x < e.twin.x:
+                self._draw_hp_bar(e, px + size // 2, r.y - 14, size)
+        else:
+            self._draw_hp_bar(e, px, r.y - 14, size + 6)
 
     def _draw_level_badge(self, e, px, py, size):
         """Levels mode: unit level next to the health bar; bosses get a tag."""

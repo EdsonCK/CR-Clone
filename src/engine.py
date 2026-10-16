@@ -41,6 +41,7 @@ MELEE_RANGE = 1.75           # below this a unit is "melee" (first-hit delay app
 TROOP_R = 0.45
 BUILDING_R = 1.2
 TOWER_R = 1.6
+KING_R = 2.0            # the King Tower fills 4x4 tiles
 
 PLAYER, ENEMY = 0, 1
 # 2v2: four SEATS (a hand, deck, elixir bar each). Seat 0 is you, 1 the
@@ -176,7 +177,8 @@ class Entity:
         self.hp = self.max_hp
         self.shield = int(card.shield_hp * self.power[0])
         self.flying = card.flying
-        self.radius = TOWER_R if is_tower else (BUILDING_R if self.is_building else TROOP_R)
+        self.radius = ((KING_R if is_king else TOWER_R) if is_tower else
+                       (BUILDING_R if self.is_building else TROOP_R))
         # body size + weight for unit-vs-unit collisions
         if is_tower:
             self.crad, self.mass = (1.75 if is_king else 1.4), 0.0
@@ -298,6 +300,7 @@ class Entity:
 
         # towers
         self.active = True
+        self.twin = None           # 2v2: the King Tower beside us (shared HP)
         if is_king and cfg.KING_ACTIVATES_ALLIES:
             self.active = False  # king sleeps until a princess falls or it's hit
 
@@ -423,6 +426,8 @@ class Entity:
             amount *= (1.0 - self.card.ability_value)
         if self.is_king:
             self.active = True
+            if self.twin is not None:
+                self.twin.active = True
         if self.card.reflect and m is not None:
             # counter-zap (fires in Match.update) at whoever hit him; spells
             # (no source unit) don't trigger it
@@ -465,6 +470,9 @@ class Entity:
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
+        if self.twin is not None:         # 2v2 King Towers share one HP pool
+            self.twin.hp = self.hp
+            self.twin.alive = self.alive
 
     # ---- per-frame update --------------------------------------------------
     def update(self, dt, match):
@@ -929,9 +937,8 @@ class Entity:
             return False
         if getattr(self, "_taunt", 0) > 0:
             return True                       # taunted (Hero Knight)
-        # never stay locked on a sleeping king while its princess towers stand
-        if t.is_king and not t.active and any(
-                match.towers[(t.team, s)].alive for s in ("left", "right")):
+        # never stay locked on a sleeping king while a princess tower is nearer
+        if t.is_king and match.sleeping_king_blocked(self, t):
             return False
         reach = self.range + t.radius + 0.3   # small margin against flicker
         d = dist(self.x, self.y, t.x, t.y)
@@ -1905,10 +1912,29 @@ class Match:
             self.hero_cards[seat] = set((hero_cards or {}).get(seat, ()))
             self.evo_charge[seat] = {k: 0 for k in self.evo_cards[seat] if k in _evos.EVOS}
             self.last_played[seat] = None
+        if (PLAYER, "king2") not in self.towers and self.enemy_towers:
+            self._twin_kings()
         for k in ("dmg", "kills", "played", "tower_dmg_by"):
             self.stats[k] += [{}, {}]
         for k in ("spent", "leaked", "tower_dmg"):
             self.stats[k] += [0.0, 0.0]
+
+    def _twin_kings(self):
+        """2v2: each side gets two King Towers touching side by side (each
+        player's own), sharing one HP pool - a single 1v1 King's worth - and
+        waking together; each one shoots on its own."""
+        half = TOWER_HALF[True]
+        for team in (PLAYER, ENEMY):
+            k = self.towers[(team, "king")]
+            k2 = Entity(k.card, team, k.x + half, k.y, is_tower=True, is_king=True,
+                        power=k.power)
+            k.x -= half
+            k2.max_hp, k2.hp, k2.level, k2.active = k.max_hp, k.hp, k.level, k.active
+            k2._match_ref = self
+            k2.seat = team + 2
+            k.twin, k2.twin = k2, k
+            self.towers[(team, "king2")] = k2
+            self.entities.append(k2)
 
     @property
     def is_2v2(self):
@@ -2369,9 +2395,32 @@ class Match:
                              knockback=card.spawn_knockback)
         return made
 
+    def sleeping_king_blocked(self, ent, king):
+        """True if `ent` must leave sleeping `king` alone: one of its
+        Princess Towers still stands and is at least as near. (As in the real
+        game a sleeping King is targetable - troops just normally find a
+        Princess Tower closer. Pull a Hog Rider onto the King with a Tornado
+        and it hits the King, which wakes it.)"""
+        if king.active:
+            return False
+        dk = dist(ent.x, ent.y, king.x, king.y) - king.radius
+        for s in ("left", "right"):
+            tw = self.towers.get((king.team, s))
+            if tw is not None and tw.alive and dist(ent.x, ent.y, tw.x, tw.y) - tw.radius <= dk:
+                return True
+        return False
+
+    def kings(self, team):
+        """`team`'s King Tower(s): two side by side in 2v2."""
+        return [t for t in (self.towers.get((team, "king")), self.towers.get((team, "king2")))
+                if t is not None]
+
     def spell_origin(self, team):
-        """Where thrown spells start: the caster's King Tower."""
+        """Where thrown spells start: the caster's King Tower (2v2: the
+        teammate's spells fly from the other King)."""
         k = self.towers[(team, "king")]
+        if seat_for(team) >= 2 and (team, "king2") in self.towers:
+            k = self.towers[(team, "king2")]
         return k.x, k.y
 
     def spell_delay(self, team, card, x, y):
@@ -3028,9 +3077,9 @@ class Match:
             if (e.is_tower and not e.is_king and not ent.is_building
                     and (0 if e.x < mid else 1) != my_side):
                 continue
-            # don't chase a sleeping king while either of its princess towers stand
-            if e.is_king and not e.active and any(
-                    self.towers[(e.team, s)].alive for s in ("left", "right")):
+            # a sleeping king is only a target when it's nearer than its
+            # standing princess towers (a Tornado'd Hog, a Miner on the King)
+            if e.is_king and self.sleeping_king_blocked(ent, e):
                 continue
             d = dist(ent.x, ent.y, e.x, e.y)
             if ent.card.min_range and d < ent.card.min_range:
@@ -3062,9 +3111,9 @@ class Match:
         lane_tw = self.towers.get((1 - ent.team, "left" if ent.lane == 0 else "right"))
         if lane_tw is not None and lane_tw.alive:
             return lane_tw
-        king = self.towers.get((1 - ent.team, "king"))
-        if king is not None and king.alive:
-            return king
+        kings = [k for k in self.kings(1 - ent.team) if k.alive]
+        if kings:
+            return min(kings, key=lambda k: dist(ent.x, ent.y, k.x, k.y))
         for key, tw in self.towers.items():         # (Levels: no King)
             if tw.team == ent.team or not tw.alive:
                 continue
@@ -3255,12 +3304,15 @@ class Match:
             e.y = RIVER_BOTTOM
 
     def _on_tower_destroyed(self, tw):
+        if tw.is_king and self.finished:
+            return                    # 2v2: its twin already fell with it
         # which team lost it -> the other team gains a crown
         winner = PLAYER if tw.team == ENEMY else ENEMY
         self.crowns[winner] += 1
-        # activate the owner's king if a princess fell
+        # activate the owner's king(s) if a princess fell
         if not tw.is_king and cfg.KING_ACTIVATES_ALLIES:
-            self.towers[(tw.team, "king")].active = True
+            for k in self.kings(tw.team):
+                k.active = True
         if tw.is_king:
             self.crowns[winner] = 3   # king down = 3 crowns, instant win
             self._finish(winner)

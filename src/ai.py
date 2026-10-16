@@ -121,8 +121,8 @@ class AIController:
     # ============================================================== queries
     def _towers(self, team=None):
         team = self.me if team is None else team
-        return [self.match.towers[(team, s)] for s in ("left", "right", "king")
-                if self.match.towers[(team, s)].alive]
+        return [self.match.towers[(team, s)] for s in ("left", "right", "king", "king2")
+                if (team, s) in self.match.towers and self.match.towers[(team, s)].alive]
 
     def _opp_units(self):
         return [e for e in self.match.entities

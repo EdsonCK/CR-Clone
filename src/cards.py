@@ -682,8 +682,9 @@ _CARD_LIST = [
             spell_radius=3.5, spell_damage=44, tower_damage=55, dot=True,
             duration=3.0, slow=(0.85, 0.4)),   # shreds buildings
     CardDef("tornado", "Tornado", 3, category="spell", rarity="epic",
-            spell_radius=5.5, spell_damage=42, tower_damage=17, pull=3.4,
-            duration=1.0),   # the real Tornado's 5.5-tile radius
+            spell_radius=5.5, spell_damage=42, tower_damage=17, pull=6.0,
+            duration=1.0),   # the real Tornado's 5.5-tile radius; pulls hard
+            # enough to drag a Hog Rider off a Princess Tower onto the King
     CardDef("graveyard", "Graveyard", 5, category="spell", rarity="legendary",
             spell_radius=3.5, graveyard=True, duration=8.0,
             sub_hp_mult=1.14, sub_dmg_mult=1.14),
