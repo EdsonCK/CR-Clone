@@ -248,6 +248,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self.sfx.set_music_on(self.music_on)
         self.sfx.set_sfx_on(self.sfx_on)
         self.mode = None               # special mode key (modes.py) or None
+        self.chaos = None              # chaos.ChaosRun during a Chaos battle
         self.ai_custom_deck = self._load_deck(AI_DECK_FILE, cards.DEFAULT_AI_DECK)
         self.level_deck = self._load_deck(LEVEL_DECK_FILE,
                                           levels.default_level_deck(self.player_deck))
@@ -791,9 +792,13 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         pygame.quit()
 
     def _update_match(self, mdt):
-        """One frame of a running match (paused while an Endless upgrade
-        is being picked)."""
+        """One frame of a running match (paused while an Endless / Chaos
+        upgrade is being picked)."""
+        run = self._chaos_run()
+        if run is not None:
+            run.update(mdt)                  # may open an upgrade offer
         self._choice_tick()
+        self._chaos_tick()
         if self._endless_choice():
             return
         self.match.update(mdt)
@@ -2510,6 +2515,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._draw_topbar()
         self._draw_hud()
         self._draw_wave_banner()
+        self._draw_chaos_toast()
         self._draw_upgrade_list()
         self._draw_upgrade_choice()
 
@@ -4002,6 +4008,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._crown_icon(cfg.WINDOW_W - 46, cy, cfg.COLOR_TEAM_PLAYER)
         self._text("%d" % m.crowns[PLAYER], self.font_m, cfg.COLOR_TEAM_PLAYER,
                    topleft=(cfg.WINDOW_W - 32, cy - 12))
+        self._draw_chaos_chip(chip)          # Chaos: next upgrade countdown
 
     def _draw_hud(self):
         m = self.match

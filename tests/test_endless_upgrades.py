@@ -49,13 +49,29 @@ def sim(m, run, secs):
             break
 
 
-# ---- every upgrade applies and its card plays
+class _NoRun:
+    def update(self, dt):
+        pass
+
+
+def battle_with(card):
+    """Win conditions are banned in Endless: try theirs in a battle (Chaos)."""
+    from engine import Match
+    deck = [card] + [k for k in cards.DEFAULT_PLAYER_DECK if k != card][:7]
+    return Match(deck, list(cards.DEFAULT_AI_DECK)), _NoRun()
+
+
+# ---- every upgrade applies and its card plays (win conditions in a battle,
+# for Chaos; for each side)
 n = 0
 for ups in eu.CARD_UPS.values():
     for u in ups:
-        m, run = run_with(u.card)
+        banned = u.card in levels.BANNED
+        m, run = battle_with(u.card) if banned else run_with(u.card)
         u.apply(m, PLAYER)
         u.apply(m, PLAYER)                    # stacking twice is fine too
+        if banned:
+            u.apply(m, ENEMY)
         enemies(m)
         assert play(m, u.card) or u.card == "mirror", u.key
         sim(m, run, 6)
@@ -78,10 +94,11 @@ def boon(key):
     return next(u for u in eu.BOONS if u.key == "boon:" + key)
 
 
-# ---- Witch spawns 3x as fast
+# ---- Witch spawns twice as fast (one-time)
 m, run = run_with("witch")
 up("witch", "Coven Mother").apply(m, PLAYER)
-assert abs(m.card(PLAYER, "witch").spawner[2] - cards.CARDS["witch"].spawner[2] / 3) < 1e-6
+assert up("witch", "Coven Mother").once
+assert abs(m.card(PLAYER, "witch").spawner[2] - cards.CARDS["witch"].spawner[2] / 2) < 1e-6
 assert cards.CARDS["witch"].spawner[2] == 5.0           # the real card is untouched
 
 # ---- Tombstone spawns Guards
@@ -150,7 +167,7 @@ before = m.towers[(PLAYER, "left")].dmg
 boon("tower_dmg").apply(m, PLAYER)
 assert abs(m.towers[(PLAYER, "left")].dmg - before * 1.75) < 1e-6
 boon("elixir").apply(m, PLAYER)
-assert m.elixir_multiplier() == 1.5
+assert m.boons[PLAYER]["elixir"] == 1.5 and m.elixir_multiplier() == 1.0
 boon("thrift").apply(m, PLAYER)
 assert m.card_cost(PLAYER, "knight") == cards.CARDS["knight"].elixir - 1
 lv = m.card_level(PLAYER, "knight")

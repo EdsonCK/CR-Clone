@@ -1581,7 +1581,7 @@ def endless_wave(n, rng):
     boss = n % 5 == 0
     tiers = min(len(ENDLESS_POOLS), 1 + n // 3)
     # past wave 15 the waves keep growing: more troops every wave and, once
-    # the enemy is level 16, +5% hp & damage per wave on top (compounding)
+    # the enemy is level 16, +2.5% hp & damage per wave on top (compounding)
     budget = 0.8 * (4 + n * 1.6) + 0.015 * max(0, n - 15) ** 2
     power = round(ENDLESS_POWER_GROWTH ** max(0, n - 16), 3)
     spawns = []
@@ -1656,19 +1656,19 @@ def endless_wave(n, rng):
                 timeout=60 if boss else 40, power=power, ranged_hp_only=True)
 
 
-ENDLESS_POWER_GROWTH = 1.05     # x hp & damage per wave once enemies are level 16
+ENDLESS_POWER_GROWTH = 1.025    # x hp & damage per wave once enemies are level 16
 
 
 def endless_boss(n):
     """(hp & damage multiplier, speed multiplier) of the boss on wave n:
-    x1.4 / 1.5 / 1.6 on waves 5 / 10 / 15, then +22% per boss wave
-    (compounding: x2 on wave 20, x2.9 on 30, x4.3 on 40, x6.4 on 50) - on
+    x1.4 / 1.5 / 1.6 on waves 5 / 10 / 15, then +10% per boss wave
+    (compounding: x1.8 on wave 20, x2.1 on 30, x2.6 on 40, x3.1 on 50) - on
     top of the wave's own power. From wave 30 bosses also move and attack
     faster: +4% per wave, up to double speed."""
     if n <= 15:
         mult = round(1.3 + 0.1 * (n // 5), 2)
     else:
-        mult = round(1.6 * 1.22 ** ((n - 15) / 5.0), 2)
+        mult = round(1.6 * 1.10 ** ((n - 15) / 5.0), 2)
     fast = round(min(2.0, 1.0 + 0.04 * max(0, n - 30)), 2)
     return mult, fast
 

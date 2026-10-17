@@ -28,3 +28,28 @@ for mode in ("endless", "battle"):
                         bad.append((mode, key, x, round(e.x, 1), round(e.y, 1)))
 assert not bad, bad
 print("behind the King: %d units, all kept their lane" % total)
+
+# ---- a building walling off one side behind the King can't trap troops
+# (they plan a way round the other side over the tile grid)
+stuck, total = [], 0
+for bk, bx in (("goblin_hut", 5.5), ("tombstone", 12.5), ("tesla", 6.0)):
+    for key in ("knight", "barbarians"):
+        for ux in (7.5, 8.5, 9.5, 10.5):
+            m, run = levels.new_endless_match(levels.default_level_deck(),
+                                              card_levels=11, tower_level=11, seed=0)
+            x, y = m.snap(cards.CARDS[bk], bx, 30.5)
+            m._deploy(PLAYER, bk, x, y)
+            if not m.can_place(PLAYER, key, ux, 31.5):
+                continue
+            m._deploy(PLAYER, key, ux, 31.5)
+            units = [e for e in m.entities if e.team == PLAYER and not e.is_building
+                     and not e.is_tower]
+            for _ in range(30 * 20):
+                m.update(1 / 30)
+            for e in units:
+                if e.alive:
+                    total += 1
+                    if e.y > 28.5:
+                        stuck.append((bk, key, ux, round(e.x, 1), round(e.y, 1)))
+assert not stuck, stuck
+print("walled in behind the King: %d units, all got out" % total)

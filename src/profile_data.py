@@ -90,6 +90,12 @@ def special_gold(win, ai_level, crowns):
     return (50 + 10 * ai_level + 4 * crowns) if win else (10 + 2 * crowns)
 
 
+# Chaos (always vs the Master AI, level 5)
+def chaos_gold(win, crowns, picks=0):
+    """A Master-AI special win, plus 5 gold per upgrade you took."""
+    return special_gold(win, 5, crowns) + 5 * picks
+
+
 # Endless Survival: every wave pays more than the last, and deep runs add
 # gems, Evo shards, Hero coins and King XP on top
 def endless_gold(waves):

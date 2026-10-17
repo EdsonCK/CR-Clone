@@ -28,6 +28,14 @@ Every level keeps the skills of the levels below it:
              anti-air card if you play air, spreads its push if you carry
              splash spells), opposite-lane pressure, Freeze / Rage combos.
 
+Upgrades (Chaos / Endless, see endless_upgrades.py): every card is read
+through match.card(team, key), so the AI reasons with its upgraded copies
+(range, count, radius, cost...). On top of that an "upgrade profile"
+(_profile, refreshed once a second) shifts its strategy: it favours the
+cards it has upgraded, trusts buffed towers with small pushes, spends more
+freely with elixir boons and commits to bigger pushes with army boons.
+With no upgrades every factor is exactly 1 and it plays as it always has.
+
 The AI is written in "local" coordinates: its own side is always the TOP of
 the arena (small y). That makes it work for either team, which is how the
 levels are benchmarked against each other (AI vs AI).
@@ -41,9 +49,14 @@ import random
 
 import config as cfg
 import cards
+import towers as towers_mod
 from engine import PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM, BRIDGE_X, dist
 
 GRID_MID = cfg.GRID_COLS / 2.0
+TRUST_TOWERS = True       # Master: skip planning while buffed towers handle it
+FOCUS_WEIGHT = 1.2        # counter-score bonus per upgrade on a card
+PUSH_BONUS = 1.0          # how much elixir / army upgrades lower the push bar
+TOWER_TRUST = 1.0         # how much buffed towers raise "let the tower take it"
 AIR_WINCONS = {"balloon", "lava_hound", "skeleton_barrel", "electro_dragon"}
 
 
@@ -107,6 +120,9 @@ class AIController:
         self.hold = 0.0                    # "waiting is best" - don't re-plan yet
         self.log = []                      # (time, card, why, x, local y, el)
         self._why = ""
+        self._prof = None                  # upgrade profile (see _profile)
+        self._prof_t = -9.0
+        self._baseline()
 
     # ================================================================ coords
     def L(self, y):
@@ -117,6 +133,98 @@ class AIController:
 
     def lv(self, n):
         return self.level >= n
+
+    # ============================================================ upgrades
+    def _card(self, key, team=None):
+        """The card as `team` (default: me) plays it - its upgraded copy."""
+        return self.match.card(self.me if team is None else team, key)
+
+    def _baseline(self):
+        """Remember card levels as they were before any upgrade, on the
+        match (so simulated copies share them)."""
+        m = self.match
+        if getattr(m, "_ai_base", None) is not None:
+            return
+        lv = {}
+        for t in (PLAYER, ENEMY):
+            for k in set(m.decks[t]):
+                lv[(t, k)] = m.card_level(t, k)
+        m._ai_base = {"lv": lv}
+
+    def _lv_ratio(self, team, key):
+        """hp / dmg multiplier from levels gained since the match started."""
+        base = self.match._ai_base["lv"].get((team, key))
+        if base is None:
+            return 1.0
+        now = self.match.card_level(team, key)
+        if now == base:
+            return 1.0
+        return cards.level_mult(now) / cards.level_mult(base)
+
+    def _mult(self, team, key, what):
+        """Upgrade multiplier on a card's "dps", "dmg" or "hp" (boons x
+        levels gained)."""
+        b = self.match.boons.get(team) or {}
+        r = self._lv_ratio(team, key)
+        if what == "hp":
+            return r * b.get("hp", 1.0)
+        if what == "dmg":
+            return r * b.get("dmg", 1.0)
+        return r * b.get("dmg", 1.0) * b.get("atk", 1.0)
+
+    def _profile(self):
+        """What my upgrades say about how to play (refreshed once a second):
+        tower  - how much stronger my towers shoot than at the start
+        eco    - how much faster elixir comes (rate, discount, bounty)
+        army   - how much stronger my troops are (boons and levels)
+        focus  - {card: weight} cards I've upgraded (play them more)
+        With no upgrades: tower = eco = army = 1.0 and focus is empty."""
+        if self._prof is not None and self.clock - self._prof_t < 1.0:
+            return self._prof
+        m = self.match
+        b = m.boons.get(self.me) or {}
+        ratios = []
+        for (t, side), e in m.towers.items():
+            if t != self.me or not e.alive:
+                continue
+            d0, h0, r0 = self._tower_natural(e)
+            r = (e.dmg / max(d0, 1e-6)) * (h0 / max(e.hit_speed, 1e-6))
+            r *= 1.0 + 0.15 * max(0.0, e.range - r0)
+            if e.card.slow:
+                r *= 1.15
+            if e.card.splash:
+                r *= 1.2
+            ratios.append(r)
+        tower = (sum(ratios) / len(ratios)) if ratios else 1.0
+        eco = b.get("elixir", 1.0) * (1.0 + 0.2 * b.get("discount", 0)) \
+            * (1.0 + 0.8 * b.get("bounty", 0.0))
+        deck = m.decks[self.seat]
+        lvl = [self._lv_ratio(self.me, k) for k in deck] or [1.0]
+        army = b.get("hp", 1.0) * b.get("dmg", 1.0) * b.get("atk", 1.0) \
+            * b.get("speed", 1.0) * (sum(lvl) / len(lvl))
+        ov = m.overrides.get(self.me) or {}
+        focus = {}
+        for k in deck:
+            w = (1.0 if k in ov else 0.0) + max(0.0, self._lv_ratio(self.me, k) - 1.0) * 2.0
+            if w > 0:
+                focus[k] = w
+        self._prof = {"tower": tower, "eco": eco, "army": army, "focus": focus,
+                      "any": tower != 1.0 or eco != 1.0 or army != 1.0 or bool(focus)}
+        self._prof_t = self.clock
+        return self._prof
+
+    @staticmethod
+    def _tower_natural(e):
+        """(damage, hit speed, range) a tower has with no upgrades."""
+        if e.is_king:
+            return (cfg.KING_TOWER_DMG * e.power[1], cfg.KING_TOWER_HITSPD,
+                    cfg.KING_TOWER_RANGE)
+        tt = towers_mod.get(e.tower_troop or towers_mod.DEFAULT)
+        return (cfg.PRINCESS_TOWER_DMG * tt.dmg_mult * e.power[1], tt.hit_speed, tt.range)
+
+    def _focus(self, key):
+        """How much I've upgraded hand card `key` (0 = not at all)."""
+        return self._profile()["focus"].get(key, 0.0)
 
     # ============================================================== queries
     def _towers(self, team=None):
@@ -150,7 +258,7 @@ class AIController:
             pk = self.match.play_key(self.seat, k)
             if cost is None or pk is None or cost > el:
                 continue
-            c = cards.CARDS[pk]
+            c = self._card(pk)
             if pk != k or c.elixir != cost:
                 c = dataclasses.replace(c, elixir=cost)
             out.append((i, k, c))
@@ -182,7 +290,7 @@ class AIController:
 
     def _deck_has_air_threat(self):
         return bool(self.seen_opp & AIR_WINCONS) or any(
-            cards.CARDS[k].flying and cards.CARDS[k].attacks == "buildings"
+            self._card(k, self.opp).flying and self._card(k, self.opp).attacks == "buildings"
             for k in self.seen_opp if k in cards.CARDS)
 
     def _opp_has_splash_spell(self):
@@ -204,7 +312,7 @@ class AIController:
         placement jitter, keeps troops on a legal tile, retries nearby."""
         m = self.match
         key = self._hand()[idx]
-        card = card or cards.CARDS[key]
+        card = card or self._card(key)
         jit = 0.0 if exact else self.p["jitter"]
         if jit > 0:
             x += self.rng.gauss(0, jit * 0.6)
@@ -263,9 +371,11 @@ class AIController:
         hp = sum(e.hp + e.shield for e in group)
         value = sum(_share(e.card) * (e.hp + e.shield) / max(e.max_hp + e.card.shield_hp, 1)
                     for e in group)
-        dps_ground = sum(_dps(e.card) / max(e.card.count, 1) for e in group
+        dps_ground = sum(_dps(e.card) / max(e.card.count, 1)
+                         * self._mult(e.team, e.key, "dps") for e in group
                          if e.card.attacks != "buildings")
-        dps_air = sum(_dps(e.card) / max(e.card.count, 1) for e in group
+        dps_air = sum(_dps(e.card) / max(e.card.count, 1)
+                      * self._mult(e.team, e.key, "dps") for e in group
                       if e.card.attacks == "air_ground")
         return dict(
             hp=hp, value=value, dps_ground=dps_ground, dps_air=dps_air,
@@ -290,7 +400,7 @@ class AIController:
         if prim.flying and not hits_air:
             return None
         # ---- how fast it kills them vs how long it survives ----
-        dps = max(_dps(card), 1.0)
+        dps = max(_dps(card) * self._mult(self.me, card.key, "dps"), 1.0)
         target_hp = gs["hp"] if hits_air or not gs["air"] else max(gs["hp"] * 0.5, 1)
         ttk = target_hp / dps
         if card.flying:
@@ -300,7 +410,7 @@ class AIController:
         if card.category == "building" or prim.card.attacks == "buildings":
             incoming = max(incoming, sum(_dps(e.card) / max(e.card.count, 1)
                                          for e in [prim]))
-        survive = _ehp(card) / max(incoming, 1.0)
+        survive = _ehp(card) * self._mult(self.me, card.key, "hp") / max(incoming, 1.0)
         score = min(survive / max(ttk, 0.1), 4.0) * 2.0
         # ---- matchup knowledge ----
         if gs["swarm"] and (card.splash > 0 or card.chain or card.death_damage):
@@ -323,10 +433,14 @@ class AIController:
         # ---- card memory: keep an anti-air card if they play air ----
         if self.lv(5) and hits_air and not gs["air"] and self._deck_has_air_threat():
             others = [k for k in self._hand()
-                      if cards.CARDS[k].attacks == "air_ground"
-                      and cards.CARDS[k].category != "spell"]
+                      if self._card(k).attacks == "air_ground"
+                      and self._card(k).category != "spell"]
             if len(others) <= 1:
                 score -= 2.5
+        # ---- upgrades: lean on the cards I've powered up ----
+        f = self._focus(card.key)
+        if f:
+            score += FOCUS_WEIGHT * f
         return score
 
     def _best_counter(self, prim, gs):
@@ -365,8 +479,10 @@ class AIController:
             if gs["air"] and not gs["ground"]:
                 return twx + toward_mid * 0.8, twy + 0.5    # under the tower
             # behind the tower line, toward the middle: the threat has to walk
-            # through tower fire to reach it
-            return twx + toward_mid * 1.5, twy - 1.5
+            # through tower fire to reach it (an upgraded range sits further
+            # back still and outranges it)
+            extra = self._extra_range(card)
+            return twx + toward_mid * 1.5, max(0.7, twy - 1.5 - 0.6 * extra)
         if card.count >= 3 and gs["tank"] and not gs["splash"]:
             return px, ply - 0.3                             # surround it
         if gs["swarm"] and (card.splash > 0 or card.death_damage):
@@ -377,11 +493,21 @@ class AIController:
         step = min(1.6, d)
         return px + dx / d * step, ply + dy / d * step
 
+    def _extra_range(self, card):
+        """Tiles of range an upgrade added to `card` (0 normally)."""
+        base = cards.CARDS.get(card.key)
+        return max(0.0, card.range - base.range) if base is not None else 0.0
+
     def _tower_can_handle(self, gs, group):
         if not self.lv(3):
             return False
         if any(e.card.kamikaze and e.card.attacks == "buildings" for e in group):
             return False
+        t = 1.0 + (self._profile()["tower"] - 1.0) * TOWER_TRUST
+        if t > 1.0:
+            # buffed towers deal with bigger pushes on their own
+            t = min(t, 4.0)
+            return gs["hp"] <= 230 * t and gs["value"] <= 2.0 * t and not gs["bldg"]
         return gs["hp"] <= 230 and gs["value"] <= 2.0 and not gs["bldg"]
 
     def _try_defend(self, threats):
@@ -411,6 +537,16 @@ class AIController:
 
     # ================================================================= spells
     def _spell_damage_total(self, card, building=False, tower=False):
+        mods = card.mods
+        if mods or self.match.boons.get(self.me) or self._lv_ratio(self.me, card.key) != 1.0:
+            # an upgraded spell: boons / levels, and repeats (Arrow Storm...)
+            n = 1 + ((mods or {}).get("repeat") or (0, 0))[0]
+            plain = dataclasses.replace(card, mods=None)
+            return (self._spell_damage_total_base(plain, building, tower) * n
+                    * self._mult(self.me, card.key, "dmg"))
+        return self._spell_damage_total_base(card, building, tower)
+
+    def _spell_damage_total_base(self, card, building=False, tower=False):
         if card.dot:
             mult = (2.2 if card.key == "earthquake" else 0.4) if (building or tower) else 1.0
             return card.spell_damage * card.duration * mult
@@ -668,9 +804,20 @@ class AIController:
         if not self.lv(3):
             return 0.0
         oe = self.opp_elixir()
+        eco = self._profile()["eco"]
         if oe is None:
-            return 2.0
-        return min(4.0, max(0.0, oe - 3.0))
+            return 2.0 / eco if eco > 1.0 else 2.0
+        r = min(4.0, max(0.0, oe - 3.0))
+        return r / eco if eco > 1.0 else r
+
+    def _push_bonus(self):
+        """Elixir off the 'wait until I'm nearly full' bar when my elixir or
+        army is boosted (0 with no upgrades, up to 2)."""
+        p = self._profile()
+        if not p["any"]:
+            return 0.0
+        return PUSH_BONUS * min(2.0, max(0.0, (p["eco"] - 1.0) * 2.0
+                                         + (p["army"] - 1.0) * 1.5))
 
     def _try_offense(self, threats):
         self._why = "offense"
@@ -712,11 +859,11 @@ class AIController:
                 lead = max(pushers, key=lambda u: self.L(u.y))
                 pick = None
                 if supports:
-                    pick = max(supports, key=lambda t: _dps(t[2]))
+                    pick = max(supports, key=lambda t: _dps(t[2]) * (1.0 + 0.6 * self._focus(t[1])))
                 elif self.lv(3) and wincons and not any(
                         u.card.attacks == "buildings" for u in pushers):
                     pick = wincons[0]           # counter-push: add the wincon
-                if pick and (ok(pick[2]) or el >= 8.5):
+                if pick and (ok(pick[2]) or el >= 8.5 - self._push_bonus()):
                     i, k, c = pick
                     if self._is_wincon(c):
                         if self._play_wincon(i, c, self._lane(lead.x)):
@@ -755,24 +902,30 @@ class AIController:
         aggressive = 0.25 + 0.08 * self.level
         if mult > 1:
             aggressive += 0.15
+        bonus = self._push_bonus()
+        if bonus:
+            # elixir / army upgrades: push sooner and more often
+            hoard -= bonus
+            aggressive += 0.12 * bonus
         want = el >= hoard or self.rng.random() < aggressive * 0.35
         if not want:
             return False
-        if self.lv(3) and tanks and el >= 8.0 and mult <= 2.0:
+        if self.lv(3) and tanks and el >= 8.0 - bonus and mult <= 2.0:
             # beatdown: heavy tank from the back, support it at the bridge
-            i, k, c = max(tanks, key=lambda t: t[2].hp)
+            i, k, c = max(tanks, key=lambda t: t[2].hp * (1.0 + 0.5 * self._focus(t[1])))
             if self._is_wincon(c) or c.elixir >= 6 or c.enchant:
                 return self._play_wincon(i, c, lane, from_back=True) \
                     if self._is_wincon(c) else self._place(
                         i, self.match.towers[(self.me, "left" if lane == 0 else "right")].x,
                         2.4, c)
         if wincons:
-            pick = (max(wincons, key=lambda t: t[2].hp) if self.lv(2)
-                    else self.rng.choice(wincons))
+            pick = (max(wincons, key=lambda t: t[2].hp * (1.0 + 0.5 * self._focus(t[1])))
+                    if self.lv(2) else self.rng.choice(wincons))
             if ok(pick[2]) or el >= hoard:
                 return self._play_wincon(pick[0], pick[2], lane)
         if self.lv(2) and supports and el >= hoard:
-            i, k, c = self.rng.choice(supports)
+            fav = [t for t in supports if self._focus(t[1])]
+            i, k, c = self.rng.choice(fav or supports)
             return self._place(i, self._lane_x(lane), RIVER_TOP - 3.0, c)
         if not self.lv(2):
             troops = [t for t in aff if t[2].category == "troop"]
@@ -802,7 +955,7 @@ class AIController:
     def _try_cycle(self):
         """Expert: play a cheap card safely at the back to reach the wincon."""
         self._why = "cycle"
-        if any(self._is_wincon(cards.CARDS[k]) for k in self._hand()):
+        if any(self._is_wincon(self._card(k)) for k in self._hand()):
             return False
         if self._el() < 7:
             return False
@@ -887,6 +1040,8 @@ class AIController:
                 continue
             frac = (e.hp + e.shield) / max(e.max_hp + e.card.shield_hp, 1)
             val = _share(e.card) * frac
+            if sim.overrides or sim.boons[me] or sim.boons[op]:
+                val *= self._worth(sim, e)
             if e.card.lifetime:
                 val *= max(e.lifetime, 0.0) / e.card.lifetime
             ly = self.L(e.y)
@@ -898,6 +1053,15 @@ class AIController:
                 v -= val * (1.0 + 0.8 * depth)
         v += sum(sim.elixir[me::2]) - sum(sim.elixir[op::2])
         return v
+
+    def _worth(self, sim, e):
+        """Value multiplier of a unit carrying upgrades (1.0 otherwise)."""
+        w = 1.0
+        if e.key in (sim.overrides.get(e.team) or {}):
+            w += 0.4
+        b = sim.boons.get(e.team) or {}
+        w *= (b.get("hp", 1.0) * b.get("dmg", 1.0)) ** 0.5
+        return w
 
     def _rollout(self, cand, horizon, seed=0):
         sim = copy.deepcopy(self.match, self._memo())
@@ -945,7 +1109,7 @@ class AIController:
             sc = self._score_counter(c, prim, gs)
             if sc is not None:
                 scored.append((sc, i, k, c))
-        scored.sort(key=lambda t: -t[0])
+        scored.sort(key=lambda t: -t[0])         # (upgraded cards score higher)
         if not self.search_wide:
             scored = scored[:2]
         cands = [None]                                   # None = wait
@@ -1013,6 +1177,11 @@ class AIController:
             elif c.category == "troop" and c.range >= 3.0 and self._el() >= 8:
                 for ln in lanes:
                     out.append((i, k, self._lane_x(ln), RIVER_TOP - 2.5))
+            elif c.category == "troop" and self._focus(k) and self._el() >= 6:
+                # an upgraded troop can lead a push on its own: try it at
+                # the bridge (the search judges whether it's worth it)
+                for ln in lanes:
+                    out.append((i, k, self._lane_x(ln), RIVER_TOP - 0.9))
         return out
 
     def _start_plan(self, threats):
@@ -1259,8 +1428,17 @@ class AIController:
             return
         if self.search_all:
             # Master: every decision is searched (defence, attack, spells)
+            min_el = 4.0
+            p = self._profile()
+            if p["any"]:
+                min_el -= min(1.5, self._push_bonus())
+                if (threats and p["tower"] > 1.15 and self._el() < 9.0
+                        and TRUST_TOWERS):
+                    group = self._group(threats[0], threats)
+                    if self._tower_can_handle(self._group_stats(group), group):
+                        return                  # my buffed towers have this
             if self.hold <= 0 and (not threats or self.reaction_accum >= self.p["reaction"]) \
-                    and (threats or self._el() >= 4.0):
+                    and (threats or self._el() >= min_el):
                 self._start_plan(threats)
             return
         self._heuristic_turn(threats)

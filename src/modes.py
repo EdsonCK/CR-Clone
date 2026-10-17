@@ -17,6 +17,9 @@ Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
   Rage Battle     every troop is permanently raged (+35% speed & attack)
   Random Decks    both sides get a random deck
   Double Trouble  double elixir, double-strength towers and a 5 minute clock
+  Chaos           always against the Master AI: every 45 s both sides pick
+                  one of two upgrades of the same rarities (chaos.py) -
+                  rarer as the match goes on, two legendaries in overtime
   2v2 Battle      you and an AI teammate against two AIs, as in the real
                   game: each player has their own deck, hand and elixir bar
                   and deploys anywhere on their side; the towers, crowns and
@@ -36,6 +39,7 @@ import pygame
 
 import config as cfg
 import cards
+import chaos
 import sprites
 import levels
 import profile_data
@@ -52,6 +56,7 @@ MODES = [
     ("rage", "Rage Battle", "Everyone is permanently raged.", "rage"),
     ("random", "Random Decks", "Both sides get a random deck.", "skeleton_barrel"),
     ("double", "Double Trouble", "x2 elixir, x2 tower HP, 5 minutes.", "princess"),
+    ("chaos", "Chaos", "Master AI. Both sides pick upgrades every 45 s.", "lightning"),
     ("endless", "Endless Survival", "Survive endless waves (Level Deck).", "skeleton_king"),
 ]
 MODE_NAMES = {k: n for k, n, _, _ in MODES}
@@ -128,9 +133,11 @@ class ModesMixin:
         for i, (k, name, desc, icon) in enumerate(self._mode_items()):
             r = self._mode_rect(i)
             gold = k == "endless"
-            self._panel(r, border=(214, 176, 84) if gold else (110, 120, 150),
-                        top=(70, 58, 40) if gold else (52, 54, 72),
-                        bottom=(36, 30, 24) if gold else (30, 30, 42))
+            wild = k == "chaos"
+            self._panel(r, border=(214, 176, 84) if gold else (188, 120, 255) if wild
+                        else (110, 120, 150),
+                        top=(70, 58, 40) if gold else (66, 40, 92) if wild else (52, 54, 72),
+                        bottom=(36, 30, 24) if gold else (32, 20, 48) if wild else (30, 30, 42))
             self.screen.blit(sprites.get_sprite(icon, 40), (r.x + 6, r.y + 6))
             self._text(self._fit(name, self.font_sb, r.w - 54), self.font_sb,
                        topleft=(r.x + 50, r.y + 8))
@@ -171,7 +178,8 @@ class ModesMixin:
 
     def _launch_special(self, deck, ai_deck):
         key = self.mode
-        cfg.apply_ai_settings(self.ai_level, 1.0)
+        ai_level = chaos.CHAOS_AI_LEVEL if key == "chaos" else self.ai_level
+        cfg.apply_ai_settings(ai_level, 1.0)
         self._arena_surf = None
         self.level_run = None
         alv = profile_data.SPECIAL_AI_LEVEL
@@ -205,7 +213,9 @@ class ModesMixin:
         if key == "mirror":
             m.set_tower_troop(ENEMY, self._tower_troop())
         self.mode_decks = (list(deck), list(ai_deck))
-        self.ai = AIController(m, team=ENEMY, level=self.ai_level)
+        self.ai = AIController(m, team=ENEMY, level=ai_level)
+        self.chaos = chaos.ChaosRun(m, random.randrange(1 << 30)) if key == "chaos" else None
+        self._ai_toast = None
         if key == "duo":
             self._duo_setup(m, deck, specials, alv)
         self._audio = {}
@@ -295,6 +305,16 @@ class ModesMixin:
                 self.last_rewards.append(("New best!", {}))
             return
         win = w == PLAYER
+        if k == "chaos":
+            run = self.chaos
+            self._reward("Victory" if win else "Played",
+                         profile_data.chaos_gold(win, self.match.crowns[PLAYER],
+                                                 len(run.picks) if run else 0))
+            if win:
+                rec["wins"] += 1
+                if rec["wins"] == 1:
+                    self._reward("First Chaos win", coins=1, gems=10)
+            return
         self._reward("Victory" if win else "Played",
                      profile_data.special_gold(win, self.ai_level, self.match.crowns[PLAYER]))
         if win:

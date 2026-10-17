@@ -994,7 +994,21 @@ class Entity:
                 if abs(tx - bx) > BRIDGE_HALF:
                     tx, ty = bx, ty2
         if not self.flying:
-            tx, ty = self._steer_around(tx, ty, target, match)
+            self._goal = (tx, ty)
+            det = getattr(self, "_detour", None)
+            if det is not None:
+                pts, until = det
+                while pts and math.hypot(pts[0][0] - self.x, pts[0][1] - self.y) < 0.35:
+                    pts.pop(0)
+                if not pts or match.elapsed > until:
+                    self._detour = None
+                    self._steer_mem = None
+                else:
+                    tx, ty = pts[0]
+            if getattr(self, "_detour", None) is None:
+                tx, ty = self._steer_around(tx, ty, target, match)
+            if self.mass > 0:
+                self._unstick(match)
         dx, dy = tx - self.x, ty - self.y
         dd = math.hypot(dx, dy)
         if dd < 1e-6:
@@ -1010,6 +1024,51 @@ class Entity:
             self.charged = True
         if self.ramps() and not evo_engine.keeps_ramp(self):
             self.ramp_time = 0.0   # moving = not attacking -> ramp decays fully
+
+    def _rim_blocked(self, best, side, r, target, match):
+        """True if another building / tower sits on the way to the point
+        beside `best` on `side` (see _steer_around)."""
+        ox, oy = best.x - self.x, best.y - self.y
+        od = math.hypot(ox, oy) or 1e-6
+        wx = best.x + (-oy / od * side) * r
+        wy = best.y + (ox / od * side) * r
+        dx, dy = wx - self.x, wy - self.y
+        dd = math.hypot(dx, dy) or 1e-6
+        for e in match.entities:
+            if (not e.alive or e.mass > 0 or e is best or e is self or e is target):
+                continue
+            ex, ey = e.x - self.x, e.y - self.y
+            t = max(0.0, min(dd, (ex * dx + ey * dy) / dd))
+            px, py = self.x + dx / dd * t, self.y + dy / dd * t
+            if math.hypot(e.x - px, e.y - py) < e.crad + self.crad:
+                return True
+        return False
+
+    def _unstick(self, match):
+        """A ground unit that keeps trying to walk but hardly moves for a
+        second (wedged between buildings, the King and the arena edge) tries
+        going round its obstacle the other way."""
+        now = match.elapsed
+        st = getattr(self, "_stk", None)
+        if st is None or now - st[3] > 0.25:          # (re)started walking
+            self._stk = (self.x, self.y, now, now)
+            return
+        x0, y0, t0, _ = st
+        if now - t0 < 1.0:
+            self._stk = (x0, y0, t0, now)
+            return
+        if math.hypot(self.x - x0, self.y - y0) < 0.3:
+            # wedged: plan a way out over the tile grid (round buildings,
+            # towers and the river) and follow it for a few tiles
+            goal = getattr(self, "_goal", None)
+            path = match.grid_path(self.x, self.y, goal[0], goal[1]) if goal else None
+            if path:
+                self._detour = (path[:8], now + 6.0)
+            else:
+                mem = getattr(self, "_steer_mem", None)
+                if mem is not None:
+                    self._steer_mem = (mem[0], -mem[1])
+        self._stk = (self.x, self.y, now, now)
 
     def _steer_around(self, tx, ty, target, match):
         """Ground path-finding lite: if a building or tower sits on the
@@ -1053,6 +1112,10 @@ class Entity:
             # lane's side - never the long way round the other side of it
             want = -1.0 if self.lane == 0 else 1.0
             side = 1.0 if (-oy / od) * want > 0 else -1.0
+            # ...unless a building walls that side off (say one placed between
+            # the King and the arena edge): then the other way round
+            if self._rim_blocked(best, side, r, target, match):
+                side = -side
             self._steer_mem = (id(best), side)
         else:
             cross = ox * dy - oy * dx
@@ -2471,6 +2534,56 @@ class Match:
                              knockback=card.spawn_knockback)
         return made
 
+    def grid_path(self, x0, y0, x1, y1):
+        """Tile-centre waypoints from (x0, y0) toward (x1, y1) for a ground
+        unit, round standing buildings / towers and over the bridges only
+        (breadth-first over the arena grid). Ends at the reachable tile
+        nearest the goal; None if we're already there."""
+        cols, rows = cfg.GRID_COLS, cfg.GRID_ROWS
+        blocked = set()
+        for e in self.entities:
+            if not e.alive or e.mass > 0:
+                continue
+            if e.is_tower:
+                h = TOWER_HALF[e.is_king]
+            elif e.card.deployable:
+                h = cards.footprint(e.card) / 2.0
+            else:
+                h = e.crad
+            for cx in range(int(math.floor(e.x - h)), int(math.ceil(e.x + h))):
+                for cy in range(int(math.floor(e.y - h)), int(math.ceil(e.y + h))):
+                    blocked.add((cx, cy))
+        for cy in range(rows):
+            if RIVER_TOP <= cy + 0.5 <= RIVER_BOTTOM:
+                for cx in range(cols):
+                    if min(abs(cx + 0.5 - b) for b in BRIDGE_X) > BRIDGE_HALF:
+                        blocked.add((cx, cy))
+        start = (min(cols - 1, max(0, int(x0))), min(rows - 1, max(0, int(y0))))
+        prev = {start: None}
+        queue = [start]
+        best, best_d = start, math.hypot(start[0] + 0.5 - x1, start[1] + 0.5 - y1)
+        for cur in queue:                      # (the list grows as we go)
+            d = math.hypot(cur[0] + 0.5 - x1, cur[1] + 0.5 - y1)
+            if d < best_d:
+                best, best_d = cur, d
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1),
+                           (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                nx, ny = cur[0] + dx, cur[1] + dy
+                if not (0 <= nx < cols and 0 <= ny < rows) or (nx, ny) in prev:
+                    continue
+                if (nx, ny) in blocked or (dx and dy and ((cur[0] + dx, cur[1]) in blocked
+                                                          or (cur[0], cur[1] + dy) in blocked)):
+                    continue
+                prev[(nx, ny)] = cur
+                queue.append((nx, ny))
+        if best == start:
+            return None
+        path = []
+        while best is not None and best != start:
+            path.append((best[0] + 0.5, best[1] + 0.5))
+            best = prev[best]
+        return path[::-1]
+
     def sleeping_king_blocked(self, ent, king):
         """True if `ent` must leave sleeping `king` alone: one of its
         Princess Towers still stands and is at least as near. (As in the real
@@ -3224,8 +3337,9 @@ class Match:
 
         # elixir regen
         mult = self.elixir_multiplier()
-        self.add_elixir(PLAYER, cfg.ELIXIR_PER_SECOND * mult * dt)
-        self.add_elixir(ENEMY, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)
+        bp, be = (self.boons[t].get("elixir", 1.0) for t in (PLAYER, ENEMY))  # upgrades
+        self.add_elixir(PLAYER, cfg.ELIXIR_PER_SECOND * mult * bp * dt)
+        self.add_elixir(ENEMY, cfg.ELIXIR_PER_SECOND * mult * be * cfg.AI_ELIXIR_MULT * dt)
         if len(self.elixir) > 2:                   # 2v2: teammate + 2nd enemy
             self.add_elixir(ALLY, cfg.ELIXIR_PER_SECOND * mult * dt)
             self.add_elixir(ENEMY2, cfg.ELIXIR_PER_SECOND * mult * cfg.AI_ELIXIR_MULT * dt)

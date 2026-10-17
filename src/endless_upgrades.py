@@ -274,7 +274,8 @@ _UPS = [
     U("mega_minion", "Mega Mega Minion", "Double hp and damage, hits splash.",
       _both(_x(hp=2, damage=2), lambda c: {"splash": max(c.splash, 1.0)})),
     U("phoenix", "Eternal Flame", "Double hp and damage.", _x(hp=2, damage=2)),
-    U("witch", "Coven Mother", "Summons skeletons 3x as fast.", _spawner(3.0), _L),
+    U("witch", "Coven Mother", "Summons skeletons twice as fast.", _spawner(2.0), _L,
+      once=True),
     U("night_witch", "Night Terror", "+2 Bats per summon, twice as often.",
       lambda c: {"spawner": (c.spawner[0], c.spawner[1] + 2, c.spawner[2] / 2)}),
     # ---- melee ----
@@ -408,6 +409,48 @@ _UPS = [
                                              "duration": c.duration * 1.5})),
     U("mirror", "Flawless Mirror", "Mirrored cards cost the same as the original "
       "(not +1).", _mods(mirror_free=True), once=True),
+    # ---- win conditions (Chaos battles only - Endless bans them) ----
+    U("giant", "Colossus", "Double hp, +50% damage.", _x(hp=2, damage=1.5)),
+    U("golem", "Titan Golem", "+50% hp and 2 more Golemites when it falls.",
+      lambda c: {"hp": int(c.hp * 1.5), "death_spawn": (c.death_spawn[0],
+                                                        c.death_spawn[1] + 2)}),
+    U("hog_rider", "Hog Stampede", "+1 Hog Rider.", _add(count=1), _L),
+    U("hog_rider", "Rampage", "Hits 50% faster.", _faster(1.5), _R),
+    U("balloon", "Bomb Bay", "+50% damage; its death bomb is 2.5x stronger.",
+      _both(_x(damage=1.5), _death(1.2, 2.5))),
+    U("royal_giant", "Royal Cannon", "+2 range, +50% damage.",
+      _both(_x(damage=1.5), _range(plus=2.0))),
+    U("lava_hound", "Magma Core", "+4 Lava Pups when it pops, +30% hp.",
+      lambda c: {"hp": int(c.hp * 1.3), "death_spawn": (c.death_spawn[0],
+                                                        c.death_spawn[1] + 4)}),
+    U("battle_ram", "Battering Rams", "+50% hp, 2 more Barbarians inside.",
+      lambda c: {"hp": int(c.hp * 1.5), "death_spawn": (c.death_spawn[0],
+                                                        c.death_spawn[1] + 2)}, _R),
+    U("wall_breakers", "Demolition Squad", "+2 Wall Breakers, +50% blast damage.",
+      _both(_add(count=2), _death(1.0, 1.5)), _R),
+    U("skeleton_barrel", "Bone Bomb", "+6 Skeletons in the barrel.",
+      lambda c: {"death_spawn": (c.death_spawn[0], c.death_spawn[1] + 6)}, _R),
+    U("goblin_giant", "Goblin Siege Tower", "+2 Spear Goblins on his back (and when "
+      "he falls), +30% hp.",
+      lambda c: {"hp": int(c.hp * 1.3),
+                 "back_riders": (c.back_riders[0], c.back_riders[1] + 2),
+                 "death_spawn": (c.death_spawn[0], c.death_spawn[1] + 2)}),
+    U("electro_giant", "Tesla Armor", "His counter-zap hits twice as hard over a "
+      "wider area.", lambda c: {"reflect": (c.reflect[0] + 1.0, c.reflect[1] * 2,
+                                            c.reflect[2])}),
+    U("elixir_golem", "Golden Golem", "Double hp, and it no longer gives the "
+      "opponent elixir.", _both(_x(hp=2), _set(death_gives_elixir=0.0)), _R, once=True),
+    U("ice_golem", "Glacier", "+50% hp; its death freezes-slow is far stronger.",
+      lambda c: {"hp": int(c.hp * 1.5), "death_slow": (0.3, 4.0)}, _R),
+    U("royal_hogs", "Royal Drove", "+2 Royal Hogs.", _add(count=2)),
+    U("ram_rider", "Bola Master", "+50% hp and damage.", _x(hp=1.5, damage=1.5), _R),
+    U("rune_giant", "Runemaster", "Enchants 2 more allies with double the bonus.",
+      lambda c: {"enchant": (c.enchant[0] + 2, c.enchant[1], c.enchant[2] * 2,
+                             c.enchant[3], c.enchant[4])}),
+    U("minion_giant", "Toxic Titan", "Double hp, +50% damage.", _x(hp=2, damage=1.5),
+      _R),
+    U("suspicious_bush", "Goblin Grove", "+3 Goblins burst out of the bush.",
+      lambda c: {"death_spawn": (c.death_spawn[0], c.death_spawn[1] + 3)}, _R),
 ]
 
 for _u in _UPS:
@@ -496,6 +539,8 @@ def _rebuild(match, team):
         if not tw.alive:
             tw.alive = True
             tw._death_done = False
+            if match.enemy_towers:              # a battle: its crown is taken back
+                match.crowns[1 - team] = max(0, match.crowns[1 - team] - 1)
             tw.hp = tw.max_hp
             tw.target = None
             if tw not in match.entities:
@@ -523,7 +568,8 @@ def _tower_splash(match, team):
 
 def _elixir(mult):
     def apply(match, team):
-        match.elixir_rate = (match.elixir_rate or 1.0) * mult
+        b = match.boons.setdefault(team, {})
+        b["elixir"] = b.get("elixir", 1.0) * mult
     return apply
 
 
@@ -596,7 +642,8 @@ _boon("tower_hp", "Stone Walls", "All your towers get +50% max hp (and heal it).
 _boon("heal", "Restoration", "All your towers fully heal.", _heal_towers(1.0), _R)
 _boon("rebuild", "Rebuild", "Fallen Princess Towers are rebuilt at full hp.",
       _rebuild, _L,
-      needs=lambda m, d: any(not tw.alive for tw in _towers(m, PLAYER, kings=False)))
+      needs=lambda m, d, team=PLAYER: any(not tw.alive
+                                          for tw in _towers(m, team, kings=False)))
 _boon("frost_towers", "Frost Towers", "Tower shots slow enemies by 35% for 1.5 s "
       "(each pick slows harder and longer).",
       _tower_slow, _R)
