@@ -53,10 +53,12 @@ import towers as towers_mod
 from engine import PLAYER, ENEMY, RIVER_TOP, RIVER_BOTTOM, BRIDGE_X, dist
 
 GRID_MID = cfg.GRID_COLS / 2.0
-TRUST_TOWERS = True       # Master: skip planning while buffed towers handle it
-FOCUS_WEIGHT = 1.2        # counter-score bonus per upgrade on a card
-PUSH_BONUS = 1.0          # how much elixir / army upgrades lower the push bar
-TOWER_TRUST = 1.0         # how much buffed towers raise "let the tower take it"
+# tuned in Chaos (adaptive vs plain Master AI, same upgrades): these won 56
+# of 96 games, +0.16 crowns a game
+TRUST_TOWERS = False      # Master: skip planning while buffed towers handle it
+FOCUS_WEIGHT = 3.0        # counter-score bonus per upgrade on a card
+PUSH_BONUS = 2.0          # how much elixir / army upgrades lower the push bar
+TOWER_TRUST = 0.5         # how much buffed towers raise "let the tower take it"
 AIR_WINCONS = {"balloon", "lava_hound", "skeleton_barrel", "electro_dragon"}
 
 

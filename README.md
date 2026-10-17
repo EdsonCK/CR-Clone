@@ -129,7 +129,9 @@ Evolutions and Heroes the higher you climb.
   upgraded copies (cost, range, unit count, spell radius...), favours cards
   it has upgraded, lets buffed towers handle small pushes, spends more freely
   with elixir boons and commits to bigger pushes with army boons. With no
-  upgrades it plays exactly as before (checked move by move).
+  upgrades it plays exactly as before (checked move by move). Tuned in
+  Chaos against the plain Master AI with the same upgrades: it wins 58%
+  (56 of 96 games).
 * **Win-condition card upgrades** for Chaos (Endless still bans those
   cards): Colossus Giant, Titan Golem, Hog Stampede (+1 Hog), Rampage, Bomb
   Bay Balloon, Royal Cannon, Magma Core Lava Hound, Battering Rams,

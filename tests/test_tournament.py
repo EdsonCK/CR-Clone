@@ -38,7 +38,8 @@ for key, *_ in modes.MODES:
     # a played card comes out at level 11
     m.elixir[PLAYER] = 10
     k = m.hands[PLAYER][0]
-    if cards.CARDS[m.play_key(PLAYER, k)].category != "spell":
+    pk = m.play_key(PLAYER, k)                    # (None: a Mirror with nothing to copy)
+    if pk is not None and cards.CARDS[pk].category != "spell":
         n0 = len(m.entities)
         m.play_card(PLAYER, 0, 9.5, 24.5)
         new = m.entities[n0:]
