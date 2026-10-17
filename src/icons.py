@@ -12,6 +12,8 @@ real Clash Royale icons:
     shards  a skewed purple glass crystal (an Evolution shard)
     coins   a rounded gold diamond with a yellow-green sheen (a Hero coin)
     trophy  a gold cup with looping handles
+    potion  a round glass flask of glowing purple brew with a level-up arrow
+            (the Level-Up Potion)
 
 Each is drawn 4x larger with flat shapes, given a dark outline, then
 smooth-scaled down (so the edges are anti-aliased) and cached by size.
@@ -180,8 +182,43 @@ def _draw_trophy(s, c, R):
     _shine(s, pygame.Rect(c[0] - R * 0.5, c[1] - R * 0.72, R * 0.24, R * 0.6), 120)
 
 
+def _draw_potion(s, c, R):
+    bx, by, br = c[0], c[1] + R * 0.24, R * 0.7            # the round flask
+    # neck + lip + cork
+    neck = pygame.Rect(0, 0, R * 0.42, R * 0.5)
+    neck.midbottom = (bx, by - br * 0.82)
+    pygame.draw.rect(s, (196, 214, 236), neck)
+    lip = pygame.Rect(0, 0, R * 0.58, R * 0.16)
+    lip.midbottom = (bx, neck.top + R * 0.08)
+    pygame.draw.rect(s, (222, 232, 246), lip, border_radius=int(R * 0.06))
+    cork = pygame.Rect(0, 0, R * 0.36, R * 0.26)
+    cork.midbottom = (bx, lip.top + R * 0.04)
+    pygame.draw.rect(s, (150, 96, 50), cork, border_radius=int(R * 0.06))
+    pygame.draw.rect(s, (186, 128, 72), cork.inflate(-R * 0.14, -R * 0.12))
+    # glass body, then the brew filling its lower two thirds
+    _circle_grad(s, (bx, by), br, (214, 226, 246), (160, 176, 210))
+    brew = pygame.Surface(s.get_size(), pygame.SRCALPHA)
+    _circle_grad(brew, (bx, by), br * 0.86, (236, 130, 255), (118, 34, 196))
+    cut = pygame.Rect(0, 0, s.get_width(), int(by - br * 0.34))
+    brew.fill((0, 0, 0, 0), cut)
+    s.blit(brew, (0, 0))
+    pygame.draw.ellipse(s, (246, 176, 255),
+                        pygame.Rect(bx - br * 0.74, by - br * 0.42, br * 1.48, br * 0.2))
+    # bubbles
+    for ox, oy, rr in ((-0.34, 0.1, 0.08), (0.28, 0.3, 0.06), (0.05, 0.52, 0.05)):
+        pygame.draw.circle(s, (250, 214, 255), (int(bx + br * ox), int(by + br * oy)),
+                           max(2, int(br * rr)))
+    # the level-up arrow
+    a = _poly((bx, by + br * 0.12), br, [(0, -0.5), (0.36, -0.06), (0.14, -0.06),
+                                          (0.14, 0.4), (-0.14, 0.4), (-0.14, -0.06),
+                                          (-0.36, -0.06)])
+    pygame.draw.polygon(s, (255, 236, 120), a)
+    pygame.draw.polygon(s, (170, 96, 20), a, max(2, int(R * 0.05)))
+    _shine(s, pygame.Rect(bx - br * 0.66, by - br * 0.74, br * 0.5, br * 0.62), 120)
+
+
 DRAW = {"xp": _draw_xp, "gold": _draw_gold, "gems": _draw_gems, "shards": _draw_shards,
-        "coins": _draw_coins, "trophy": _draw_trophy}
+        "coins": _draw_coins, "trophy": _draw_trophy, "potion": _draw_potion}
 
 
 def _outline(surf, width):

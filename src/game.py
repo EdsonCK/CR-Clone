@@ -48,7 +48,7 @@ from kingscreen import KingMixin
 from rewardfx import RewardFXMixin
 from masteryscreen import MasteryMixin
 from endless_ui import EndlessUIMixin
-from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
+from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, POTION_COL, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
 # saves live in the save folder (savedata.py), outside the game folder
@@ -1434,8 +1434,14 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
 
     def _deck_card_level(self, k, deck):
         if deck is self.player_deck or deck is self.level_deck:
-            return self.profile.level(k)
+            return self.profile.effective_level(k)      # Level-Up Potions count
         return self._ai_card_level()
+
+    def _deck_level_col(self, k, deck, normal):
+        """Potion-purple for a card whose Level-Up Potion is running."""
+        if (deck is self.player_deck or deck is self.level_deck) and self.profile.boosted(k):
+            return POTION_COL
+        return normal
 
     def _prematch_click(self, pos):
         for r, lv in self._prematch_level_rects():
@@ -2174,7 +2180,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             x = panel.x + 10 + i * (sz + gap)
             self.screen.blit(sprites.get_sprite(k, sz), (x, y + 32))
             self._text("Lv%d" % self._deck_card_level(k, deck), self.font_s,
-                       (230, 230, 240), center=(x + sz // 2, y + 84))
+                       self._deck_level_col(k, deck, (230, 230, 240)),
+                       center=(x + sz // 2, y + 84))
 
     def _draw_records(self):
         cx = cfg.WINDOW_W // 2
@@ -2336,7 +2343,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self._text(self._fit("%s  Lv%d" % (card.name, self._deck_card_level(card.key, deck))
                                  if self.deck_mode != "ai" else card.name,
                                  self.font_s, r.w - 6), self.font_s,
-                       cfg.COLOR_TEXT, center=(r.centerx, r.bottom - 10))
+                       self._deck_level_col(card.key, deck, cfg.COLOR_TEXT)
+                       if self.deck_mode != "ai" else cfg.COLOR_TEXT,
+                       center=(r.centerx, r.bottom - 10))
             tag = self._slot_tag(i, card.key)
             if tag:
                 txt, col = tag

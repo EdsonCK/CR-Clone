@@ -1044,7 +1044,8 @@ class Entity:
         marching = (best.is_king                # the King sits across both lanes
                     and getattr(self, "lane", None) is not None
                     and (getattr(target, "is_tower", False)
-                         or getattr(target, "is_building", False)))
+                         or getattr(target, "is_building", False)
+                         or isinstance(target, _Spot)))   # Levels / Endless march
         if mem is not None and mem[0] == id(best):
             side = mem[1]
         elif marching and abs(oy) > 0.25 * od:
@@ -1112,6 +1113,7 @@ class Entity:
                 self.attack_cd = tt.hit_speed
             else:                         # ...then one dagger at a time
                 self.attack_cd = tt.empty_hit_speed
+            self.attack_cd *= getattr(self, "cd_mult", 1.0)   # Endless Rapid Fire
         self.atk_t = match.elapsed
         t = self.target
         ddx, ddy = t.x - self.x, t.y - self.y

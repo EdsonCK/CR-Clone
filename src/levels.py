@@ -55,7 +55,7 @@ from typing import List, Optional
 
 import cards
 import endless_upgrades
-from engine import PLAYER, ENEMY, RIVER_TOP
+from engine import PLAYER, ENEMY, RIVER_TOP, MELEE_RANGE
 
 LEVEL_BASE = cards.LEVEL_BASE      # the level the stats in cards.py represent
 level_mult = cards.level_mult
@@ -89,6 +89,8 @@ class Wave:
     boss: bool = False
     timeout: float = 40.0           # next wave comes anyway after this long
     power: float = 1.0              # x hp & damage for the whole wave (Endless)
+    ranged_hp_only: bool = False    # ranged units & spells: boss / wave power
+                                    #   adds health only, never damage (Endless)
 
 
 @dataclass
@@ -1430,6 +1432,9 @@ class LevelRun:
         mult = level_mult(lv) * sp.mult * self.level.power * wave.power
         x = LANE_X.get(sp.lane, 9.0)
         c = cards.CARDS[sp.key]
+        dmult = mult
+        if wave.ranged_hp_only and (c.category == "spell" or c.range >= MELEE_RANGE):
+            dmult = level_mult(lv) * self.level.power      # no boss / wave extra
         place, _, wait = sp.place.partition(":wait")
         if place == "push":
             # the wave's own support: on its push once it reaches the river
@@ -1468,7 +1473,7 @@ class LevelRun:
             # troops step out of their lane's crypt gate ("back" ones a bit
             # deeper inside, so they arrive later)
             y = GATE_Y.get(sp.lane, 6.0) + (0.4 if place == "back" else 1.0)
-        m.team_power[ENEMY] = (mult, mult)
+        m.team_power[ENEMY] = (mult, dmult)
         m.team_level[ENEMY] = lv
         before = set(id(e) for e in m.entities)
         m._deploy(ENEMY, sp.key, x, y)
@@ -1564,7 +1569,8 @@ def endless_name(spawns, rng):
         fits, names = ENDLESS_THEMES[theme]
         if troops and all(fits(k) for k in troops):
             return rng.choice(names)
-    if sum(is_swarm(k) for k in troops) * 2 > len(troops) >= 3:
+    if (sum(is_swarm(k) for k in troops) * 2 > len(troops) >= 3
+            and not any(is_heavy(k) for k in troops)):
         return "Mob"
     return rng.choice(ENDLESS_THEMES["mixed"][1])
 
@@ -1576,7 +1582,7 @@ def endless_wave(n, rng):
     tiers = min(len(ENDLESS_POOLS), 1 + n // 3)
     # past wave 15 the waves keep growing: more troops every wave and, once
     # the enemy is level 16, +5% hp & damage per wave on top (compounding)
-    budget = 4 + n * 1.6 + 0.03 * max(0, n - 15) ** 2
+    budget = 0.8 * (4 + n * 1.6) + 0.015 * max(0, n - 15) ** 2
     power = round(ENDLESS_POWER_GROWTH ** max(0, n - 16), 3)
     spawns = []
     t = 0.0
@@ -1647,7 +1653,7 @@ def endless_wave(n, rng):
         name = endless_name(spawns, rng)
     return Wave(name, spawns, level=lv, boss=boss,
                 bonus_elixir=4 if boss else (1 if n % 2 == 0 else 0),
-                timeout=60 if boss else 40, power=power)
+                timeout=60 if boss else 40, power=power, ranged_hp_only=True)
 
 
 ENDLESS_POWER_GROWTH = 1.05     # x hp & damage per wave once enemies are level 16

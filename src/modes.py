@@ -25,7 +25,7 @@ Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
 
 Endless Survival uses the Levels rules (your Level Deck, no enemy towers,
 miasma) with procedurally generated waves that never stop - see
-levels.endless_wave(). Every 5th wave you pick one of two upgrades
+levels.endless_wave(). Every 4th wave you pick one of two upgrades
 (endless_upgrades.py; the pick screen is endless_ui.py). Rewards grow with
 depth (profile_data.endless_*). Your best wave is saved.
 ============================================================================

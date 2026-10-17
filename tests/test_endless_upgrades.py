@@ -164,11 +164,11 @@ boon("rebuild").apply(m, PLAYER)
 m.update(1 / 30)
 assert tw.alive and tw.hp == tw.max_hp and tw in m.entities
 
-# ---- the run offers a choice after wave 5 and applies the pick
+# ---- the run offers a choice after every 4th wave and applies the pick
 m, run = run_with("knight")
 while len(run.level.waves) < 6:
     run.level.waves.append(levels.endless_wave(len(run.level.waves) + 1, run.rng))
-run._start_wave(4)
+run._start_wave(eu.LEVEL_EVERY - 1)
 run.pending = []
 for e in m.entities:
     if e.team == ENEMY and not e.is_tower:
@@ -180,4 +180,61 @@ t0 = m.elapsed
 run.update(1.0)                          # paused while choosing
 u = run.choose(1)
 assert run.picks == [u] and run.choice is None
+
+# ---- one-time upgrades are never offered again; stackable ones stack
+m, run = run_with("vines")
+once = up("vines", "Overgrowth")
+for _ in range(300):
+    for o in eu.offer(m, ["vines"] * 8, random.Random(_), taken=[once.key]):
+        assert o.key != once.key
+asc = boon("ascend")
+assert asc.once and all(asc not in eu.offer(m, ["knight"], random.Random(i), [asc.key])
+                        for i in range(300))
+m, run = run_with("elixir_collector")
+pump = up("elixir_collector", "Elixir Pump")
+pump.apply(m, PLAYER)
+pump.apply(m, PLAYER)
+assert m.card(PLAYER, "elixir_collector").generates_elixir[0] == 3.0
+m, run = run_with("knight")
+lt = m.towers[(PLAYER, "left")]
+d0, r0, h0 = lt.dmg, lt.range, lt.max_hp
+for _ in range(2):
+    boon("tower_dmg").apply(m, PLAYER)
+    boon("tower_range").apply(m, PLAYER)
+    boon("tower_hp").apply(m, PLAYER)
+assert abs(lt.dmg - d0 * 1.75 ** 2) < 1e-6 and abs(lt.range - (r0 + 5.0)) < 1e-6
+assert lt.sight == lt.range and lt.max_hp >= int(h0 * 1.5 * 1.5) - 1
+
+# ---- boons never depend on your deck (only Rebuild needs a fallen tower)
+for deck in (["knight"] * 8, ["fireball"] * 8, ["skeletons"] * 8):
+    seen = {o.key for i in range(400)
+            for o in eu.offer(m, deck, random.Random(i)) if o.kind == "boon"}
+    assert seen == {b.key for b in eu.BOONS} - {"boon:rebuild"}, deck
+
+# ---- range upgrades carry the sight: a doubled Musketeer stops twice as far
+m, run = run_with("musketeer")
+up("musketeer", "Sharpshooter").apply(m, PLAYER)
+c = m.card(PLAYER, "musketeer")
+base = cards.CARDS["musketeer"]
+assert c.range == base.range * 2 and c.sight >= c.range
+play(m, "musketeer")
+mus = [e for e in m.entities if e.key == "musketeer" and e.team == PLAYER][0]
+for _ in range(30 * 25):
+    m.update(1 / 30)
+tw = m.towers[(ENEMY, "left" if mus.lane == 0 else "right")]
+stop = ((mus.x - tw.x) ** 2 + (mus.y - tw.y) ** 2) ** 0.5
+assert stop > base.range * 1.8, (stop, base.range)
+
+# ---- ranged enemies: boss / wave power adds health, never damage
+m, run = run_with("knight")
+w = levels.Wave("t", [levels.Spawn("musketeer", 0, "left", None, 3.0),
+                      levels.Spawn("knight", 0, "right", None, 3.0)],
+                level=11, boss=True, power=2.0, ranged_hp_only=True)
+run.level.waves.append(w)
+run._start_wave(len(run.level.waves) - 1)
+sim(m, run, 0.2)
+mk = next(e for e in m.entities if e.key == "musketeer" and e.team == ENEMY)
+kn = next(e for e in m.entities if e.key == "knight" and e.team == ENEMY)
+assert abs(mk.power[0] - kn.power[0]) < 1e-6 and mk.power[0] > 5
+assert mk.power[1] < 1.5 and kn.power[1] > 5, (mk.power, kn.power)
 print("special upgrades ok")

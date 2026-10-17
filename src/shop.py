@@ -12,13 +12,20 @@ Gems (from big achievements, arenas and King level-ups) buy:
                   gift); each can be bought once a day. Some are paid in
                   gold - a way to turn spare gold into shards, coins or gems.
 
-Each offer: (id, name, reward dict, cost) where cost is ("gems"|"gold", n)
-or None (free). Tune prices right here.
+Hero coins buy:
+
+  * LEVEL-UP POTION  3 coins: drink it on a card (Cards screen) and for one
+                  real hour that card plays at your King level.
+
+Each offer: (id, name, reward dict, cost) where cost is ("gems"|"gold"|
+"coins", n) or None (free). Tune prices right here.
 ============================================================================
 """
 
 import datetime
 import random
+
+import profile_data
 
 GOLD_PACKS = [
     ("gold_s", "Pouch of Gold", {"gold": 1000}, ("gems", 60)),
@@ -49,6 +56,7 @@ DEAL_POOL = [
     ("gold_gems", "Gem Pouch", {"gems": 25}, ("gold", 2000)),
 ]
 SECTIONS = [("Gold", GOLD_PACKS), ("Evo Shards", SHARD_PACKS), ("Hero Coins", COIN_PACKS)]
+POTION = ("potion", "Level-Up Potion", {"potions": 1}, ("coins", profile_data.POTION_COST))
 
 
 def today():
@@ -76,7 +84,8 @@ def can_buy(profile, offer, deal=False):
     if cost is None:
         return True
     cur, n = cost
-    return (profile.gems if cur == "gems" else profile.gold) >= n
+    return {"gems": profile.gems, "gold": profile.gold,
+            "coins": profile.hero_coins}[cur] >= n
 
 
 def buy(profile, offer, deal=False):
@@ -88,8 +97,12 @@ def buy(profile, offer, deal=False):
         cur, n = cost
         if cur == "gems":
             profile.gems -= n
+        elif cur == "coins":
+            profile.hero_coins -= n
         else:
             profile.gold -= n
+    reward = dict(reward)
+    profile.potions += reward.pop("potions", 0)
     profile.add(**reward)
     if deal:
         bought_today(profile).append(oid)

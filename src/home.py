@@ -594,22 +594,65 @@ class HomeMixin:
         pygame.draw.rect(self.screen, dk_c(col, 60), r, 2, border_radius=10)
 
     # ------------------------------------------------------------ shop tab
-    SHOP_CARD_H = 104
+    def _draw_potion_offer(self, r, o, mouse):
+        """The Level-Up Potion: one wide card - glowing flask, what it does,
+        how many you have, and the Hero-coin price."""
+        pr = self.profile
+        ok = shop.can_buy(pr, o)
+        hov = r.collidepoint(mouse)
+        purple = (190, 110, 255)
+        self._panel(r, top=(58, 40, 84), bottom=(30, 22, 46),
+                    border=(255, 222, 110) if hov else purple, radius=10)
+        # soft pulsing glow behind the flask
+        cx, cy = r.x + 44, r.centery
+        t = self._now()
+        glow = pygame.Surface((90, 90), pygame.SRCALPHA)
+        for k in range(6, 0, -1):
+            a = int((14 + 6 * math.sin(t * 2.4)) * (7 - k) / 6)
+            pygame.draw.circle(glow, (200, 120, 255, a), (45, 45), 14 + k * 6)
+        self.screen.blit(glow, (cx - 45, cy - 45))
+        self._potion(cx, cy, 24)
+        x = r.x + 86
+        self._text("Level-Up Potion", self.font_m, (246, 214, 255), topleft=(x, r.y + 8))
+        lv = pr.king_level()
+        self._text("A card plays at your King level (%d) for 1 hour." % lv, self.font_s,
+                   (214, 206, 232), topleft=(x, r.y + 34))
+        self._text("Use it on a card in the Cards screen.", self.font_s,
+                   (170, 160, 196), topleft=(x, r.y + 50))
+        own = "You have %d" % pr.potions
+        self._text(own, self.font_s, (250, 206, 92), topleft=(x, r.y + 66))
+        pb = pygame.Rect(r.right - 98, r.centery - 15, 86, 30)
+        pygame.draw.rect(self.screen, (14, 10, 20), pb.move(0, 2), border_radius=8)
+        pygame.draw.rect(self.screen, (52, 120, 72) if ok else (70, 60, 64), pb,
+                         border_radius=8)
+        pygame.draw.rect(self.screen, lt_c((52, 120, 72), 40) if ok else (96, 84, 90), pb, 1,
+                         border_radius=8)
+        n = o[3][1]
+        tw = self.font_sb.size(str(n))[0]
+        self._hcoin(pb.centerx - tw // 2 - 8, pb.centery, 9)
+        self._text(str(n), self.font_sb, WHITE if ok else (220, 160, 160),
+                   topleft=(pb.centerx - tw // 2 + 6, pb.centery - 9))
+
+    SHOP_CARD_H = 86
+    POTION_TITLE = "Hero Coin Items"
 
     def _shop_layout(self):
-        """[(rect, offer, is_deal)] and [(y, title)] section headers."""
+        """[(rect, offer, is_deal)] and [(y, title)] section headers. The
+        last section (Hero-coin items: the Level-Up Potion) is one wide card."""
         W = cfg.WINDOW_W
-        y = TOP_H + 74
+        y = TOP_H + 72
         w = (W - 32 - 2 * 10) // 3
         cells, heads = [], []
-        sections = [("Daily Deals", shop.daily_deals())] + shop.SECTIONS
+        sections = ([("Daily Deals", shop.daily_deals())] + shop.SECTIONS
+                    + [(self.POTION_TITLE, [shop.POTION])])
         for title, offers in sections:
             heads.append((y, title))
-            y += 24
+            y += 22
             for i, o in enumerate(offers):
-                cells.append((pygame.Rect(16 + i * (w + 10), y, w, self.SHOP_CARD_H), o,
+                rw = W - 32 if title == self.POTION_TITLE else w
+                cells.append((pygame.Rect(16 + i * (w + 10), y, rw, self.SHOP_CARD_H), o,
                               title == "Daily Deals"))
-            y += self.SHOP_CARD_H + 10
+            y += self.SHOP_CARD_H + 8
         return cells, heads
 
     def _shop_click(self, pos):
@@ -618,10 +661,14 @@ class HomeMixin:
                 if shop.buy(self.profile, o, deal):
                     self.sfx.play("crown", 0.7, min_gap=0.0)
                     self.shop_msg = "Bought %s!" % o[1]
+                    if o[0] == "potion":
+                        self.shop_msg = ("Bought a Level-Up Potion! Use it on a card in "
+                                         "the Cards screen.")
                 elif deal and o[0] in shop.bought_today(self.profile):
                     self.shop_msg = "Already bought today - new deals in %s." % shop.time_to_refresh()
                 else:
-                    self.shop_msg = "Not enough %s." % ("gems" if o[3][0] == "gems" else "gold")
+                    self.shop_msg = "Not enough %s." % {"gems": "gems", "gold": "gold",
+                                                        "coins": "Hero coins"}[o[3][0]]
                 self.shop_msg_t = self._now()
                 return
 
@@ -642,6 +689,9 @@ class HomeMixin:
         bought = shop.bought_today(pr)
         for r, o, deal in cells:
             oid, name, reward, cost = o
+            if oid == "potion":
+                self._draw_potion_offer(r, o, mouse)
+                continue
             done = deal and oid in bought
             ok = shop.can_buy(pr, o, deal)
             hov = r.collidepoint(mouse) and not done
@@ -652,12 +702,12 @@ class HomeMixin:
             # the goods: a big icon (or two) and the amount
             for q, kd in enumerate(kinds):
                 ix = r.centerx + (q - (len(kinds) - 1) / 2.0) * 34
-                self._reward_icon(kd, ix, r.y + 26, 14)
+                self._reward_icon(kd, ix, r.y + 19, 12)
             amt = "  ".join("%d" % reward[k] for k in kinds)
-            self._text(amt, self.font_sb, WHITE, center=(r.centerx, r.y + 52))
+            self._text(amt, self.font_sb, WHITE, center=(r.centerx, r.y + 40))
             self._text(self._fit(name, self.font_s, r.w - 8), self.font_s, (200, 204, 220),
-                       center=(r.centerx, r.y + 68))
-            pb = pygame.Rect(r.x + 8, r.bottom - 26, r.w - 16, 20)
+                       center=(r.centerx, r.y + 55))
+            pb = pygame.Rect(r.x + 8, r.bottom - 23, r.w - 16, 19)
             if done:
                 pygame.draw.rect(self.screen, (50, 90, 60), pb, border_radius=6)
                 self._text("Bought", self.font_sb, (170, 230, 180), center=pb.center)
@@ -675,5 +725,8 @@ class HomeMixin:
                            topleft=(pb.centerx - tw // 2 + 4, pb.centery - 9))
         msg = getattr(self, "shop_msg", "")
         if msg and self._now() - getattr(self, "shop_msg_t", 0) < 3.0:
+            mw = self.font_sb.size(msg)[0] + 20
+            bar = pygame.Rect(cx - mw // 2, REAL_H - TAB_H - 25, mw, 22)
+            pygame.draw.rect(self.screen, (20, 22, 32), bar, border_radius=8)
             self._text(msg, self.font_sb, (255, 220, 140),
                        center=(cx, REAL_H - TAB_H - 14))

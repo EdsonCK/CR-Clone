@@ -211,6 +211,12 @@ class EndlessUIMixin:
         for line in _wrap(u.desc, self.font_s, r.w - 26)[:5]:
             self._text(line, self.font_s, (222, 226, 238), center=(r.centerx, y + 8))
             y += 17
+        # one-time or stacking (and how many you already have)
+        owned = sum(1 for p in getattr(self.level_run, "picks", []) if p.key == u.key)
+        note = ("One-time upgrade" if u.once else
+                "Stacks - you have x%d" % owned if owned else "Stacks if picked again")
+        self._text(note, self.font_s, (255, 214, 120) if owned else (170, 176, 196),
+                   center=(r.centerx, r.bottom - 40), outline=True)
 
     def _draw_upgrade_list(self):
         """Upgrades taken so far, in the left scenery margin (hover: details)."""

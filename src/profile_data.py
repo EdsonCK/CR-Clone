@@ -39,6 +39,7 @@ Settings > Sandbox unlocks every Level, Evolution and Hero for free play
 
 import json
 import os
+import time
 
 import cards
 import king
@@ -55,6 +56,8 @@ UPGRADE_COST = {11: 100, 12: 250, 13: 600, 14: 1200, 15: 2500}
 
 EVO_COST = 5          # Evo shards to unlock one card's Evolution
 HERO_COST = 8         # Hero coins to unlock one Hero
+POTION_COST = 3       # Hero coins for a Level-Up Potion (Shop)
+POTION_SECS = 3600    # a potion lifts a card to your King level for 1 real hour
 MIGRATION_COINS = 16  # one-time Hero coins for saves from before Hero coins
 
 # Levels: gold for each NEW star on level n, gold for any win on level n
@@ -143,6 +146,8 @@ class Profile:
         self.road_paid = 0           # rewards granted up to this many trophies
         self.mastery = {}            # card key -> Card Mastery record (mastery.py)
         self.card_plays = {}         # card key -> times you played it in a match
+        self.potions = 0             # Level-Up Potions in your inventory
+        self.potion_boosts = {}      # card key -> unix time its potion boost ends
         self.load()
 
     # ---- persistence ----
@@ -181,6 +186,11 @@ class Profile:
                         if k in cards.CARDS and isinstance(v, dict)}
         self.card_plays = {k: int(v) for k, v in d.get("card_plays", {}).items()
                            if k in cards.CARDS}
+        self.potions = max(0, int(d.get("potions", 0)))
+        pb = d.get("potion_boosts", {})
+        self.potion_boosts = ({k: float(v) for k, v in pb.items() if k in cards.CARDS}
+                              if isinstance(pb, dict) else {})
+        self.clean_boosts()
         if "king_xp" in d:
             self.king_xp = int(d["king_xp"])
         else:
@@ -209,6 +219,7 @@ class Profile:
                     "trophies": self.trophies, "best_trophies": self.best_trophies,
                     "road_paid": self.road_paid, "mastery": self.mastery,
                     "card_plays": self.card_plays,
+                    "potions": self.potions, "potion_boosts": self.potion_boosts,
                 }, f, indent=1)
         except Exception:
             pass
@@ -225,6 +236,7 @@ class Profile:
         self.trophies = self.best_trophies = self.road_paid = 0
         self.mastery = {}
         self.card_plays = {}
+        self.potions, self.potion_boosts = 0, {}
         self.totals = {"gold": 0, "shards": 0, "upgrades": 0}
         self.decks, self.active_slot = decks, slot
         self.save()
@@ -234,7 +246,67 @@ class Profile:
         return self.levels.get(key, START_LEVEL)
 
     def deck_levels(self, deck):
-        return {k: self.level(k) for k in deck}
+        """The levels your cards play at (Level-Up Potions included)."""
+        return {k: self.effective_level(k) for k in deck}
+
+    # ---- Level-Up Potions ----
+    def card_boost_left(self, key, now=None):
+        """Seconds left on `key`'s potion boost (0 = not boosted)."""
+        end = self.potion_boosts.get(key)
+        if end is None:
+            return 0.0
+        return max(0.0, end - (time.time() if now is None else now))
+
+    def boosted(self, key, now=None):
+        """True while a potion lifts `key` above its own level."""
+        return (self.card_boost_left(key, now) > 0
+                and self.king_level() > self.level(key))
+
+    def effective_level(self, key, now=None):
+        """`key`'s level in a match: your King level while a potion is on it."""
+        lv = self.level(key)
+        if self.card_boost_left(key, now) > 0:
+            return max(lv, min(MAX_LEVEL, self.king_level()))
+        return lv
+
+    def clean_boosts(self, now=None):
+        """Forget boosts that have run out."""
+        now = time.time() if now is None else now
+        self.potion_boosts = {k: t for k, t in self.potion_boosts.items() if t > now}
+
+    def buy_potion(self):
+        if self.hero_coins < POTION_COST:
+            return False
+        self.hero_coins -= POTION_COST
+        self.potions += 1
+        self.totals["shop_buys"] = self.totals.get("shop_buys", 0) + 1
+        self.save()
+        return True
+
+    def potion_block(self, key):
+        """Why a potion can't be used on `key` right now (None = it can)."""
+        if key not in cards.CARDS or not cards.CARDS[key].deployable:
+            return "You can only boost your own cards."
+        if self.potions <= 0:
+            return "No Level-Up Potions - buy one in the Shop."
+        if self.level(key) >= min(MAX_LEVEL, self.king_level()):
+            return "Already at your King level (%d)." % self.king_level()
+        return None
+
+    def use_potion(self, key, now=None):
+        """Drink a potion on `key`: it plays at your King level for an hour
+        (a boost already running restarts at a full hour). Returns
+        (ok, message)."""
+        why = self.potion_block(key)
+        if why:
+            return False, why
+        now = time.time() if now is None else now
+        self.clean_boosts(now)
+        self.potions -= 1
+        self.potion_boosts[key] = now + POTION_SECS
+        self.save()
+        return True, "%s boosted to level %d for 1 hour!" % (
+            cards.CARDS[key].name, self.effective_level(key, now))
 
     def deck_level(self, deck):
         """Average level of a deck (floored) - how strong your cards are."""

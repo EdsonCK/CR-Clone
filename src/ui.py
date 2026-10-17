@@ -26,6 +26,7 @@ def px_to_tile(px, py):
 
 
 WHITE = (255, 255, 255)
+POTION_COL = (244, 124, 214)     # Level-Up Potion boosts (level badges, timers)
 _TEXT_CACHE = {}
 
 

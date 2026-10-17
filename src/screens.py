@@ -25,7 +25,7 @@ import evos
 import mastery
 import profile_data
 import icons
-from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE
+from ui import dk_c, lt_c, grad_rect, render_text, Button, WHITE, POTION_COL
 
 GOLD_COL = (250, 206, 92)
 SHARD_COL = (196, 120, 255)
@@ -186,9 +186,14 @@ class ScreensMixin:
         """King XP / level badge: the blue 12-point star."""
         icons.blit(self.screen, "xp", x, y, r)
 
+    def _potion(self, x, y, r=8):
+        """A Level-Up Potion."""
+        icons.blit(self.screen, "potion", x, y, r)
+
     def _reward_icon(self, kind, x, y, r=8):
         {"gold": self._coin, "shards": self._shard, "coins": self._hcoin,
-         "gems": self._gem, "xp": self._xp_icon}[kind](int(x), int(y), r)
+         "gems": self._gem, "xp": self._xp_icon,
+         "potions": self._potion}[kind](int(x), int(y), r)
 
     def _reward_row(self, rw, right, cy, font=None, r=7, gap=10):
         """Draw a reward dict right-aligned at `right` (icon + "+n" each);
@@ -322,6 +327,13 @@ class ScreensMixin:
         b = Button((412, y, 112, 36), "Mastery", lambda: self._open_mastery(key), "primary")
         b.kind = "mastery"
         out.append(b)
+        if not self.sandbox:
+            pt = cfg.WINDOW_H - 302 + 8
+            b = Button((cfg.WINDOW_W - 160, pt, 144, 30), "     Use Potion (%d)" % p.potions,
+                       self._cards_use_potion, "primary")
+            b.enabled = p.potion_block(key) is None
+            b.kind = "potion"
+            out.append(b)
         out.append(Button((cfg.WINDOW_W // 2 - 70, cfg.WINDOW_H - 42, 140, 34), "Back",
                           lambda: self._goto(getattr(self, "cards_return", "menu")), "dark"))
         return out
@@ -341,6 +353,26 @@ class ScreensMixin:
             self._king_toast(self.profile.last_king)
         else:
             self.cards_msg = "Not enough gold."
+
+    def _cards_use_potion(self):
+        ok, msg = self.profile.use_potion(self.cards_sel)
+        if ok:
+            self.sfx.play("ability", 0.8, min_gap=0.0)
+        self.cards_msg = msg
+
+    def _potion_status(self, key):
+        """(text, colour) under the potion button: the countdown while a
+        boost runs, otherwise why a potion can't be used (or None)."""
+        p = self.profile
+        left = p.card_boost_left(key)
+        if left > 0:
+            m, sec = divmod(int(left), 60)
+            return ("Boosted to Lv %d  -  %d:%02d left" % (p.effective_level(key), m, sec),
+                    POTION_COL)
+        if p.potions <= 0:
+            return "Buy potions in the Shop", (150, 150, 168)
+        why = p.potion_block(key)
+        return (why, (150, 150, 168)) if why else None
 
     def _cards_unlock_evo(self):
         if self.profile.unlock_evo(self.cards_sel):
@@ -448,9 +480,14 @@ class ScreensMixin:
             pill = pygame.Rect(0, 0, 40, 16)
             pill.midbottom = (r.centerx, r.bottom - 3)
             lvcol = (80, 140, 220) if lv < profile_data.MAX_LEVEL else (220, 160, 40)
+            boosted = p.boosted(c.key)
+            if boosted:                       # Level-Up Potion running
+                lv, lvcol = p.effective_level(c.key), POTION_COL
             pygame.draw.rect(self.screen, dk_c(lvcol, 50), pill, border_radius=8)
             pygame.draw.rect(self.screen, lvcol, pill, 1, border_radius=8)
             self._text("Lv %d" % lv, self.font_s, WHITE, center=pill.center)
+            if boosted:
+                self._potion(pill.x - 3, pill.centery - 1, 6)
             if mastery.claimable(p, c.key):   # Mastery rewards waiting: gold star
                 self._star(r.right - 10, r.bottom - 28, 6, (250, 206, 92))
             if p.can_upgrade(c.key):          # upgrade available: green arrow
@@ -488,9 +525,12 @@ class ScreensMixin:
         self.screen.blit(sprites.get_sprite(c.key, 70), (panel.x + 8, top + 8))
         self._text(c.name, self.font_m, topleft=(panel.x + 86, top + 6))
         kind = "Champion" if c.is_champion else c.category.title()
-        self._text("%s  -  %d elixir  -  Level %d / %d" % (kind, c.elixir, lv,
-                                                           profile_data.MAX_LEVEL),
-                   self.font_s, (250, 206, 92), topleft=(panel.x + 86, top + 30))
+        line = "%s  -  %d elixir  -  Level %d / %d" % (kind, c.elixir, lv,
+                                                       profile_data.MAX_LEVEL)
+        self._text(line, self.font_s, (250, 206, 92), topleft=(panel.x + 86, top + 30))
+        if p.boosted(c.key):
+            self._text("  (plays at %d)" % p.effective_level(c.key), self.font_s, POTION_COL,
+                       topleft=(panel.x + 86 + self.font_s.size(line)[0], top + 30))
         stats = self._card_stat_lines(c, lv)
         nxt = self._card_stat_lines(c, lv + 1) if lv < profile_data.MAX_LEVEL else None
         yy = top + 48
@@ -504,6 +544,13 @@ class ScreensMixin:
             b.draw(self.screen, self.font_sb)
             if getattr(b, "kind", "") == "mastery" and mastery.claimable(p, c.key):
                 pygame.draw.circle(self.screen, (230, 60, 60), (b.rect.right - 4, b.rect.y + 4), 6)
+            if getattr(b, "kind", "") == "potion":
+                self._potion(b.rect.x + 16, b.rect.centery, 9)
+                st = self._potion_status(c.key)
+                if st:
+                    self._text(st[0], self.font_s, st[1],
+                               topleft=(b.rect.right - self.font_s.size(st[0])[0],
+                                        b.rect.bottom + 4))
         # descriptions
         yy = top + 144
         import carddesc
