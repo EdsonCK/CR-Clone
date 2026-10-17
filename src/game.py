@@ -47,6 +47,7 @@ from trophyroad import TrophyMixin
 from kingscreen import KingMixin
 from rewardfx import RewardFXMixin
 from masteryscreen import MasteryMixin
+from endless_ui import EndlessUIMixin
 from ui import (dk_c, lt_c, tile_to_px, px_to_tile, WHITE, render_text,
                 grad_rect, BUTTON_STYLES, Button)
 
@@ -150,7 +151,7 @@ TOWER_SHOOTERS = frozenset(("princess_tower", "king_tower", "tower_princess", "c
 
 
 class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFXMixin,
-           SandboxMixin, MasteryMixin):
+           SandboxMixin, MasteryMixin, EndlessUIMixin):
     def __init__(self):
         try:
             pygame.mixer.pre_init(sounds.MIX_SR, -16, 2, 512)
@@ -779,15 +780,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             mdt = dt * self.opt_speed           # Settings > Game speed
             self.shake = max(0.0, getattr(self, "shake", 0.0) - dt * 14)
             if self.state == "match" and self.match and not self.match.finished:
-                self.match.update(mdt)
-                if self.ai is not None:
-                    self.ai.update(mdt)
-                for a in self._extra_ais():
-                    a.update(mdt)
-                if self.level_run is not None:
-                    self.level_run.update(mdt)
-                if self.match.finished:
-                    self._on_match_end()
+                self._update_match(mdt)
             elif self.state == "sandbox" and self.match is not None:
                 self._sandbox_update(dt)
             self._update_audio(dt)
@@ -796,6 +789,22 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self._draw()
             pygame.display.flip()
         pygame.quit()
+
+    def _update_match(self, mdt):
+        """One frame of a running match (paused while an Endless upgrade
+        is being picked)."""
+        self._choice_tick()
+        if self._endless_choice():
+            return
+        self.match.update(mdt)
+        if self.ai is not None:
+            self.ai.update(mdt)
+        for a in self._extra_ais():
+            a.update(mdt)
+        if self.level_run is not None:
+            self.level_run.update(mdt)
+        if self.match.finished:
+            self._on_match_end()
 
     # ================================================================= AUDIO
     def _loading_screen(self, n, total):
@@ -1155,6 +1164,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                     self._set_ai_level(e.key - pygame.K_0)
                 if self.state == "sandbox" and e.key == pygame.K_SPACE:
                     self._sb_pause()
+                if self._endless_choice() and e.key in (pygame.K_1, pygame.K_2,
+                                                        pygame.K_KP1, pygame.K_KP2):
+                    self._choice_pick(0 if e.key in (pygame.K_1, pygame.K_KP1) else 1)
                 if e.key == pygame.K_ESCAPE and self._home_active():
                     self._home_escape()
                 elif e.key == pygame.K_ESCAPE:
@@ -1201,6 +1213,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                     if self.drag_card is not None:
                         i, self.drag_card = self.drag_card, None
                         if (self.state == "match" and self.selected == i
+                                and not self._endless_choice()
                                 and e.pos[1] < cfg.ARENA_Y0 + cfg.ARENA_PX_H
                                 and e.pos[1] > cfg.ARENA_Y0):
                             tx, ty = px_to_tile(*e.pos)
@@ -1236,6 +1249,10 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                     continue
                 if self.state == "sandbox":
                     self._sandbox_click(e.pos, e.button)
+                    continue
+                if self._endless_choice():
+                    if e.button == 1:
+                        self._choice_click(e.pos)   # the pick screen eats clicks
                     continue
                 if e.button == 3 and self.state != "match":
                     continue      # right-click only means something in decks/match
@@ -1829,7 +1846,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
     # ================================================================= RESULT
     def _result_panel(self):
         cx, cy = cfg.WINDOW_W // 2, cfg.WINDOW_H // 2
-        h = 250 + 22 * len(self.last_rewards)
+        h = 250 + 22 * len(self.last_rewards) + self._result_upgrade_rows()
         return pygame.Rect(cx - 175, cy - h // 2 - 20, 350, h)
 
     def _result_buttons(self):
@@ -2484,6 +2501,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._draw_topbar()
         self._draw_hud()
         self._draw_wave_banner()
+        self._draw_upgrade_list()
+        self._draw_upgrade_choice()
 
     def _draw_wave_banner(self):
         """Wave announcements: just outlined text over the arena (no ribbon),
@@ -4252,6 +4271,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                        topleft=(panel.x + 24, y))
             self._reward_row(rw, panel.right - 24, y + 9)
             y += 22
+        if self._result_upgrade_rows():
+            self._draw_result_upgrades(panel, y + 4)
         for b in self._result_buttons():
             b.draw(self.screen, self.font_m if b.rect.h > 38 else self.font_sb)
 

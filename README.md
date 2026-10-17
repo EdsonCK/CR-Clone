@@ -117,6 +117,172 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.6.0 changes - Endless upgrades
+
+* **Pick an upgrade every 5 waves.** After waves 5, 10, 15... Endless
+  Survival pauses and offers two upgrades that last for the rest of the run
+  (click one, or press 1 / 2):
+  * a **card upgrade** for one of the cards in your deck - every card you
+    can play in Endless has at least one (107 in all, see the table below),
+    and any card can also roll **Veteran** (+3 levels for that card);
+  * a **boon** for your towers or your whole side (20 of them).
+
+  Upgrades stack (pick Royal Training three times and every card is +3
+  levels) and some are deliberately overpowered - this is the first step
+  towards a Chaos mode. The upgrades you have are listed in the left margin
+  (hover for details) and on the end-of-run screen.
+* **Endless keeps getting harder** instead of flattening out once enemies
+  hit level 16 (wave 16):
+  * every wave after that adds **+5% hp and damage** to all enemies
+    (compounding: x2 by wave 30, x3.2 by 40, x5.3 by 50) and the waves keep
+    getting **bigger** (extra troops on top of the usual growth);
+  * **bosses** grow +22% per boss wave after wave 15 (x2 on wave 20, x2.9 on
+    30, x4.3 on 40, x6.4 on 50 - on top of the wave's power); wave 20+ brings
+    **two bosses**, wave 35+ a **Boss Rush** of three;
+  * from **wave 30, bosses move and attack faster** - +4% per wave, up to
+    double speed (shown on the boss banner);
+  * big late waves arrive faster so they don't trickle in over the timeout.
+* **Bigger Endless rewards**: gold grows with every wave, plus gems every
+  10 waves (double past 30), a Hero coin and King XP every 10 waves and an
+  Evo shard every 15 (see *Endless Survival*).
+
+### Card upgrades
+
+| Card | Upgrade | What it does |
+|---|---|---|
+| Archer Queen | **Royal Volley** | Shoots twice as fast. |
+| Archers | **Twin Volley** | Archers shoot twice as fast with +2 range. |
+| Arrows | **Arrow Storm** | 2 more volleys at the same spot. |
+| Baby Dragon | **Fireball Breath** | Every breath deals a Fireball's damage. |
+| Bandit | **Gang of Thieves** | Two Bandits. |
+| Barbarian Barrel | **Barrel of Brutes** | 4 Barbarians in the barrel, double roll damage. |
+| Barbarian Hut | **War Camp** | Spawns Barbarians 2.5x as often. |
+| Barbarians | **Horde of the North** | 9 Barbarians instead of 5. |
+| Bats | **Bat Cloud** | 12 Bats instead of 5. |
+| Battle Healer | **Field Medic** | Every swing heals all your troops on the whole arena (not buildings). |
+| Berserker | **Frenzy** | Swings twice as fast and heals 40% of the damage she deals. |
+| Bomb Tower | **Carpet Bombing** | Double-wide blasts, +50% damage. |
+| Bomber | **Mega Bomb** | Bombs deal 2.5x damage over a 60% wider blast. |
+| Boss Bandit | **Kingpin** | Double damage, +50% hp. |
+| Bowler | **Strike!** | Boulders hit 50% harder and knock back 3x as far. |
+| Cannon Cart | **Siege Cart** | Double hp and damage. |
+| Cannon | **Cannon Battery** | Fires twice as fast and lasts twice as long. |
+| Clone | **Twin Souls** | Clones keep half of the original's hp (not 1). |
+| Dark Prince | **Dark Shockwave** | Huge splash that knocks enemies back. |
+| Dart Goblin | **Rapid Darts** | Throws 3x as fast. |
+| Earthquake | **Tectonic Shift** | Triple damage, 40% wider. |
+| Electro Dragon | **Storm Dragon** | Lightning chains to 10 targets over a longer reach. |
+| Electro Spirit | **Thunder Spirit** | 2 Electro Spirits; each zap chains to 20 targets over a longer reach. |
+| Electro Wizard | **Storm Caller** | Zaps 4 targets at once, with 50% more hp. |
+| Elite Barbarians | **Endless Rage** | Permanently raged: +35% speed and attack speed, +30% hp. |
+| Elixir Collector | **Elixir Pump** | Makes 2 elixir each time. |
+| Executioner | **Headsman** | Axe 80% stronger with a 50% wider swing. |
+| Fire Spirit | **Inferno Spirits** | 3 Fire Spirits with +50% damage. |
+| Fireball | **Meteor** | Double damage, 40% wider. |
+| Firecracker | **Grand Finale** | Double damage and twice the sparks. |
+| Fisherman | **Master Angler** | Hook recharges 3x as fast, double damage. |
+| Flying Machine | **Gunship** | Shoots twice as fast with double hp. |
+| Freeze | **Ice Age** | Freezes twice as long, 50% wider. |
+| Furnace | **Spirit Forge** | Spawns EVERY spirit at once (Fire, Ice, Electro and Heal): 4x the spirits. |
+| Giant Skeleton | **Doomsday Bomb** | His bomb is 3x stronger and 40% wider. |
+| Giant Snowball | **Avalanche** | 60% wider and freezes for 1.5 s. |
+| Goblin Barrel | **Barrel Bombardment** | 8 Goblins in the barrel. |
+| Goblin Cage | **Goblin Zoo** | Double hp; 3 Brawlers break out. |
+| Goblin Curse | **Hex Storm** | Much wider and lasts 50% longer. |
+| Goblin Demolisher | **Demolition Expert** | Double damage, 50% wider blasts. |
+| Goblin Drill | **Tunnel Network** | Lasts 2.5x as long, spawns twice as fast. |
+| Goblin Gang | **Goblin Army** | The Gang comes back 2 more times, 6 s apart. |
+| Goblin Hut | **Goblin Fortress** | Spawns 3 Spear Goblins at a time. |
+| Goblin Machine | **Mark II** | Rocket hits 3x harder, +50% hp. |
+| Goblins | **Goblin Mob** | 6 Goblins instead of 3. |
+| Goblinstein | **Mad Experiment** | Doctor and Monster: double hp and damage. |
+| Golden Knight | **Golden Glory** | Double hp and damage. |
+| Graveyard | **Necropolis** | Lasts twice as long over a wider area. |
+| Guards | **Royal Guard** | 6 Guards with double shields. |
+| Heal Spirit | **Spring of Life** | Heals 3x as much over a 60% wider area. |
+| Hunter | **Big Game Hunter** | Double damage and +1.5 range. |
+| Ice Spirit | **Blizzard Spirits** | 3 Ice Spirits, freezing for 2.5 s. |
+| Ice Wizard | **Absolute Zero** | Freezes what he hits for 1 s instead of slowing. |
+| Inferno Dragon | **Twin Infernos** | Two Inferno Dragons. |
+| Inferno Tower | **Hellfire Core** | Double hp, damage and lifetime. |
+| Knight | **Paladin** | +120% hp; every hit knocks back and heals him for half the damage. |
+| Lightning | **Thunderstorm** | Strikes 2 more times at the same spot. |
+| Little Prince | **Royal Bodyguard** | Double hp and damage. |
+| Lumberjack | **Berserk Axe** | Chops twice as fast. |
+| Magic Archer | **Arcane Arrows** | Arrows deal 2.5x damage. |
+| Mega Knight | **Titan Slam** | His landing deals 4x damage over a far wider area. |
+| Mega Minion | **Mega Mega Minion** | Double hp and damage, hits splash. |
+| Mighty Miner | **Diamond Drill** | Double damage, +50% hp. |
+| Miner | **Iron Miner** | Double hp, triple damage. |
+| Mini P.E.K.K.A | **Pancake Fury** | +50% damage and heals 60% of the damage dealt. |
+| Minion Horde | **Endless Horde** | 9 Minions, and the Horde comes back once more 6 s later. |
+| Minions | **Minion Squadron** | 6 Minions instead of 3. |
+| Mirror | **Flawless Mirror** | Mirrored cards cost the same as the original (not +1). |
+| Monk | **Grandmaster** | Double damage, heals 50% of it. |
+| Mortar | **Artillery Barrage** | Fires 3x as fast. |
+| Mother Witch | **Coven Queen** | Shoots twice as fast; cursed troops become her Hogs for longer. |
+| Musketeer | **Musket Squad** | Each Musketeer card brings 3 of her. |
+| Musketeer | **Sharpshooter** | Musketeer range +100%. |
+| Night Witch | **Night Terror** | Summons 4 Bats twice as often. |
+| P.E.K.K.A | **Executioner's Blade** | Double damage and heals 30% of it. |
+| Phoenix | **Eternal Flame** | Double hp and damage. |
+| Poison | **Plague** | Double damage, much wider cloud. |
+| Prince | **Royal Lance** | Charge hits for 4x (was 2x), +50% hp. |
+| Princess | **Triple Shot** | Shoots 3x as fast. |
+| Rage | **Bloodlust** | Lasts twice as long over a 50% wider area. |
+| Rascals | **Rascal Crew** | 2 Rascal Boys and 4 Rascal Girls. |
+| Rocket | **Warhead** | Double-wide blast, +50% damage. |
+| Ronin | **Sword Saint** | Parries 3x as often, +50% damage. |
+| Royal Delivery | **Royal Shipment** | Drops 3 Royal Recruits. |
+| Royal Ghost | **Phantom Lord** | Double damage over a double-wide swing. |
+| Royal Recruits | **Royal Legion** | 10 Recruits with double shields. |
+| Skeleton Army | **Army of the Dead** | Skeleton Army rises 2 more times at the same spot, 10 s apart. |
+| Skeleton Dragons | **Bone Wyverns** | 4 Skeleton Dragons. |
+| Skeleton King | **Lich Lord** | +60% hp and a double-wide slam. |
+| Skeletons | **Bone Legion** | Skeletons always come out Evolved. |
+| Skeletons | **Skeleton Squad** | 8 Skeletons instead of 3. |
+| Sparky | **Overcharged** | Sparky charges 60% faster. |
+| Spear Goblins | **Spear Volley** | 6 Spear Goblins throwing twice as fast. |
+| Spirit Empress | **Empress Ascendant** | Always her flying form, for 3 elixir. |
+| Tesla | **Overclocked** | Double damage, 50% faster, +2 range. |
+| The Log | **Mighty Log** | 2.5x damage, 50% wider. |
+| Three Musketeers | **Six Musketeers** | Six Musketeers for the same 9 elixir. |
+| Tombstone | **Honor Guard** | Spawns Guards instead of Skeletons. |
+| Tornado | **Hurricane** | Triple duration and damage, wider pull. |
+| Valkyrie | **Whirlwind** | Spins 60% faster with a much wider spin. |
+| Vines | **Overgrowth** | Vines are permanent: they grow straight back where you cast them (your 3 newest patches stay). |
+| Void | **Black Hole** | Much wider, with twice the strikes. |
+| Witch | **Coven Mother** | Summons skeletons 3x as fast. |
+| Wizard | **Fire Mage** | Fireballs knock enemies back and splash 50% wider. |
+| X-Bow | **Gatling Bow** | Double damage and hp. |
+| Zap | **Chain Zap** | Zaps 2 more times at the same spot. |
+| Zappies | **Zap Squad** | 6 Zappies instead of 3. |
+
+### Boons
+
+| Boon | What it does |
+|---|---|
+| **Elixir Flow** | 1.5x elixir for the rest of the run. |
+| **Sharpshooter Towers** | Princess Towers deal +75% damage per hit. |
+| **Rapid Fire** | All your towers shoot 50% faster. |
+| **Watchtowers** | All your towers reach 2.5 tiles further. |
+| **Stone Walls** | All your towers get +50% max hp (and heal it). |
+| **Restoration** | All your towers fully heal. |
+| **Rebuild** | Fallen Princess Towers are rebuilt at full hp. |
+| **Frost Towers** | Tower shots slow enemies by 35% for 1.5 s. |
+| **Cannon Towers** | Tower shots splash (1.5 tiles). |
+| **King's Wrath** | Your King Tower wakes up now and deals double damage. |
+| **Royal Training** | Every card in your deck +1 level. |
+| **Royal Academy** | Every card in your deck +2 levels. |
+| **Ascension** | Every card in your deck that has an Evolution evolves, and every one with a Hero becomes one. |
+| **Battle Hardened** | All your troops and spells: +30% hp and damage. |
+| **Swiftness** | All your troops move and attack 20% faster. |
+| **Thrift** | Every card costs 1 elixir less (min 1). |
+| **Bounty Hunter** | +0.2 elixir for every enemy you kill. |
+| **War Chest** | +3 elixir at the start of every wave. |
+| **Second Wind** | Your towers heal 20% at the start of every wave. |
+| **Spell Mastery** | Your spells: +30% radius and +50% damage. |
+
 ## v1.5.4 changes
 
 * **Levels reworked**: every one of the 30 levels has new waves, with the
@@ -740,8 +906,13 @@ spent on stronger and stronger troops (and the odd spell), enemy levels rise
 from 11 to 16, and every 5th wave is a boss. Each wave is built around a
 theme (a swarm, flyers, heavies, a fast rush, ranged troops or a mix) and
 named after what's in it; it may come down one lane, split across both or
-call in reinforcements halfway. You earn gold per wave and a
-Hero coin every 5 waves; your best wave is saved.
+call in reinforcements halfway. Rewards grow the deeper you go: wave n pays
+8 + n gold (plus 25 gold every 5 waves - wave 10 is worth 185 gold, wave 30
+855), every 10 waves adds 5 gems (10 past wave 30), a Hero coin and 5 King
+XP, every 15 waves an Evo shard, and each new personal-best 5-wave mark a
+Hero coin. Your best wave is saved. After every 5th wave the game pauses
+and you **pick one of two upgrades** for the rest of the run - hover the
+"Upgrades" panel in the left margin to see the ones you've taken.
 
 ### Levels
 
@@ -1227,6 +1398,7 @@ src/
   mastery.py  Card Mastery rules;  masteryscreen.py  its page;
               mastery_data.py  per-card averages that size the goals
   levels.py   the 30 Levels, the wave runner and the Endless generator
+  endless_upgrades.py  Endless upgrade catalogue;  endless_ui.py  the pick screen
   profile_data.py  currencies, card / King / Tower Troop levels, unlocks (profile.json)
   savedata.py the save folder outside the game + importing old saves
   evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do

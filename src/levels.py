@@ -54,6 +54,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import cards
+import endless_upgrades
 from engine import PLAYER, ENEMY, RIVER_TOP
 
 LEVEL_BASE = cards.LEVEL_BASE      # the level the stats in cards.py represent
@@ -76,6 +77,7 @@ class Spawn:
     mult: float = 1.0
     place: str = "field"
     note: Optional[str] = None      # call-out shown when it arrives
+    fast: float = 1.0               # x move AND attack speed (late Endless bosses)
 
 
 @dataclass
@@ -86,6 +88,7 @@ class Wave:
     bonus_elixir: float = 0.0       # given to the player when the wave starts
     boss: bool = False
     timeout: float = 40.0           # next wave comes anyway after this long
+    power: float = 1.0              # x hp & damage for the whole wave (Endless)
 
 
 @dataclass
@@ -1384,10 +1387,15 @@ class LevelRun:
         title = ("BOSS: " if wave.boss else "Wave %d: " % (idx + 1)) + wave.name
         if wave.boss:
             top = max(sp.mult for sp in wave.spawns)
-            sub = ("double health & damage" if top >= 2.0 else
-                   "x%g health & damage" % top if top > 1.0 else "final wave")
+            top *= wave.power
+            sub = ("x%.1f health & damage" % top if top > 1.0 else "final wave")
+            fast = max(sp.fast for sp in wave.spawns)
+            if fast > 1.0:
+                sub += ", +%d%% speed" % round(100 * (fast - 1))
         else:
             sub = "units level %d" % (wave.level + self.level.shift)
+            if wave.power > 1.0:
+                sub += " x%.1f power" % wave.power
         if wave.bonus_elixir:
             sub += "   +%d elixir" % wave.bonus_elixir
         self._show(title, sub)
@@ -1419,7 +1427,7 @@ class LevelRun:
         m = self.m
         wave = self.current_wave()
         lv = (sp.level if sp.level is not None else wave.level) + self.level.shift
-        mult = level_mult(lv) * sp.mult * self.level.power
+        mult = level_mult(lv) * sp.mult * self.level.power * wave.power
         x = LANE_X.get(sp.lane, 9.0)
         c = cards.CARDS[sp.key]
         place, _, wait = sp.place.partition(":wait")
@@ -1469,6 +1477,9 @@ class LevelRun:
         for e in m.entities:
             if id(e) not in before and e.team == ENEMY:
                 e.boss = sp.mult > 1.0 or wave.boss
+                if sp.fast != 1.0:
+                    e.base_speed *= sp.fast
+                    e.hit_speed /= sp.fast
         # spells keep the wave's power for anything they raise later
         wl = wave.level + self.level.shift
         m.team_power[ENEMY] = (level_mult(wl), level_mult(wl))
@@ -1563,7 +1574,10 @@ def endless_wave(n, rng):
     lv = min(16, 11 + (n - 1) // 3)
     boss = n % 5 == 0
     tiers = min(len(ENDLESS_POOLS), 1 + n // 3)
-    budget = 4 + n * 1.6
+    # past wave 15 the waves keep growing: more troops every wave and, once
+    # the enemy is level 16, +5% hp & damage per wave on top (compounding)
+    budget = 4 + n * 1.6 + 0.03 * max(0, n - 15) ** 2
+    power = round(ENDLESS_POWER_GROWTH ** max(0, n - 16), 3)
     spawns = []
     t = 0.0
     side = rng.choice(["left", "right"])
@@ -1578,8 +1592,12 @@ def endless_wave(n, rng):
     boss_key = None
     if boss:
         boss_key = rng.choice(ENDLESS_POOLS[min(3, 1 + n // 6)])
-        mult = 1.3 + 0.1 * (n // 5) + (0.08 * max(0, n - 18))
-        spawns.append(Spawn(boss_key, 0.0, side, None, round(mult, 2)))
+        mult, fast = endless_boss(n)
+        # more bosses deeper in: 2 from wave 20, 3 from wave 35
+        for i in range(1 + (n >= 20) + (n >= 35)):
+            spawns.append(Spawn(boss_key if i == 0 else rng.choice(ENDLESS_POOLS[3]),
+                                5.0 * i, side if i % 2 == 0 else other, None, mult,
+                                fast=fast))
         budget *= 0.45
         t = 3.0
     unlocked = [k for tier in ENDLESS_POOLS[:tiers] for k in tier
@@ -1608,7 +1626,9 @@ def endless_wave(n, rng):
             lane = "mid"
         spawns.append(Spawn(key, t, lane, None, 1.0, place))
         # a split sends both halves together; a push follows up in a column
-        t += rng.uniform(0.0, 1.0) if plan == "split" and i % 2 == 0 else rng.uniform(1.5, 3.5)
+        # (big late waves come faster, so it all arrives within ~25 s)
+        step = rng.uniform(0.0, 1.0) if plan == "split" and i % 2 == 0 else rng.uniform(1.5, 3.5)
+        t += step * min(1.0, 25.0 / max(1, len(picks)) / 2.5)
     if n >= 6 and rng.random() < 0.3:
         spawns.append(Spawn(rng.choice(ENDLESS_SUPPORT), 4.0, side, None, 1.0, "push"))
     if n >= 4 and rng.random() < 0.45:
@@ -1616,12 +1636,35 @@ def endless_wave(n, rng):
         place = "tower" if sp in ("goblin_barrel", "graveyard") else "army"
         spawns.append(Spawn(sp, t + 2.0, rng.choice(["left", "right"]), None, 1.0, place))
     if boss:
-        name = rng.choice(["%s Unleashed", "%s Approaches", "%s Rises"]) % cards.CARDS[boss_key].name
+        names = [cards.CARDS[sp.key].name for sp in spawns if sp.mult > 1.0]
+        if len(names) >= 3:
+            name = "Boss Rush"
+        elif len(names) == 2 and names[0] != names[1]:
+            name = "%s & %s" % tuple(names)
+        else:
+            name = rng.choice(["%s Unleashed", "%s Approaches", "%s Rises"]) % names[0]
     else:
         name = endless_name(spawns, rng)
     return Wave(name, spawns, level=lv, boss=boss,
                 bonus_elixir=4 if boss else (1 if n % 2 == 0 else 0),
-                timeout=60 if boss else 40)
+                timeout=60 if boss else 40, power=power)
+
+
+ENDLESS_POWER_GROWTH = 1.05     # x hp & damage per wave once enemies are level 16
+
+
+def endless_boss(n):
+    """(hp & damage multiplier, speed multiplier) of the boss on wave n:
+    x1.4 / 1.5 / 1.6 on waves 5 / 10 / 15, then +22% per boss wave
+    (compounding: x2 on wave 20, x2.9 on 30, x4.3 on 40, x6.4 on 50) - on
+    top of the wave's own power. From wave 30 bosses also move and attack
+    faster: +4% per wave, up to double speed."""
+    if n <= 15:
+        mult = round(1.3 + 0.1 * (n // 5), 2)
+    else:
+        mult = round(1.6 * 1.22 ** ((n - 15) / 5.0), 2)
+    fast = round(min(2.0, 1.0 + 0.04 * max(0, n - 30)), 2)
+    return mult, fast
 
 
 class EndlessRun(LevelRun):
@@ -1635,15 +1678,46 @@ class EndlessRun(LevelRun):
                    waves=[endless_wave(1, self.rng)], prep_first=8.0, prep=6.0)
         super().__init__(match, lv)
         self._show("Endless Survival", "how many waves can you hold?")
+        self.deck = list(match.decks[PLAYER])
+        self.picks = []                 # upgrades chosen so far (endless_upgrades)
+        self.choice = None              # [card upgrade, boon] waiting for a pick
+        self._offered = 0               # last wave an upgrade was offered after
 
     @property
     def total_waves(self):
         return 0                        # unlimited
 
     def update(self, dt):
+        if self.choice:
+            return                      # the game pauses until you pick
         while len(self.level.waves) <= self.wave_idx + 1:
             self.level.waves.append(endless_wave(len(self.level.waves) + 1, self.rng))
         super().update(dt)
+        n = self.wave_number
+        if (self.state == "prep" and n and n % endless_upgrades.LEVEL_EVERY == 0
+                and n > self._offered and not self.m.finished):
+            self._offered = n
+            self.choice = endless_upgrades.offer(self.m, self.deck, self.rng,
+                                                 [u.key for u in self.picks]) or None
+
+    def _start_wave(self, idx):
+        super()._start_wave(idx)
+        b = self.m.boons.get(PLAYER, {})
+        if b.get("wave_elixir"):                       # War Chest
+            self.m.add_elixir(PLAYER, b["wave_elixir"])
+        if b.get("wave_heal"):                         # Second Wind
+            for tw in self.m.towers.values():
+                if tw.team == PLAYER and tw.alive:
+                    tw.hp = min(tw.max_hp, tw.hp + tw.max_hp * b["wave_heal"])
+
+    def choose(self, i):
+        """Take upgrade `i` of the current choice."""
+        u = self.choice[i]
+        u.apply(self.m, PLAYER)
+        self.picks.append(u)
+        self.choice = None
+        self._show(u.title, "upgrade for the rest of the run")
+        return u
 
     def waves_survived(self):
         """Waves fully cleared (the current one counts if it was cleared)."""

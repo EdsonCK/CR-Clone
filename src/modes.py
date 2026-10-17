@@ -25,7 +25,9 @@ Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
 
 Endless Survival uses the Levels rules (your Level Deck, no enemy towers,
 miasma) with procedurally generated waves that never stop - see
-levels.endless_wave(). Your best wave is saved.
+levels.endless_wave(). Every 5th wave you pick one of two upgrades
+(endless_upgrades.py; the pick screen is endless_ui.py). Rewards grow with
+depth (profile_data.endless_*). Your best wave is saved.
 ============================================================================
 """
 
@@ -277,9 +279,17 @@ class ModesMixin:
             p.endless_best = max(p.endless_best, n)
             p.endless_runs += 1
             self._reward("Survived %d waves" % n, profile_data.endless_gold(n))
-            for mark in range(5, n + 1, 5):
-                if mark > rec.get("best", 0):
-                    self._reward("Reached wave %d" % mark, coins=1)
+            deep = dict(gems=profile_data.endless_gems(n),
+                        shards=profile_data.endless_shards(n),
+                        coins=profile_data.endless_coins(n),
+                        xp=profile_data.endless_xp(n))
+            if any(deep.values()):
+                self._reward("Deep run bonus (wave %d+)" % (n // 10 * 10 or n), **deep)
+            new_marks = [m for m in range(5, n + 1, 5) if m > rec.get("best", 0)]
+            if new_marks:
+                lbl = ("New mark: wave %d" % new_marks[0] if len(new_marks) == 1
+                       else "New marks: waves %d-%d" % (new_marks[0], new_marks[-1]))
+                self._reward(lbl, coins=len(new_marks))
             rec["best"] = max(rec.get("best", 0), n)
             if new_best and n:
                 self.last_rewards.append(("New best!", {}))

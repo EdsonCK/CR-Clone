@@ -319,6 +319,8 @@ class CardDef:
     alt_form: Optional[Tuple[int, str]] = None
                                 # (cost, key): with >= cost elixir the card is
                                 #   played as `key` for that cost (Spirit Empress)
+    mods: Optional[dict] = None # Endless upgrades: special behaviours of a
+                                #   per-team card copy (see endless_upgrades.py)
 
     def tower_dmg(self) -> int:
         return self.tower_damage if self.tower_damage is not None else self.spell_damage

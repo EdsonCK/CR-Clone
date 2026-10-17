@@ -87,9 +87,28 @@ def special_gold(win, ai_level, crowns):
     return (50 + 10 * ai_level + 4 * crowns) if win else (10 + 2 * crowns)
 
 
-# Endless Survival
+# Endless Survival: every wave pays more than the last, and deep runs add
+# gems, Evo shards, Hero coins and King XP on top
 def endless_gold(waves):
-    return 6 * waves + (waves // 5) * 15
+    """8 + n gold for wave n, plus 25 for every 5-wave mark."""
+    return 8 * waves + waves * (waves + 1) // 2 + 25 * (waves // 5)
+
+
+def endless_gems(waves):
+    """5 gems for each 10-wave mark reached (10 past wave 30)."""
+    return sum(5 if m <= 30 else 10 for m in range(10, waves + 1, 10))
+
+
+def endless_shards(waves):
+    return waves // 15             # an Evo shard every 15 waves
+
+
+def endless_coins(waves):
+    return waves // 10             # a Hero coin every 10 waves, every run
+
+
+def endless_xp(waves):
+    return 5 * (waves // 10)       # King XP for every 10 waves
 
 
 DECK_SLOTS = 5

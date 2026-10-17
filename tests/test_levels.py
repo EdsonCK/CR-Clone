@@ -53,7 +53,9 @@ for seed in range(40):
         ks = troops(w)
         assert ks, (seed, n)
         if w.boss:
-            assert cards.CARDS[w.spawns[0].key].name in w.name, (seed, n, w.name)
+            bosses = [cards.CARDS[s.key].name for s in w.spawns if s.mult > 1.0]
+            assert w.name == "Boss Rush" if len(bosses) >= 3 else bosses[0] in w.name, \
+                (seed, n, w.name, bosses)
             continue
         check_title(w, "endless")
         for theme in ("swarm", "air", "heavy", "rush", "ranged"):
