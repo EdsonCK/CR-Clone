@@ -550,9 +550,9 @@ _CARD_LIST = [
     CardDef("freeze", "Freeze", 4, category="spell", rarity="epic",
             spell_radius=3.0, spell_damage=56, tower_damage=22, freeze=4.0),
     CardDef("poison", "Poison", 4, category="spell", rarity="epic",
-            spell_radius=3.5, spell_damage=98, tower_damage=38, dot=True,
-            duration=4.0, dot_tick=0.5, slow=(0.85, 0.5)),
-            # 8 ticks of 49 (19 to crown towers), one every 0.5s, over 4s
+            spell_radius=3.5, spell_damage=49, tower_damage=19, dot=True,
+            duration=8.0, dot_tick=1.0, slow=(0.85, 0.5)),
+            # 8 ticks of 49 (19 to crown towers), one a second, over 8s
     CardDef("rocket", "Rocket", 6, category="spell", rarity="rare",
             spell_radius=2.0, spell_damage=615, tower_damage=246,
             knockback=1.0),

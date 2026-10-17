@@ -38,9 +38,14 @@ Append a Level(...) to LEVELS. Each Wave lists Spawn entries:
          Princess Tower of that lane (Graveyard, Goblin Barrel, Miner...),
          "army" = spells aimed at the thickest clump of your troops (waits
          until you have some on the field; falls back to your tower),
-         "near" = 3 tiles in front of your Princess Tower (Goblin Drill).
+         "near" = 3 tiles in front of your Princess Tower (Goblin Drill),
+         "push" = the enemy's OWN support (Rage, Clone, Heal Spirit...)
+         dropped on the thickest clump of its troops once they reach the
+         river (waits for them; skipped if the wave is already beaten).
 
-  The short form S(key, at, lane, place, level=, mult=) is used below.
+  note="Reinforcements!" shows a call-out when that spawn arrives.
+
+  The short form S(key, at, lane, place, level=, mult=, note=) is used below.
 ============================================================================
 """
 
@@ -70,6 +75,7 @@ class Spawn:
     level: Optional[int] = None
     mult: float = 1.0
     place: str = "field"
+    note: Optional[str] = None      # call-out shown when it arrives
 
 
 @dataclass
@@ -98,9 +104,14 @@ class Level:
     power: float = 1.0              # x hp & damage for every enemy (tuning)
 
 
-def S(key, at=0.0, lane="left", place="field", level=None, mult=1.0):
+def S(key, at=0.0, lane="left", place="field", level=None, mult=1.0, note=None):
     """Short form of Spawn used by the level tables below."""
-    return Spawn(key, at, lane, level, mult, place)
+    return Spawn(key, at, lane, level, mult, place, note)
+
+
+def R(key, at, lane="left", place="field", level=None, mult=1.0):
+    """A reinforcement: a spawn that arrives with a 'Reinforcements!' call-out."""
+    return Spawn(key, at, lane, level, mult, place, "Reinforcements!")
 
 
 # ===========================================================================
@@ -114,130 +125,111 @@ LEVELS = [
         "giant_skeleton",
         waves=[
             Wave("Rattling Bones", level=11, spawns=[
-                Spawn("skeletons", 0, "left"),
-                Spawn("skeletons", 5, "right"),
-                Spawn("skeletons", 10, "left"),
+                S("skeletons", 0, "left"), S("skeletons", 0, "right"),
+                S("skeletons", 6, "left"), S("skeletons", 10, "right"),
             ]),
             Wave("Shield Wall", level=11, spawns=[
-                Spawn("guards", 0, "left"),
-                Spawn("bomber", 2, "left", place="back"),
-                Spawn("skeletons", 6, "right"),
+                S("guards", 0, "left"), S("bomber", 2, "left", "back"),
+                R("skeletons", 8, "right"),
             ]),
             Wave("The Horde", level=11, spawns=[
-                Spawn("skeleton_army", 0, "right"),
-                Spawn("bomber", 4, "right", place="back"),
+                S("skeleton_army", 0, "right"), S("bomber", 3, "right", "back"),
+                S("skeletons", 6, "left"),
             ]),
             Wave("Breach!", level=11, spawns=[
-                Spawn("wall_breakers", 0, "left"),
-                Spawn("wall_breakers", 4, "right"),
-                Spawn("skeleton_barrel", 8, "left", place="back"),
+                S("wall_breakers", 0, "left"), S("wall_breakers", 0, "right"),
+                S("skeleton_barrel", 6, "right", "back"),
             ]),
             Wave("Grave Robbers", level=11, spawns=[
-                Spawn("tombstone", 0, "mid", place="front"),
-                Spawn("graveyard", 5, "right", place="tower"),
-                Spawn("guards", 9, "left"),
+                S("tombstone", 0, "mid", "front"), S("guards", 3, "left"),
+                S("graveyard", 7, "right", "tower"),
             ]),
             Wave("The Bone King", level=12, spawns=[
-                Spawn("skeleton_king", 0, "left"),
-                Spawn("bomber", 3, "left", place="back"),
-                Spawn("skeleton_army", 7, "right"),
+                S("skeleton_king", 0, "left"), S("bomber", 3, "left", "back"),
+                R("skeleton_army", 9, "right"),
             ]),
-            Wave("Twin Titans", level=11, boss=True, bonus_elixir=6, timeout=90,
-                 spawns=[
-                     Spawn("giant_skeleton", 0, "left", mult=2.0),
-                     Spawn("giant_skeleton", 16, "right", mult=2.0),
-                 ]),
+            Wave("Twin Titans", level=11, boss=True, bonus_elixir=6, timeout=90, spawns=[
+                S("giant_skeleton", 0, "left", mult=2.0),
+                S("bomber", 3, "left", "back"),
+                S("giant_skeleton", 14, "right", mult=2.0),
+                R("guards", 18, "right"),
+            ]),
         ]),
     Level(
         "goblin_ambush", "Goblin Ambush", "Level 2",
-        "The goblin clans have dug in. Darts from the trees, barrels from the "
-        "sky, huts, giants and a mad doctor - then the Warlords arrive.",
+        "The goblin clans have dug in. Darts from the trees, barrels from "
+        "the sky, huts, giants and a mad doctor - then the Warlords arrive.",
         "goblin_giant",
         waves=[
             Wave("Scouts", level=11, spawns=[
-                Spawn("goblins", 0, "left"),
-                Spawn("spear_goblins", 3, "right"),
-                Spawn("goblins", 7, "right"),
+                S("goblins", 0, "left"), S("goblins", 1, "right"),
+                S("spear_goblins", 5, "mid"),
             ]),
             Wave("Dart Volley", level=11, spawns=[
-                Spawn("goblins", 0, "left"),
-                Spawn("dart_goblin", 1, "left", place="back"),
-                Spawn("spear_goblins", 5, "right"),
-                Spawn("dart_goblin", 6, "right", place="back"),
+                S("goblins", 0, "left"), S("dart_goblin", 1, "left", "back"),
+                S("spear_goblins", 4, "right"), S("dart_goblin", 5, "right", "back"),
             ]),
             Wave("Barrels Incoming", level=11, spawns=[
-                Spawn("goblin_barrel", 0, "left", place="tower"),
-                Spawn("spear_goblins", 3, "mid"),
-                Spawn("goblin_barrel", 7, "right", place="tower"),
+                S("spear_goblins", 0, "mid"),
+                S("goblin_barrel", 4, "left", "tower"),
+                S("goblin_barrel", 8, "right", "tower"),
             ]),
             Wave("Hut Raid", level=12, spawns=[
-                Spawn("goblin_hut", 0, "mid", place="front"),
-                Spawn("goblins", 4, "left"),
-                Spawn("goblins", 9, "right"),
+                S("goblin_hut", 0, "mid", "front"), S("goblins", 4, "left"),
+                R("spear_goblins", 10, "right"),
             ]),
             Wave("Big Green", level=11, spawns=[
-                Spawn("goblin_giant", 0, "left"),
-                Spawn("spear_goblins", 2, "left", place="back"),
-                Spawn("dart_goblin", 6, "right"),
+                S("goblin_giant", 0, "left"), S("spear_goblins", 2, "left", "back"),
+                S("rage", 6, "left", "push"),
             ]),
             Wave("Mad Science", level=12, spawns=[
-                Spawn("goblinstein", 0, "right"),
-                Spawn("goblins", 3, "left"),
-                Spawn("goblin_barrel", 6, "left", place="tower"),
+                S("goblinstein", 0, "right"), S("goblins", 3, "left"),
+                S("goblin_barrel", 7, "left", "tower"),
             ]),
-            Wave("The Warlords", level=11, boss=True, bonus_elixir=6, timeout=100,
-                 spawns=[
-                     Spawn("goblin_giant", 0, "left", mult=1.4),
-                     Spawn("spear_goblins", 6, "left", place="back", level=11),
-                     Spawn("goblin_giant", 16, "right", mult=1.4),
-                     Spawn("spear_goblins", 20, "right", place="back", level=11),
-                 ]),
+            Wave("The Warlords", level=11, boss=True, bonus_elixir=6, timeout=100, spawns=[
+                S("goblin_giant", 0, "left", mult=1.4),
+                S("spear_goblins", 6, "left", "back"),
+                S("goblin_giant", 14, "right", mult=1.4),
+                S("spear_goblins", 18, "right", "back"),
+                S("rage", 18, "mid", "push"),
+            ]),
         ]),
     Level(
         "iron_legion", "The Iron Legion", "Level 3",
         "Armoured P.E.K.K.As march under a sky black with wings. Mini "
-        "P.E.K.K.As cut through anything in reach - and two titans close "
-        "the gates behind them.",
+        "P.E.K.K.As cut through anything in reach - and two titans close the "
+        "gates behind them.",
         "pekka",
         waves=[
             Wave("Black Wings", level=12, spawns=[
-                Spawn("bats", 0, "left"),
-                Spawn("minions", 3, "right"),
-                Spawn("bats", 7, "right"),
+                S("bats", 0, "left"), S("bats", 0, "right"), S("minions", 5, "mid"),
             ]),
             Wave("Little Iron", level=12, spawns=[
-                Spawn("mini_pekka", 0, "left"),
-                Spawn("minions", 2, "left", place="back"),
-                Spawn("mini_pekka", 7, "right"),
+                S("mini_pekka", 0, "left"), S("minions", 2, "left", "back"),
+                S("mini_pekka", 6, "right"),
             ]),
             Wave("The Swarm", level=12, spawns=[
-                Spawn("minion_horde", 0, "mid"),
-                Spawn("bats", 5, "left"),
-                Spawn("bats", 7, "right"),
+                S("minion_horde", 0, "mid"), S("bats", 5, "left"), S("bats", 5, "right"),
             ]),
-            Wave("Night Shift", level=12, spawns=[
-                Spawn("night_witch", 0, "left"),
-                Spawn("mega_minion", 3, "right"),
-                Spawn("dark_prince", 5, "right"),
+            Wave("Night Raid", level=12, spawns=[
+                S("night_witch", 0, "left"), S("mega_minion", 2, "left", "back"),
+                S("dark_prince", 5, "right"),
             ]),
             Wave("Iron Knight", level=13, spawns=[
-                Spawn("pekka", 0, "left"),
-                Spawn("minions", 3, "left", place="back"),
-                Spawn("bats", 6, "right"),
+                S("pekka", 0, "left"), S("minions", 3, "left", "back"),
+                R("minions", 9, "right"),
             ]),
             Wave("Twin Blades", level=12, spawns=[
-                Spawn("mini_pekka", 0, "left"),
-                Spawn("mini_pekka", 1, "right"),
-                Spawn("minion_horde", 5, "mid"),
-                Spawn("mega_minion", 8, "left"),
+                S("mini_pekka", 0, "left"), S("mini_pekka", 0, "right"),
+                S("minion_horde", 6, "mid"), S("mega_minion", 9, "left"),
             ]),
-            Wave("The Iron Titans", level=11, boss=True, bonus_elixir=7, timeout=110,
-                 spawns=[
-                     Spawn("pekka", 0, "left", mult=1.5),
-                     Spawn("minions", 4, "left", place="back", level=13),
-                     Spawn("pekka", 18, "right", mult=1.5),
-                     Spawn("bats", 20, "right", place="back", level=13),
-                 ]),
+            Wave("The Iron Titans", level=11, boss=True, bonus_elixir=7, timeout=110, spawns=[
+                S("pekka", 0, "left", mult=1.5),
+                S("minions", 4, "left", "back", level=13),
+                S("pekka", 14, "right", mult=1.5),
+                S("bats", 16, "right", "back", level=13),
+                R("mega_minion", 22, "left", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 4
     Level(
@@ -248,73 +240,78 @@ LEVELS = [
         "ice_golem",
         waves=[
             Wave("First Frost", level=11, spawns=[
-                S("ice_spirit", 0, "left"), S("ice_spirit", 2, "left"),
-                S("ice_golem", 5, "right"), S("ice_spirit", 6, "right", "back"),
+                S("ice_spirit", 0, "left"), S("ice_spirit", 0, "right"),
+                S("ice_golem", 4, "left"), S("ice_spirit", 5, "left", "back"),
             ]),
             Wave("Snowfall", level=11, spawns=[
                 S("ice_golem", 0, "left"), S("ice_wizard", 1, "left", "back"),
-                S("snowball", 8, "left", "army"),
+                S("ice_spirit", 6, "right"), S("snowball", 8, "left", "army"),
             ]),
             Wave("Cold Snap", level=12, spawns=[
-                S("ice_golem", 0, "right"), S("ice_spirit", 2, "right", "back"),
-                S("ice_wizard", 3, "right", "back"), S("snowball", 9, "right", "army"),
+                S("ice_golem", 0, "right"), S("ice_wizard", 2, "right", "back"),
+                S("ice_spirit", 4, "left"), S("ice_spirit", 5, "left"),
+                S("snowball", 9, "right", "army"),
             ]),
             Wave("Avalanche", level=12, spawns=[
-                S("ice_golem", 0, "left"), S("ice_golem", 2, "right"),
-                S("ice_spirit", 4, "mid"), S("ice_spirit", 5, "mid"),
+                S("ice_golem", 0, "left"), S("ice_golem", 0, "right"),
+                S("ice_spirit", 3, "left", "back"), S("ice_spirit", 3, "right", "back"),
             ]),
             Wave("Whiteout", level=12, spawns=[
                 S("ice_golem", 0, "left"), S("ice_wizard", 1, "left", "back"),
-                S("knight", 2, "left", "back"), S("freeze", 9, "left", "army"),
+                S("ice_spirit", 2, "left", "back"), S("ice_spirit", 2.5, "left", "back"),
+                S("freeze", 9, "left", "army"),
             ]),
             Wave("Frozen Legion", level=12, spawns=[
-                S("ice_wizard", 0, "left"), S("ice_wizard", 0, "right"),
-                S("ice_golem", 2, "mid"), S("snowball", 9, "mid", "army"),
+                S("ice_golem", 0, "left"), S("ice_wizard", 1, "left", "back"),
+                S("ice_golem", 3, "right"), S("ice_wizard", 4, "right", "back"),
+                S("snowball", 10, "mid", "army"),
             ]),
-            Wave("The Glacier", level=11, boss=True, bonus_elixir=6, timeout=100,
-                 spawns=[
-                     S("ice_golem", 0, "left", mult=3.5),
-                     S("ice_wizard", 3, "left", "back", level=13),
-                     S("ice_golem", 16, "right", mult=3.5),
-                     S("ice_wizard", 19, "right", "back", level=13),
-                     S("freeze", 26, "mid", "army", level=13),
-                 ]),
+            Wave("The Glacier", level=11, boss=True, bonus_elixir=6, timeout=100, spawns=[
+                S("ice_golem", 0, "left", mult=3.5),
+                S("ice_wizard", 3, "left", "back", level=13),
+                R("ice_spirit", 9, "right", level=13),
+                S("ice_golem", 16, "right", mult=3.5),
+                S("ice_wizard", 19, "right", "back", level=13),
+                S("freeze", 26, "mid", "army", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 5
     Level(
         "barbarian_raid", "Barbarian Raid", "Level 5",
-        "Horns sound across the valley. Barrels roll, rams charge, a war camp "
-        "goes up at the river - and the Warband rides last.",
+        "Horns sound across the valley. Barrels roll, rams charge, a war "
+        "camp goes up at the river - and the Warband rides last.",
         "elite_barbarians",
         waves=[
             Wave("War Cry", level=11, spawns=[
-                S("barbarians", 0, "left"), S("barbarian_barrel", 7, "left", "army"),
+                S("barbarians", 0, "left"), S("rage", 5, "left", "push"),
+                S("barbarian_barrel", 9, "right", "army"),
             ]),
             Wave("Axes Out", level=12, spawns=[
-                S("lumberjack", 0, "right"), S("barbarians", 3, "right", "back"),
+                S("lumberjack", 0, "right"), S("barbarians", 2, "left"),
             ]),
             Wave("Battering Rams", level=12, spawns=[
-                S("battle_ram", 0, "left"), S("battle_ram", 5, "right"),
-                S("barbarian_barrel", 9, "right", "army"),
+                S("battle_ram", 0, "left"), S("battle_ram", 0, "right"),
+                S("barbarian_barrel", 7, "mid", "army"),
             ]),
             Wave("The War Camp", level=12, spawns=[
                 S("barbarian_hut", 0, "mid", "front"), S("battle_ram", 6, "left"),
+                R("battle_ram", 14, "right"),
             ]),
             Wave("Elite Charge", level=12, spawns=[
-                S("elite_barbarians", 0, "left"), S("barbarians", 4, "right"),
+                S("elite_barbarians", 0, "left"), S("rage", 4, "left", "push"),
+                S("barbarians", 4, "right"),
             ]),
             Wave("Shield Maidens", level=12, spawns=[
-                S("valkyrie", 0, "left"), S("valkyrie", 2, "right"),
-                S("barbarians", 5, "mid", "back"),
-                S("barbarian_barrel", 9, "mid", "army"),
+                S("valkyrie", 0, "left"), S("valkyrie", 0, "right"),
+                S("barbarians", 4, "mid", "back"), S("barbarian_barrel", 9, "mid", "army"),
             ]),
-            Wave("The Warband", level=11, boss=True, bonus_elixir=6, timeout=100,
-                 spawns=[
-                     S("elite_barbarians", 0, "left", mult=1.5),
-                     S("battle_ram", 8, "right", mult=1.5),
-                     S("elite_barbarians", 16, "right", mult=1.5),
-                     S("barbarian_barrel", 22, "mid", "army", level=13),
-                 ]),
+            Wave("The Warband", level=11, boss=True, bonus_elixir=6, timeout=100, spawns=[
+                S("elite_barbarians", 0, "left", mult=1.5),
+                S("battle_ram", 8, "right", mult=1.5),
+                S("elite_barbarians", 16, "right", mult=1.5),
+                S("rage", 18, "right", "push", level=13),
+                S("barbarian_barrel", 22, "mid", "army", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 6
     Level(
@@ -324,31 +321,31 @@ LEVELS = [
         "balloon",
         waves=[
             Wave("Wingbeat", level=11, spawns=[
-                S("minions", 0, "left"), S("bats", 4, "right"),
+                S("minions", 0, "left"), S("bats", 0, "right"),
             ]),
             Wave("Bombs Away", level=10, spawns=[
-                S("balloon", 0, "left"), S("bats", 4, "right"),
+                S("balloon", 0, "right"), S("minions", 4, "left"),
             ]),
             Wave("Flying Machines", level=11, spawns=[
-                S("flying_machine", 0, "right"), S("flying_machine", 4, "left"),
+                S("flying_machine", 0, "left"), S("flying_machine", 0, "right"),
             ]),
             Wave("Little Dragons", level=11, spawns=[
-                S("baby_dragon", 0, "mid"), S("bats", 4, "left"), S("bats", 4, "right"),
+                S("baby_dragon", 0, "left"), S("baby_dragon", 6, "right"),
             ]),
             Wave("Escort", level=10, spawns=[
-                S("balloon", 0, "right"), S("bats", 3, "right", "back"),
-                S("mega_minion", 5, "left"),
+                S("balloon", 0, "right"), S("mega_minion", 1, "right", "back"),
+                S("bats", 5, "left"),
             ]),
             Wave("Black Sky", level=10, spawns=[
-                S("minion_horde", 0, "left"), S("bats", 3, "left", "back"),
+                S("minion_horde", 0, "left"), S("bats", 3, "right"),
+                R("minions", 8, "left"),
             ]),
-            Wave("The Lava Hound", level=11, boss=True, bonus_elixir=6, timeout=100,
-                 spawns=[
-                     S("lava_hound", 0, "left", mult=1.0),
-                     S("minions", 4, "left", "back", level=11),
-                     S("minion_horde", 14, "right", level=11),
-                     S("mega_minion", 17, "right", level=11),
-                 ]),
+            Wave("The Lava Hound", level=11, boss=True, bonus_elixir=6, timeout=100, spawns=[
+                S("lava_hound", 0, "left"),
+                S("minions", 4, "left", "back", level=11),
+                R("minion_horde", 14, "right", level=11),
+                S("mega_minion", 17, "right", level=11),
+            ]),
         ]),
     # ------------------------------------------------------------------ 7
     Level(
@@ -358,32 +355,34 @@ LEVELS = [
         "prince",
         waves=[
             Wave("Royal Guard", level=12, spawns=[
-                S("knight", 0, "left"), S("guards", 4, "right"),
+                S("knight", 0, "left"), S("guards", 0, "right"),
             ]),
             Wave("Arrows from the Keep", level=12, spawns=[
                 S("knight", 0, "right"), S("princess", 1, "right", "back"),
-                S("archers", 5, "left"),
+                S("archers", 4, "left"), S("arrows", 9, "mid", "army"),
             ]),
             Wave("Charge!", level=13, spawns=[
-                S("prince", 0, "left"), S("dark_prince", 4, "right"),
+                S("prince", 0, "left"), S("dark_prince", 0, "right"),
             ]),
             Wave("The Little Prince", level=12, spawns=[
                 S("guards", 0, "mid"), S("little_prince", 1, "mid", "back"),
+                S("heal_spirit", 6, "mid", "push"),
             ]),
-            Wave("Royal Delivery", level=11, spawns=[
+            Wave("Special Delivery", level=11, spawns=[
                 S("royal_giant", 0, "right"), S("princess", 2, "right", "back"),
+                S("royal_delivery", 8, "right", "army"),
             ]),
             Wave("Golden Hour", level=13, spawns=[
                 S("golden_knight", 0, "left"), S("princess", 2, "left", "back"),
                 S("knight", 4, "right"),
             ]),
-            Wave("The Princes", level=11, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("prince", 0, "left", mult=1.85),
-                     S("dark_prince", 2, "right", mult=1.85),
-                     S("royal_giant", 14, "mid", mult=1.5),
-                     S("princess", 15, "mid", "back", level=13),
-                 ]),
+            Wave("The Princes", level=11, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("prince", 0, "left", mult=1.85),
+                S("dark_prince", 1, "right", mult=1.85),
+                S("royal_giant", 14, "mid", mult=1.5),
+                S("princess", 15, "mid", "back", level=13),
+                R("knight", 20, "left", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 8
     Level(
@@ -393,13 +392,13 @@ LEVELS = [
         "bandit",
         waves=[
             Wave("Pickpockets", level=12, spawns=[
-                S("bandit", 0, "left"), S("goblins", 3, "right"),
+                S("bandit", 0, "left"), S("goblins", 1, "right"),
             ]),
             Wave("Ambush", level=12, spawns=[
-                S("miner", 0, "left", "tower"), S("bandit", 2, "right"),
+                S("bandit", 0, "right"), S("miner", 3, "left", "tower"),
             ]),
             Wave("Dark Alley", level=12, spawns=[
-                S("night_witch", 0, "right"), S("bandit", 3, "left"),
+                S("royal_ghost", 0, "right"), S("bandit", 3, "left"),
             ]),
             Wave("Highwaymen", level=12, spawns=[
                 S("lumberjack", 0, "left"), S("bandit", 1, "left", "back"),
@@ -413,13 +412,12 @@ LEVELS = [
                 S("bandit", 0, "mid"), S("miner", 3, "right", "tower"),
                 S("poison", 8, "mid", "army"),
             ]),
-            Wave("The Boss Bandit", level=11, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("boss_bandit", 0, "left", mult=1.7),
-                     S("bandit", 6, "right", level=13),
-                     S("night_witch", 16, "right", mult=1.2),
-                     S("miner", 20, "left", "tower", level=13),
-                 ]),
+            Wave("The Boss Bandit", level=11, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("boss_bandit", 0, "left", mult=1.7),
+                S("bandit", 6, "right", level=13),
+                S("night_witch", 16, "right", mult=1.2),
+                S("miner", 20, "left", "tower", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 9
     Level(
@@ -430,7 +428,7 @@ LEVELS = [
         "electro_wizard",
         waves=[
             Wave("Static", level=12, spawns=[
-                S("electro_spirit", 0, "left"), S("electro_spirit", 1, "right"),
+                S("electro_spirit", 0, "left"), S("electro_spirit", 0, "right"),
                 S("zappies", 4, "left"),
             ]),
             Wave("Chain Lightning", level=12, spawns=[
@@ -438,6 +436,7 @@ LEVELS = [
             ]),
             Wave("Overload", level=12, spawns=[
                 S("zappies", 0, "right"), S("electro_wizard", 2, "right", "back"),
+                S("rage", 6, "right", "push"),
             ]),
             Wave("Thunderhead", level=12, spawns=[
                 S("electro_dragon", 0, "mid"), S("zappies", 3, "mid", "back"),
@@ -445,18 +444,18 @@ LEVELS = [
             ]),
             Wave("Charged Up", level=12, spawns=[
                 S("electro_giant", 0, "left"), S("electro_wizard", 2, "left", "back"),
+                R("electro_spirit", 8, "right"),
             ]),
             Wave("Storm Front", level=13, spawns=[
                 S("zappies", 0, "left"), S("zappies", 0, "right"),
                 S("lightning", 8, "mid", "army"),
             ]),
-            Wave("Twin Sparky", level=11, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("electro_giant", 0, "left", mult=1.25),
-                     S("sparky", 2, "left", "back", mult=1.25),
-                     S("sparky", 16, "right", mult=1.25),
-                     S("zappies", 17, "right", "back", level=13),
-                 ]),
+            Wave("Twin Sparky", level=11, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("electro_giant", 0, "left", mult=1.25),
+                S("sparky", 2, "left", "back", mult=1.25),
+                S("sparky", 16, "right", mult=1.25),
+                S("zappies", 17, "right", "back", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 10
     Level(
@@ -466,10 +465,10 @@ LEVELS = [
         "hog_rider",
         waves=[
             Wave("Hog Rider!", level=12, spawns=[
-                S("hog_rider", 0, "left"),
+                S("hog_rider", 0, "left"), S("ice_spirit", 0.5, "left", "back"),
             ]),
             Wave("Two Hogs", level=12, spawns=[
-                S("hog_rider", 0, "right"), S("hog_rider", 6, "left"),
+                S("hog_rider", 0, "left"), S("hog_rider", 0, "right"),
             ]),
             Wave("Ram Raid", level=12, spawns=[
                 S("battle_ram", 0, "left"), S("hog_rider", 3, "right"),
@@ -486,32 +485,32 @@ LEVELS = [
                 S("hog_rider", 0, "left"), S("earthquake", 4, "left", "tower"),
                 S("hog_rider", 7, "right"),
             ]),
-            Wave("The Stampede", level=12, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("hog_rider", 0, "left", mult=1.55),
-                     S("hog_rider", 2, "right", mult=1.55),
-                     S("battle_ram", 9, "left", mult=1.55),
-                     S("hog_rider", 15, "mid", mult=1.55),
-                     S("hog_rider", 17, "right", mult=1.55),
-                 ]),
+            Wave("The Stampede", level=12, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("hog_rider", 0, "left", mult=1.55),
+                S("hog_rider", 2, "right", mult=1.55),
+                S("battle_ram", 9, "left", mult=1.55),
+                S("royal_hogs", 15, "mid", mult=1.2),
+                S("hog_rider", 17, "right", mult=1.55),
+            ]),
         ]),
     # ------------------------------------------------------------------ 11
     Level(
         "pyromancers", "The Pyromancers", "Level 11",
-        "Everything burns. Fire Spirits, Wizards, a Furnace at the river and "
+        "Everything burns. Fire Spirits, Wizards, Furnaces on the march and "
         "fireballs falling on your army - then the Fire Lords arrive.",
         "wizard",
         waves=[
             Wave("Embers", level=13, spawns=[
-                S("fire_spirit", 0, "left"), S("fire_spirit", 0.5, "left"),
-                S("fire_spirit", 2, "right"),
+                S("fire_spirit", 0, "left"), S("fire_spirit", 0, "right"),
+                S("fire_spirit", 2, "mid"),
             ]),
             Wave("Fireball!", level=12, spawns=[
                 S("knight", 0, "left"), S("wizard", 1, "left", "back"),
                 S("fireball", 8, "left", "army"),
             ]),
             Wave("The Furnace", level=12, spawns=[
-                S("furnace", 0, "mid", "front"), S("fire_spirit", 4, "right"),
+                S("knight", 0, "right"), S("furnace", 1, "right", "back"),
+                S("fire_spirit", 4, "left"),
             ]),
             Wave("Inferno", level=12, spawns=[
                 S("inferno_dragon", 0, "right"), S("wizard", 2, "right", "back"),
@@ -524,13 +523,13 @@ LEVELS = [
                 S("inferno_tower", 0, "mid", "river"), S("wizard", 2, "left"),
                 S("fire_spirit", 4, "right"),
             ]),
-            Wave("The Fire Lords", level=11, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("wizard", 0, "left", mult=2.0),
-                     S("wizard", 1, "right", mult=2.0),
-                     S("inferno_dragon", 10, "mid", mult=1.5),
-                     S("fireball", 15, "mid", "army", level=13),
-                 ]),
+            Wave("The Fire Lords", level=11, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("wizard", 0, "left", mult=2.0),
+                S("wizard", 1, "right", mult=2.0),
+                S("inferno_dragon", 10, "mid", mult=1.5),
+                S("fireball", 15, "mid", "army", level=13),
+                R("furnace", 18, "left", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 12
     Level(
@@ -540,17 +539,17 @@ LEVELS = [
         "witch",
         waves=[
             Wave("Midnight", level=13, spawns=[
-                S("skeletons", 0, "left"), S("skeletons", 2, "right"),
+                S("skeletons", 0, "left"), S("skeletons", 0, "right"),
                 S("bats", 4, "mid"),
             ]),
             Wave("The Coven", level=12, spawns=[
-                S("witch", 0, "left"), S("guards", 1, "left"),
+                S("guards", 0, "left"), S("witch", 1, "left", "back"),
             ]),
             Wave("Grave Diggers", level=13, spawns=[
                 S("graveyard", 0, "left", "tower"), S("skeleton_barrel", 5, "right"),
             ]),
             Wave("Night Witches", level=12, spawns=[
-                S("night_witch", 0, "right"), S("night_witch", 3, "left"),
+                S("night_witch", 0, "left"), S("night_witch", 0, "right"),
             ]),
             Wave("Bone Giant", level=12, spawns=[
                 S("giant_skeleton", 0, "left"), S("witch", 2, "left", "back"),
@@ -559,26 +558,26 @@ LEVELS = [
                 S("tombstone", 0, "left", "front"), S("tombstone", 0, "right", "front"),
                 S("graveyard", 6, "right", "tower"),
             ]),
-            Wave("The Lich King", level=11, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("skeleton_king", 0, "left", mult=1.5),
-                     S("witch", 2, "left", "back", level=13),
-                     S("graveyard", 10, "right", "tower", level=13),
-                     S("giant_skeleton", 16, "right", mult=1.2),
-                 ]),
+            Wave("The Lich King", level=11, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("skeleton_king", 0, "left", mult=1.5),
+                S("witch", 2, "left", "back", level=13),
+                S("graveyard", 10, "right", "tower", level=13),
+                S("giant_skeleton", 16, "right", mult=1.2),
+                R("skeletons", 20, "left", level=13),
+            ]),
         ]),
     # ------------------------------------------------------------------ 13
     Level(
         "marksmen", "The Marksmen", "Level 13",
-        "Long range all round: archers, musketeers, a Hunter, an X-Bow at the "
-        "river and the Archer Queen. Get in close or get picked apart.",
+        "Long range all round: archers, musketeers, a Hunter, an X-Bow at "
+        "the river and the Archer Queen. Get in close or get picked apart.",
         "musketeer",
         waves=[
             Wave("Bowmen", level=13, spawns=[
-                S("archers", 0, "left"), S("archers", 2, "right"),
+                S("archers", 0, "left"), S("archers", 0, "right"),
             ]),
             Wave("Sharpshooters", level=13, spawns=[
-                S("musketeer", 0, "right"), S("dart_goblin", 3, "left"),
+                S("musketeer", 0, "right"), S("firecracker", 2, "left"),
             ]),
             Wave("Hunting Party", level=13, spawns=[
                 S("knight", 0, "left"), S("hunter", 1, "left", "back"),
@@ -596,12 +595,12 @@ LEVELS = [
                 S("archer_queen", 0, "right"), S("archers", 2, "right", "back"),
                 S("dart_goblin", 4, "left"),
             ]),
-            Wave("Three Musketeers", level=12, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("three_musketeers", 0, "left", mult=1.3),
-                     S("archer_queen", 10, "right", mult=1.3),
-                     S("magic_archer", 14, "mid", "back", level=14),
-                 ]),
+            Wave("Three Musketeers", level=12, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("three_musketeers", 0, "left", mult=1.3),
+                S("heal_spirit", 6, "left", "push", level=14),
+                S("archer_queen", 10, "right", mult=1.3),
+                S("magic_archer", 14, "mid", "back", level=14),
+            ]),
         ]),
     # ------------------------------------------------------------------ 14
     Level(
@@ -611,33 +610,32 @@ LEVELS = [
         "mighty_miner",
         waves=[
             Wave("Tunnel Rats", level=13, spawns=[
-                S("miner", 0, "left", "tower"), S("goblins", 3, "left"),
+                S("goblins", 0, "right"), S("miner", 2, "left", "tower"),
             ]),
             Wave("Dig Dig Dig", level=13, spawns=[
                 S("miner", 0, "right", "tower"), S("miner", 6, "left", "tower"),
             ]),
             Wave("Drill Sergeant", level=14, spawns=[
-                S("mighty_miner", 0, "left"), S("miner", 4, "right", "tower"),
+                S("mighty_miner", 0, "left"), S("goblin_drill", 4, "right", "near"),
             ]),
             Wave("Cave-in", level=12, spawns=[
                 S("miner", 0, "left", "tower"), S("earthquake", 2, "left", "tower"),
                 S("goblin_barrel", 7, "right", "tower"),
             ]),
             Wave("Mine Carts", level=13, spawns=[
-                S("cannon_cart", 0, "right"), S("miner", 3, "right", "tower"),
-                S("cannon_cart", 6, "left"),
+                S("cannon_cart", 0, "left"), S("cannon_cart", 0, "right"),
+                S("miner", 5, "left", "tower"),
             ]),
             Wave("Deep Core", level=14, spawns=[
                 S("mighty_miner", 0, "right"), S("mighty_miner", 4, "left"),
                 S("miner", 8, "left", "tower"),
             ]),
-            Wave("The Mother Lode", level=12, boss=True, bonus_elixir=7, timeout=100,
-                 spawns=[
-                     S("mighty_miner", 0, "left", mult=1.7),
-                     S("miner", 4, "right", "tower", mult=1.7),
-                     S("mighty_miner", 14, "right", mult=1.7),
-                     S("miner", 18, "left", "tower", mult=1.7),
-                 ]),
+            Wave("The Mother Lode", level=12, boss=True, bonus_elixir=7, timeout=100, spawns=[
+                S("mighty_miner", 0, "left", mult=1.7),
+                S("miner", 4, "right", "tower", mult=1.7),
+                S("mighty_miner", 14, "right", mult=1.7),
+                S("miner", 18, "left", "tower", mult=1.7),
+            ]),
         ]),
     # ------------------------------------------------------------------ 15
     Level(
@@ -647,7 +645,7 @@ LEVELS = [
         "baby_dragon",
         waves=[
             Wave("Hatchlings", level=12, spawns=[
-                S("baby_dragon", 0, "left"), S("baby_dragon", 5, "right"),
+                S("baby_dragon", 0, "left"), S("baby_dragon", 0, "right"),
             ]),
             Wave("Inferno Wings", level=12, spawns=[
                 S("inferno_dragon", 0, "right"), S("bats", 3, "right", "back"),
@@ -666,13 +664,13 @@ LEVELS = [
             Wave("Molten Hound", level=11, spawns=[
                 S("lava_hound", 0, "mid"), S("baby_dragon", 2, "mid", "back"),
             ]),
-            Wave("Elder Dragons", level=12, boss=True, bonus_elixir=8, timeout=100,
-                 spawns=[
-                     S("inferno_dragon", 0, "left", mult=1.0),
-                     S("electro_dragon", 0, "right", mult=1.0),
-                     S("baby_dragon", 10, "mid", mult=1.3),
-                     S("fireball", 16, "mid", "army", level=12),
-                 ]),
+            Wave("Elder Dragons", level=12, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("inferno_dragon", 0, "left"),
+                S("electro_dragon", 0, "right"),
+                S("baby_dragon", 10, "mid", mult=1.3),
+                S("fireball", 16, "mid", "army"),
+                R("skeleton_dragons", 20, "mid"),
+            ]),
         ]),
     # ------------------------------------------------------------------ 16
     Level(
@@ -686,9 +684,10 @@ LEVELS = [
             ]),
             Wave("Crossfire", level=13, spawns=[
                 S("xbow", 0, "right", "river"), S("ice_golem", 1, "right"),
+                S("mortar", 4, "left", "river"),
             ]),
             Wave("Cannon Carts", level=13, spawns=[
-                S("cannon_cart", 0, "left"), S("cannon_cart", 5, "right"),
+                S("cannon_cart", 0, "left"), S("cannon_cart", 0, "right"),
             ]),
             Wave("Bomb Tower", level=13, spawns=[
                 S("bomb_tower", 0, "mid", "river"), S("giant", 2, "left"),
@@ -702,13 +701,12 @@ LEVELS = [
                 S("xbow", 0, "left", "river"), S("tesla", 0, "right", "river"),
                 S("giant", 3, "right"),
             ]),
-            Wave("The Fortress", level=12, boss=True, bonus_elixir=8, timeout=100,
-                 spawns=[
-                     S("xbow", 0, "left", "river", mult=1.5),
-                     S("xbow", 0, "right", "river", mult=1.5),
-                     S("royal_giant", 6, "mid", mult=1.5),
-                     S("bowler", 8, "mid", "back", level=14),
-                 ]),
+            Wave("The Fortress", level=12, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("xbow", 0, "left", "river", mult=1.5),
+                S("xbow", 0, "right", "river", mult=1.5),
+                S("royal_giant", 6, "mid", mult=1.5),
+                S("bowler", 8, "mid", "back", level=14),
+            ]),
         ]),
     # ------------------------------------------------------------------ 17
     Level(
@@ -724,7 +722,7 @@ LEVELS = [
                 S("royal_giant", 0, "right"), S("archers", 2, "right", "back"),
             ]),
             Wave("Sparks Fly", level=11, spawns=[
-                S("electro_giant", 0, "left"), S("goblin_giant", 6, "right"),
+                S("electro_giant", 0, "left"), S("goblin_giant", 0, "right"),
             ]),
             Wave("Bone Giant", level=11, spawns=[
                 S("giant_skeleton", 0, "right"), S("giant", 4, "left"),
@@ -737,12 +735,12 @@ LEVELS = [
                 S("goblin_giant", 0, "left"), S("royal_giant", 0, "right"),
                 S("electro_giant", 8, "mid"),
             ]),
-            Wave("The Golem King", level=11, boss=True, bonus_elixir=8, timeout=110,
-                 spawns=[
-                     S("golem", 0, "mid"),
-                     S("night_witch", 3, "mid", "back"),
-                     S("giant", 16, "mid"),
-                 ]),
+            Wave("The Golem King", level=11, boss=True, bonus_elixir=8, timeout=110, spawns=[
+                S("golem", 0, "mid"),
+                S("night_witch", 3, "mid", "back"),
+                S("rage", 10, "mid", "push"),
+                R("giant", 16, "mid"),
+            ]),
         ]),
     # ------------------------------------------------------------------ 18
     Level(
@@ -753,9 +751,10 @@ LEVELS = [
         waves=[
             Wave("Spin Cycle", level=13, spawns=[
                 S("valkyrie", 0, "left"), S("bomber", 2, "left", "back"),
+                S("bomber", 4, "right"),
             ]),
             Wave("Bowling Night", level=13, spawns=[
-                S("knight", 0, "right"), S("bowler", 1, "right", "back"),
+                S("dark_prince", 0, "right"), S("bowler", 1, "right", "back"),
             ]),
             Wave("The Axe Man", level=13, spawns=[
                 S("knight", 0, "left"), S("executioner", 1, "left", "back"),
@@ -771,13 +770,12 @@ LEVELS = [
                 S("executioner", 0, "right"), S("bowler", 2, "right", "back"),
                 S("valkyrie", 6, "left"),
             ]),
-            Wave("Mega Knights", level=12, boss=True, bonus_elixir=8, timeout=110,
-                 spawns=[
-                     S("mega_knight", 0, "left", mult=1.3),
-                     S("executioner", 3, "left", "back", level=12),
-                     S("mega_knight", 16, "right", mult=1.3),
-                     S("bowler", 19, "right", "back", level=12),
-                 ]),
+            Wave("Mega Knights", level=12, boss=True, bonus_elixir=8, timeout=110, spawns=[
+                S("mega_knight", 0, "left", mult=1.3),
+                S("executioner", 3, "left", "back", level=12),
+                S("mega_knight", 16, "right", mult=1.3),
+                S("bowler", 19, "right", "back", level=12),
+            ]),
         ]),
     # ------------------------------------------------------------------ 19
     Level(
@@ -796,23 +794,22 @@ LEVELS = [
             Wave("Bone Throne", level=14, spawns=[
                 S("skeleton_king", 0, "left"), S("guards", 3, "right"),
             ]),
-            Wave("The Monk", level=14, spawns=[
+            Wave("Monk and Prince", level=14, spawns=[
                 S("monk", 0, "mid"), S("little_prince", 3, "left"),
             ]),
-            Wave("Excavation", level=14, spawns=[
+            Wave("Gold Rush", level=14, spawns=[
                 S("mighty_miner", 0, "right"), S("golden_knight", 4, "left"),
             ]),
             Wave("Mad Doctor", level=14, spawns=[
                 S("goblinstein", 0, "left"), S("archer_queen", 3, "right"),
             ]),
-            Wave("Hall of Champions", level=12, boss=True, bonus_elixir=8, timeout=120,
-                 spawns=[
-                     S("boss_bandit", 0, "left", mult=1.38),
-                     S("monk", 2, "right", mult=1.38),
-                     S("golden_knight", 12, "mid", mult=1.38),
-                     S("archer_queen", 14, "mid", "back", mult=1.38),
-                     S("skeleton_king", 20, "left", mult=1.38),
-                 ]),
+            Wave("Hall of Champions", level=12, boss=True, bonus_elixir=8, timeout=120, spawns=[
+                S("boss_bandit", 0, "left", mult=1.38),
+                S("monk", 2, "right", mult=1.38),
+                S("golden_knight", 12, "mid", mult=1.38),
+                S("archer_queen", 14, "mid", "back", mult=1.38),
+                S("skeleton_king", 20, "left", mult=1.38),
+            ]),
         ]),
     # ------------------------------------------------------------------ 20
     Level(
@@ -831,8 +828,7 @@ LEVELS = [
                 S("giant", 0, "left"), S("graveyard", 5, "left", "tower"),
             ]),
             Wave("Hog Siege", level=11, spawns=[
-                S("hog_rider", 0, "left"),
-                S("xbow", 4, "mid", "river"),
+                S("hog_rider", 0, "left"), S("xbow", 4, "mid", "river"),
             ]),
             Wave("Dark Magic", level=12, spawns=[
                 S("witch", 0, "left"), S("night_witch", 0, "right"),
@@ -845,15 +841,14 @@ LEVELS = [
                 S("golem", 0, "left"), S("minion_horde", 3, "left", "back"),
                 S("rocket", 11, "left", "army"),
             ]),
-            Wave("The Overlords", level=11, boss=True, bonus_elixir=9, timeout=130,
-                 spawns=[
-                     S("pekka", 0, "left", mult=1.2),
-                     S("mega_knight", 10, "right", mult=1.2),
-                     S("lava_hound", 14, "mid"),
-                     S("witch", 16, "mid", "back", level=13),
-                 ]),
+            Wave("The Overlords", level=11, boss=True, bonus_elixir=9, timeout=130, spawns=[
+                S("pekka", 0, "left", mult=1.2),
+                S("mega_knight", 10, "right", mult=1.2),
+                S("lava_hound", 14, "mid"),
+                S("witch", 16, "mid", "back", level=13),
+                S("rage", 18, "mid", "push", level=13),
+            ]),
         ]),
-
     # ==================== ACT II: the newer cards (v1.2) ====================
     Level(
         "goblin_uprising", "Goblin Uprising", "Level 21",
@@ -862,7 +857,7 @@ LEVELS = [
         "goblin_machine",
         waves=[
             Wave("The Gang's All Here", level=11, spawns=[
-                S("goblin_gang", 0, "left"), S("goblin_gang", 6, "right"),
+                S("goblin_gang", 0, "left"), S("goblin_gang", 0, "right"),
             ]),
             Wave("Demolition Crew", level=11, spawns=[
                 S("goblin_demolisher", 0, "right"), S("goblin_gang", 3, "right", "back"),
@@ -878,13 +873,14 @@ LEVELS = [
                 S("goblin_giant", 0, "right"), S("goblin_curse", 8, "right", "army"),
             ]),
             Wave("Two Drills", level=11, spawns=[
-                S("goblin_drill", 0, "left", "near"), S("goblin_drill", 6, "right", "near"),
+                S("goblin_drill", 0, "left", "near"), S("goblin_drill", 3, "right", "near"),
             ]),
             Wave("The Machine", level=11, boss=True, bonus_elixir=7, timeout=90, spawns=[
                 S("goblin_machine", 0, "left", mult=1.3),
                 S("goblin_gang", 4, "left", "back"),
                 S("goblinstein", 10, "right"),
                 S("goblin_curse", 16, "mid", "army"),
+                R("goblin_gang", 20, "right"),
             ]),
         ]),
     Level(
@@ -893,19 +889,21 @@ LEVELS = [
         "in a row and a ghost you'll never see coming.",
         "royal_recruits",
         waves=[
-            Wave("Fall In!", level=11, spawns=[S("royal_recruits", 0, "mid")]),
+            Wave("Fall In!", level=11, spawns=[
+                S("royal_recruits", 0, "mid"),
+            ]),
             Wave("Hog Line", level=11, spawns=[
                 S("royal_hogs", 0, "mid"), S("archers", 3, "left", "back"),
             ]),
             Wave("Haunting", level=11, spawns=[
-                S("royal_ghost", 0, "left"), S("royal_ghost", 6, "right"),
+                S("royal_ghost", 0, "left"), S("royal_ghost", 3, "right"),
             ]),
             Wave("Cavalry", level=11, spawns=[
-                S("ram_rider", 0, "right"), S("musketeer", 2, "right", "back"),
+                S("ram_rider", 0, "right"), S("prince", 3, "left"),
             ]),
             Wave("Royal Escort", level=11, spawns=[
-                S("royal_giant", 0, "left"), S("royal_delivery", 6, "left", "army"),
-                S("princess", 2, "left", "back"),
+                S("royal_giant", 0, "left"), S("princess", 2, "left", "back"),
+                S("royal_delivery", 6, "left", "army"),
             ]),
             Wave("Second Rank", level=12, spawns=[
                 S("royal_recruits", 0, "mid"), S("royal_hogs", 7, "mid"),
@@ -925,27 +923,30 @@ LEVELS = [
         waves=[
             Wave("Will-o'-Wisps", level=11, spawns=[
                 S("fire_spirit", 0, "left"), S("ice_spirit", 1, "left"),
-                S("electro_spirit", 2, "right"), S("heal_spirit", 3, "right"),
+                S("electro_spirit", 0, "right"), S("heal_spirit", 1, "right"),
             ]),
-            Wave("Rebirth", level=11, spawns=[S("phoenix", 0, "right")]),
+            Wave("Rebirth", level=11, spawns=[
+                S("phoenix", 0, "right"), S("electro_spirit", 4, "left"),
+            ]),
             Wave("Grove Keeper", level=11, spawns=[
-                S("spirit_empress", 0, "left"), S("heal_spirit", 4, "left", "back"),
+                S("spirit_empress", 0, "left"), S("heal_spirit", 4, "left", "push"),
             ]),
             Wave("Overgrowth", level=11, spawns=[
-                S("goblin_giant", 0, "right"), S("vines", 9, "right", "army"),
+                S("suspicious_bush", 0, "right"), S("suspicious_bush", 3, "left"),
+                S("vines", 8, "right", "army"),
             ]),
             Wave("Spirit Storm", level=11, spawns=[
-                S("electro_spirit", 0, "mid"), S("fire_spirit", 0, "left"),
-                S("fire_spirit", 0, "right"), S("electro_dragon", 3, "mid", "back"),
+                S("fire_spirit", 0, "left"), S("fire_spirit", 0, "right"),
+                S("electro_spirit", 0, "mid"), S("electro_dragon", 3, "mid", "back"),
             ]),
             Wave("Two Phoenixes", level=11, spawns=[
-                S("phoenix", 0, "left"), S("phoenix", 5, "right"),
+                S("phoenix", 0, "left"), S("phoenix", 0, "right"),
             ]),
             Wave("The Empress Ascends", level=11, boss=True, bonus_elixir=8, timeout=100,
                  spawns=[
                      S("spirit_empress_air", 0, "mid", mult=1.3),
                      S("phoenix", 5, "left"),
-                     S("heal_spirit", 8, "mid", "back"),
+                     S("heal_spirit", 8, "mid", "push"),
                      S("vines", 14, "mid", "army"),
                  ]),
         ]),
@@ -956,17 +957,17 @@ LEVELS = [
         "mother_witch",
         waves=[
             Wave("Familiars", level=11, spawns=[
-                S("mother_witch", 0, "left"), S("skeleton_army", 2, "left"),
+                S("skeleton_army", 0, "left"), S("mother_witch", 1, "left", "back"),
             ]),
             Wave("Night Flight", level=11, spawns=[
                 S("night_witch", 0, "right"), S("bats", 3, "right", "back"),
             ]),
             Wave("The Coven", level=11, spawns=[
-                S("witch", 0, "left"), S("mother_witch", 1, "right"),
+                S("witch", 0, "left"), S("mother_witch", 0, "right"),
             ]),
             Wave("Curse of Goblins", level=11, spawns=[
-                S("giant", 0, "right"), S("goblin_curse", 7, "right", "army"),
-                S("mother_witch", 3, "right", "back"),
+                S("giant", 0, "right"), S("mother_witch", 3, "right", "back"),
+                S("goblin_curse", 7, "right", "army"),
             ]),
             Wave("Into the Void", level=12, spawns=[
                 S("golem", 0, "left"), S("void", 10, "left", "army"),
@@ -987,14 +988,16 @@ LEVELS = [
         "is definitely just a bush.",
         "rascals",
         waves=[
-            Wave("Playground", level=11, spawns=[S("rascals", 0, "left")]),
+            Wave("Playground", level=11, spawns=[
+                S("rascals", 0, "left"),
+            ]),
             Wave("Fireworks", level=11, spawns=[
-                S("firecracker", 0, "right"), S("firecracker", 3, "left"),
-                S("knight", 1, "right"),
+                S("knight", 0, "right"), S("firecracker", 1, "right", "back"),
+                S("firecracker", 3, "left"),
             ]),
             Wave("Suspicious...", level=11, spawns=[
-                S("suspicious_bush", 0, "left"), S("suspicious_bush", 4, "right"),
-                S("berserker", 1, "left"),
+                S("suspicious_bush", 0, "left"), S("berserker", 1, "left"),
+                S("suspicious_bush", 4, "right"),
             ]),
             Wave("Street Gang", level=11, spawns=[
                 S("berserker", 0, "right"), S("bandit", 2, "right"),
@@ -1003,49 +1006,49 @@ LEVELS = [
             Wave("Bully", level=12, spawns=[
                 S("rascals", 0, "right"), S("dart_goblin", 2, "right", "back"),
             ]),
-            Wave("Ambush", level=11, spawns=[
-                S("suspicious_bush", 0, "mid"), S("royal_hogs", 5, "mid"),
+            Wave("Hide and Seek", level=11, spawns=[
+                S("suspicious_bush", 0, "left"), S("suspicious_bush", 0, "right"),
+                S("bandit", 4, "mid"),
             ]),
-            Wave("Boss of the Block", level=11, boss=True, bonus_elixir=8, timeout=100,
-                 spawns=[
-                     S("boss_bandit", 0, "left", mult=1.3),
-                     S("rascals", 3, "left"),
-                     S("firecracker", 6, "right", "back"),
-                     S("berserker", 10, "right"),
-                 ]),
+            Wave("Boss of the Block", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
+                S("boss_bandit", 0, "left", mult=1.3),
+                S("rascals", 3, "left"),
+                S("firecracker", 6, "right", "back"),
+                R("berserker", 10, "right"),
+            ]),
         ]),
     Level(
         "rune_forge", "The Rune Forge", "Level 26",
-        "The Rune Giant sharpens every blade in her army. Kill the escort "
-        "before the third hit lands.",
+        "The Rune Giant sharpens every blade in her army - and the smiths "
+        "enchant the rest with rage. Kill the escort before it gets going.",
         "rune_giant",
         waves=[
             Wave("Apprentices", level=11, spawns=[
                 S("rune_giant", 0, "left"), S("barbarians", 2, "left", "back"),
             ]),
             Wave("Sharpened Steel", level=11, spawns=[
-                S("rune_giant", 0, "right"), S("elite_barbarians", 2, "right", "back"),
+                S("elite_barbarians", 0, "right"), S("rage", 4, "right", "push"),
             ]),
             Wave("Anvil", level=11, spawns=[
                 S("rune_giant", 0, "left"), S("executioner", 3, "left", "back"),
                 S("dart_goblin", 4, "left", "back"),
             ]),
             Wave("Enchanted Dash", level=11, spawns=[
-                S("rune_giant", 0, "right"), S("lumberjack", 3, "right"),
-                S("bandit", 4, "right"),
+                S("lumberjack", 0, "right"), S("bandit", 1, "right", "back"),
+                S("rage", 5, "right", "push"),
             ]),
             Wave("Forge Fire", level=12, spawns=[
-                S("rune_giant", 0, "left"), S("inferno_dragon", 3, "left", "back"),
+                S("inferno_dragon", 0, "left"), S("furnace", 2, "left", "back"),
                 S("fireball", 10, "left", "army"),
             ]),
             Wave("Double Order", level=11, spawns=[
-                S("rune_giant", 0, "left"), S("rune_giant", 1, "right"),
+                S("rune_giant", 0, "left"), S("rune_giant", 0, "right"),
                 S("valkyrie", 3, "mid"),
             ]),
             Wave("Master Smith", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
                 S("rune_giant", 0, "mid", mult=1.4),
-                S("mini_pekka", 3, "mid", "back"), S("prince", 6, "left"),
-                S("dark_prince", 6, "right"),
+                S("mini_pekka", 3, "mid", "back"),
+                S("prince", 6, "left"), S("dark_prince", 6, "right"),
             ]),
         ]),
     Level(
@@ -1057,18 +1060,20 @@ LEVELS = [
             Wave("Catch of the Day", level=11, spawns=[
                 S("fisherman", 0, "left"), S("musketeer", 2, "left", "back"),
             ]),
-            Wave("The Wandering Blade", level=11, spawns=[S("ronin", 0, "right")]),
+            Wave("The Wandering Blade", level=11, spawns=[
+                S("ronin", 0, "right"),
+            ]),
             Wave("Harpoon", level=11, spawns=[
                 S("fisherman", 0, "right"), S("hunter", 2, "right", "back"),
             ]),
-            Wave("Bowling Night", level=11, spawns=[
+            Wave("Rough Seas", level=11, spawns=[
                 S("bowler", 0, "left"), S("fisherman", 2, "left"),
             ]),
             Wave("Swordmasters", level=12, spawns=[
-                S("ronin", 0, "left"), S("golden_knight", 4, "right"),
+                S("ronin", 0, "left"), S("golden_knight", 2, "right"),
             ]),
             Wave("Nets and Anchors", level=11, spawns=[
-                S("fisherman", 0, "left"), S("fisherman", 1, "right"),
+                S("fisherman", 0, "left"), S("fisherman", 0, "right"),
                 S("executioner", 3, "mid", "back"),
             ]),
             Wave("The Last Duel", level=11, boss=True, bonus_elixir=8, timeout=100, spawns=[
@@ -1083,7 +1088,9 @@ LEVELS = [
         "Bring anti-air. Lots of it.",
         "skeleton_dragons",
         waves=[
-            Wave("Bone Wings", level=11, spawns=[S("skeleton_dragons", 0, "left")]),
+            Wave("Bone Wings", level=11, spawns=[
+                S("skeleton_dragons", 0, "left"), S("bats", 3, "right"),
+            ]),
             Wave("Toxic Cloud", level=11, spawns=[
                 S("minion_giant", 0, "right"), S("minions", 3, "right", "back"),
             ]),
@@ -1091,22 +1098,21 @@ LEVELS = [
                 S("phoenix", 0, "left"), S("skeleton_dragons", 3, "left", "back"),
             ]),
             Wave("Storm Front", level=11, spawns=[
-                S("electro_dragon", 0, "right"), S("inferno_dragon", 2, "right"),
+                S("electro_dragon", 0, "right"), S("inferno_dragon", 0, "left"),
             ]),
             Wave("Flying Fortress", level=12, spawns=[
                 S("minion_giant", 0, "left"), S("balloon", 4, "left"),
             ]),
-            Wave("Swarm", level=11, spawns=[
+            Wave("Swarm of Wings", level=11, spawns=[
                 S("minion_horde", 0, "mid"), S("bats", 2, "left"), S("bats", 2, "right"),
-                S("skeleton_dragons", 4, "mid", "back"),
+                R("minions", 7, "mid"),
             ]),
-            Wave("The Ancient Wyrm", level=11, boss=True, bonus_elixir=8, timeout=110,
-                 spawns=[
-                     S("lava_hound", 0, "mid", mult=1.3),
-                     S("minion_giant", 4, "left"),
-                     S("phoenix", 8, "right"),
-                     S("skeleton_dragons", 12, "mid", "back"),
-                 ]),
+            Wave("The Ancient Wyrm", level=11, boss=True, bonus_elixir=8, timeout=110, spawns=[
+                S("lava_hound", 0, "mid", mult=1.3),
+                S("minion_giant", 4, "left"),
+                S("phoenix", 8, "right"),
+                R("skeleton_dragons", 12, "mid"),
+            ]),
         ]),
     Level(
         "machine_works", "Machine Works", "Level 29",
@@ -1121,10 +1127,10 @@ LEVELS = [
                 S("sparky", 0, "right"), S("goblin_gang", 2, "right"),
             ]),
             Wave("Artillery", level=11, spawns=[
-                S("mortar", 0, "left", "river"), S("cannon_cart", 2, "left"),
+                S("mortar", 0, "left", "river"), S("cannon_cart", 2, "right"),
             ]),
             Wave("Fuse Lit", level=11, spawns=[
-                S("goblin_demolisher", 0, "right"), S("goblin_demolisher", 3, "left"),
+                S("goblin_demolisher", 0, "left"), S("goblin_demolisher", 0, "right"),
                 S("flying_machine", 4, "right", "back"),
             ]),
             Wave("Crossfire", level=11, spawns=[
@@ -1132,7 +1138,7 @@ LEVELS = [
                 S("goblin_drill", 6, "left", "near"),
             ]),
             Wave("Heavy Metal", level=11, spawns=[
-                S("goblin_machine", 0, "right"), S("electro_giant", 2, "left"),
+                S("goblin_machine", 0, "right"), S("electro_giant", 0, "left"),
             ]),
             Wave("Prototype X", level=11, boss=True, bonus_elixir=9, timeout=110, spawns=[
                 S("goblin_machine", 0, "left", mult=1.4),
@@ -1148,14 +1154,14 @@ LEVELS = [
         "spirit_empress_air",
         waves=[
             Wave("Opening Act", level=11, spawns=[
-                S("goblin_gang", 0, "left"), S("rascals", 2, "right"),
+                S("goblin_gang", 0, "left"), S("rascals", 0, "right"),
             ]),
             Wave("Hooks and Blades", level=11, spawns=[
                 S("fisherman", 0, "right"), S("ronin", 2, "right"),
             ]),
             Wave("Curses", level=11, spawns=[
-                S("mother_witch", 0, "left"), S("goblin_curse", 8, "left", "army"),
-                S("royal_ghost", 2, "left"),
+                S("mother_witch", 0, "left"), S("royal_ghost", 2, "left"),
+                S("goblin_curse", 8, "left", "army"),
             ]),
             Wave("Air Superiority", level=11, spawns=[
                 S("phoenix", 0, "right"), S("skeleton_dragons", 2, "right", "back"),
@@ -1174,6 +1180,7 @@ LEVELS = [
                      S("ronin", 4, "left", mult=1.2),
                      S("goblin_machine", 8, "right", mult=1.2),
                      S("phoenix", 12, "mid"),
+                     S("rage", 14, "mid", "push"),
                      S("vines", 18, "mid", "army"),
                  ]),
         ]),
@@ -1191,18 +1198,17 @@ for _lv, _sh in zip(LEVELS, LEVEL_SHIFTS):
     _lv.shift = _sh
 
 # Extra hp & damage for every enemy of a level, tuned against the defend-only
-# Expert AI (1.0 = untouched).
+# AI with tools/level_tune.py (1.0 = untouched).
 LEVEL_POWER = {
-    "goblin_ambush": 0.93, "iron_legion": 0.92, "sky_raiders": 1.1,
-    "barbarian_raid": 0.86, "royal_court": 0.90, "rogues_den": 0.96,
-    "spark_and_storm": 0.83, "hog_stampede": 0.94, "pyromancers": 0.96,
-    "graveyard_shift": 0.96, "marksmen": 0.90, "miners_strike": 0.97,
-    "dragons_lair": 1.00, "siege_engines": 1.0, "giants_causeway": 1.03,
-    "splash_zone": 1.13, "champions_arena": 1.03, "final_siege": 0.95,
-    "goblin_uprising": 1.05, "royal_parade": 1.00, "spirit_grove": 1.12,
-    "witching_hour": 1.3, "rascal_alley": 1.14, "rune_forge": 0.88,
-    "fishers_wharf": 1.47, "dragon_roost": 0.88, "machine_works": 1.12,
-    "grand_finale": 0.98,
+    "bone_crypt": 0.85, "goblin_ambush": 0.953, "iron_legion": 0.89,
+    "barbarian_raid": 0.787, "sky_raiders": 1.045, "royal_court": 0.842,
+    "rogues_den": 0.984, "spark_and_storm": 0.83, "hog_stampede": 0.916,
+    "pyromancers": 0.941, "graveyard_shift": 0.96, "marksmen": 0.927,
+    "miners_strike": 0.97, "giants_causeway": 0.973, "splash_zone": 1.107,
+    "champions_arena": 1.03, "final_siege": 0.95, "goblin_uprising": 0.987,
+    "spirit_grove": 1.12, "witching_hour": 1.28, "rascal_alley": 1.105,
+    "rune_forge": 0.94, "fishers_wharf": 1.47, "dragon_roost": 0.906,
+    "machine_works": 1.12, "grand_finale": 0.926,
 }
 # v1.4.4: the crown towers became the real Tower Princess (+10% hp, +8%
 # damage) and the cards were rebalanced; this brings every level back to
@@ -1281,6 +1287,7 @@ class LevelRun:
         self.wave_t = 0.0
         self.pending = []
         self.banner = None          # (title, subtitle, time_shown)
+        self.note = None            # (mid-wave call-out, time_shown)
         self.towers_lost = 0
         self.tower_log = []         # [(wave number, "left"|"right"|"king")]
         self._alive = {s: True for s in ("left", "right", "king")}
@@ -1320,6 +1327,9 @@ class LevelRun:
         if self.banner:
             t, s, age = self.banner
             self.banner = (t, s, age + dt) if age < 3.0 else None
+        if self.note:
+            n, age = self.note
+            self.note = (n, age + dt) if age < 2.2 else None
         for side, was in self._alive.items():
             if was and not m.towers[(PLAYER, side)].alive:
                 self._alive[side] = False
@@ -1338,7 +1348,7 @@ class LevelRun:
                     base, _, n = sp.place.partition(":wait")
                     self.pending.append(Spawn(sp.key, self.wave_t + 1.0, sp.lane,
                                               sp.level, sp.mult,
-                                              "%s:wait%d" % (base, int(n or 0) + 1)))
+                                              "%s:wait%d" % (base, int(n or 0) + 1), sp.note))
                     self.pending.sort(key=lambda q: q.at)
             wave = self.current_wave()
             cleared = (not self.pending and not self._enemies_alive()
@@ -1383,11 +1393,12 @@ class LevelRun:
         self._show(title, sub)
         self.m.emit("wave", "boss" if wave.boss else "wave", 9.0, 8.0, ENEMY)
 
-    def _army_spot(self, radius):
-        """Centre of the thickest clump of the player's troops (or None)."""
+    def _army_spot(self, radius, team=PLAYER, min_y=None):
+        """Centre of the thickest clump of `team`'s troops (or None);
+        min_y: only troops at least that far down the field."""
         troops = [e for e in self.m.entities
-                  if e.alive and e.team == PLAYER and not e.is_tower
-                  and not e.is_building]
+                  if e.alive and e.team == team and not e.is_tower
+                  and not e.is_building and (min_y is None or e.y >= min_y)]
         best, best_v = None, 0.0
         for c in troops:
             v = 0.0
@@ -1412,7 +1423,20 @@ class LevelRun:
         x = LANE_X.get(sp.lane, 9.0)
         c = cards.CARDS[sp.key]
         place, _, wait = sp.place.partition(":wait")
-        if place == "army":
+        if place == "push":
+            # the wave's own support: on its push once it reaches the river
+            r = max(c.spell_radius, 2.0)
+            spot = self._army_spot(r, ENEMY, RIVER_TOP - 1.5)
+            if spot is None and int(wait or 0) < ARMY_WAIT:
+                return False
+            spot = spot or self._army_spot(r, ENEMY)
+            if spot is None:
+                return True                    # nothing left to help: skip it
+            x, y = spot
+            if c.category != "spell":          # a support troop lands just behind
+                y = max(1.0, y - 1.5)
+            place = "army"
+        elif place == "army":
             spot = self._army_spot(max(c.spell_radius, 1.5))
             if spot is None and int(wait or 0) < ARMY_WAIT:
                 return False
@@ -1420,6 +1444,8 @@ class LevelRun:
                 place = "tower"
             else:
                 x, y = spot
+        if sp.note:
+            self.note = (sp.note, 0.0)
         if place in ("tower", "near"):
             side = "left" if sp.lane == "left" else "right"
             tw = m.towers[(PLAYER, side)]
@@ -1489,8 +1515,47 @@ ENDLESS_POOLS = [
 ]
 ENDLESS_SPELLS = ["fireball", "arrows", "poison", "lightning", "snowball", "zap",
                   "goblin_barrel", "graveyard"]
-ENDLESS_NAMES = ["Skirmish", "Raiders", "Vanguard", "Onslaught", "Stampede",
-                 "Ambush", "Warband", "Swarm", "Siege", "Horde", "Legion", "Storm"]
+ENDLESS_SUPPORT = ["rage", "heal_spirit"]       # dropped on the wave's own push
+
+
+def is_swarm(key):
+    """Many small bodies (Goblins, Skeleton Army, Bats, Barbarians...)."""
+    c = cards.CARDS[key]
+    return c.count >= 3 and c.hp <= 240
+
+
+def is_heavy(key):
+    """A tank or a win condition (Giant, Golem, Hog Rider, P.E.K.K.A...)."""
+    c = cards.CARDS[key]
+    return c.count == 1 and (c.hp >= 1300 or c.attacks == "buildings")
+
+
+# What an Endless wave is built around: which troops fit it, and the names it
+# may be called (every name describes what actually spawns)
+ENDLESS_THEMES = {
+    "swarm": (is_swarm, ["Swarm", "Horde", "Skitter", "Teeming Masses"]),
+    "air": (lambda k: cards.CARDS[k].flying, ["Air Raid", "Black Sky", "Wingbeat"]),
+    "heavy": (is_heavy, ["Heavy Push", "Juggernauts", "Siege", "Big Steps"]),
+    "rush": (lambda k: cards.CARDS[k].speed >= 2.0 and cards.CARDS[k].range <= 2
+             and not is_swarm(k), ["Stampede", "Charge!", "Rush"]),
+    "ranged": (lambda k: cards.CARDS[k].range >= 4 and cards.CARDS[k].attacks != "buildings",
+               ["Volley", "Crossfire", "Sharpshooters"]),
+    "mixed": (lambda k: True, ["Skirmish", "Raiders", "Vanguard", "Onslaught",
+                               "Warband", "Legion"]),
+}
+
+
+def endless_name(spawns, rng):
+    """A name for a normal Endless wave that matches its troops."""
+    troops = [s.key for s in spawns if cards.CARDS[s.key].category == "troop"
+              and s.key not in ENDLESS_SUPPORT]
+    for theme in ("swarm", "air", "heavy", "rush", "ranged"):
+        fits, names = ENDLESS_THEMES[theme]
+        if troops and all(fits(k) for k in troops):
+            return rng.choice(names)
+    if sum(is_swarm(k) for k in troops) * 2 > len(troops) >= 3:
+        return "Mob"
+    return rng.choice(ENDLESS_THEMES["mixed"][1])
 
 
 def endless_wave(n, rng):
@@ -1501,28 +1566,59 @@ def endless_wave(n, rng):
     budget = 4 + n * 1.6
     spawns = []
     t = 0.0
-    lanes = ["left", "right", "mid"]
+    side = rng.choice(["left", "right"])
+    other = "right" if side == "left" else "left"
+    # the plan: one big push, a two-lane split, or a push followed by a
+    # second group that arrives as reinforcements
+    plan = "push" if n < 3 else rng.choice(["push", "split", "split", "reinforce"])
+    if plan == "split":
+        budget *= 0.95                  # two lanes at once are harder to stop
+    theme = rng.choice(list(ENDLESS_THEMES)) if not boss and n >= 2 else "mixed"
+    fits = ENDLESS_THEMES[theme][0]
+    boss_key = None
     if boss:
-        key = rng.choice(ENDLESS_POOLS[min(3, 1 + n // 6)])
+        boss_key = rng.choice(ENDLESS_POOLS[min(3, 1 + n // 6)])
         mult = 1.3 + 0.1 * (n // 5) + (0.08 * max(0, n - 18))
-        spawns.append(Spawn(key, 0.0, rng.choice(["left", "right"]), None, round(mult, 2)))
+        spawns.append(Spawn(boss_key, 0.0, side, None, round(mult, 2)))
         budget *= 0.45
         t = 3.0
-    while budget >= 2:
-        pool = ENDLESS_POOLS[rng.randrange(tiers)]
+    unlocked = [k for tier in ENDLESS_POOLS[:tiers] for k in tier
+                if cards.CARDS[k].elixir <= budget + 1]
+    pool = [k for k in unlocked if fits(k)] or unlocked
+    picks = []
+    tries = 0
+    while budget >= 2 and tries < 200:
+        tries += 1
         key = rng.choice(pool)
         c = cards.CARDS[key]
         if c.elixir > budget + 1:
             continue
         budget -= c.elixir
+        picks.append(key)
+    for i, key in enumerate(picks):
+        c = cards.CARDS[key]
         place = "back" if c.range >= 4 else "field"
-        spawns.append(Spawn(key, t, rng.choice(lanes), None, 1.0, place))
-        t += rng.uniform(1.5, 4.0)
+        lane = side
+        if plan == "split":
+            lane = side if i % 2 == 0 else other
+        elif plan == "reinforce" and len(picks) >= 2 and i == len(picks) - 1:
+            spawns.append(Spawn(key, t + 6.0, other, None, 1.0, place, "Reinforcements!"))
+            continue
+        elif rng.random() < 0.25:
+            lane = "mid"
+        spawns.append(Spawn(key, t, lane, None, 1.0, place))
+        # a split sends both halves together; a push follows up in a column
+        t += rng.uniform(0.0, 1.0) if plan == "split" and i % 2 == 0 else rng.uniform(1.5, 3.5)
+    if n >= 6 and rng.random() < 0.3:
+        spawns.append(Spawn(rng.choice(ENDLESS_SUPPORT), 4.0, side, None, 1.0, "push"))
     if n >= 4 and rng.random() < 0.45:
         sp = rng.choice(ENDLESS_SPELLS)
         place = "tower" if sp in ("goblin_barrel", "graveyard") else "army"
         spawns.append(Spawn(sp, t + 2.0, rng.choice(["left", "right"]), None, 1.0, place))
-    name = ("BOSS " if boss else "") + rng.choice(ENDLESS_NAMES)
+    if boss:
+        name = rng.choice(["%s Unleashed", "%s Approaches", "%s Rises"]) % cards.CARDS[boss_key].name
+    else:
+        name = endless_name(spawns, rng)
     return Wave(name, spawns, level=lv, boss=boss,
                 bonus_elixir=4 if boss else (1 if n % 2 == 0 else 0),
                 timeout=60 if boss else 40)

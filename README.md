@@ -117,6 +117,36 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.5.4 changes
+
+* **Levels reworked**: every one of the 30 levels has new waves, with the
+  same themes, bosses and overall difficulty (re-measured against the old
+  waves with the defend-only AI and re-tuned level by level). Waves now:
+  * **push down both lanes at once** (Two Hogs, Charge!, Avalanche...),
+  * bring their own **support spells**: Rage, Heal Spirit (and Clone, if a
+    level asks for it) dropped on the wave's own push once it reaches the
+    river,
+  * call in **reinforcements** mid-wave ("Reinforcements!" shows on screen),
+  * swap in new units that fit the theme (Ice Spirits in the Whiteout,
+    marching Furnaces, Royal Ghosts in the Dark Alley, Royal Hogs in the
+    Stampede, Suspicious Bushes in the Overgrowth, Rage-enchanted escorts in
+    the Rune Forge instead of a Rune Giant every wave...).
+* **Wave titles match what spawns**: e.g. "Night Shift" is now "Night
+  Raid", "Royal Delivery" is "Special Delivery" (and drops one), "The Monk"
+  is "Monk and Prince", "Excavation" is "Gold Rush", "Swarm" in the Dragon
+  Roost is "Swarm of Wings". A test checks that swarm-named waves hold no
+  heavy units and air-named waves only flyers.
+* **Endless Survival names its waves from what's in them** (it used to pick
+  a random name, so a "Swarm" could be two Giants): each wave is built
+  around a theme - swarm, air, heavies, fast rush, ranged or mixed - and named
+  after it; boss waves are named after the boss ("P.E.K.K.A Unleashed").
+  Endless waves also split across lanes, bring reinforcements and, from wave
+  6, the odd Rage or Heal Spirit.
+* **No more banner across the arena** when a wave starts: just the outlined
+  title (a bit smaller) and its subtitle over the field.
+* **Poison** now lasts its real **8 seconds**: the same 392 damage (152 to
+  crown towers) in 8 ticks, **one every second**.
+
 ## v1.5.3 changes
 
 * **Champion and Hero ability buttons** moved into the scenery margins left
@@ -707,7 +737,10 @@ stats are per player.
 **Endless Survival** uses the Levels rules (your Level Deck, no enemy towers,
 the miasma) with waves that never end: each wave has a growing elixir budget
 spent on stronger and stronger troops (and the odd spell), enemy levels rise
-from 11 to 16, and every 5th wave is a boss. You earn gold per wave and a
+from 11 to 16, and every 5th wave is a boss. Each wave is built around a
+theme (a swarm, flyers, heavies, a fast rush, ranged troops or a mix) and
+named after what's in it; it may come down one lane, split across both or
+call in reinforcements halfway. You earn gold per wave and a
 Hero coin every 5 waves; your best wave is saved.
 
 ### Levels
@@ -794,28 +827,34 @@ Poison, Lightning, Fireball and Rocket are aimed at the thickest clump of
 your troops (they wait until you have some on the field). Enemy spells hit
 as hard as the wave's level. Siege buildings (X-Bow, Mortar, Bomb Tower,
 Inferno Tower, Tesla) can be dug in right at the river - you'll have to cross
-into the miasma to knock them out. You get bonus elixir when a boss wave
-starts.
+into the miasma to knock them out. Waves also **support their own push**:
+a Rage or Heal Spirit lands on their troops once they reach the river (kill
+the push early and it never comes), many waves come down **both lanes at
+once**, and some call in **reinforcements** halfway through. You get bonus
+elixir when a boss wave starts.
 
-**Difficulty.** Every level was playtested by letting the "Expert" AI defend
+**Difficulty.** Every level was playtested by letting the "Skilled" AI (level 3) defend
 with decks built from the presets (win conditions
 swapped out) **at the level's recommended card level**:
 
 | Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 100% | 89% | 86% | 92% | 100% | 64% | 94% | 78% | 97% | 64% |
+| Skilled AI clears | 98% | 88% | 71% | 100% | 98% | 75% | 79% | 38% | 96% | 69% |
 
 | Level | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 58% | 67% | 72% | 67% | 64% | 58% | 69% | 67% | 44% | 31% |
+| Skilled AI clears | 17% | 85% | 60% | 4% | 54% | 27% | 77% | 6% | 19% | 58% |
 
 | Level | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Expert clears | 83% | 89% | 81% | 47% | 69% | 78% | 33% | 56% | 47% | 44% |
+| Skilled AI clears | 73% | 90% | 100% | 10% | 44% | 49% | 6% | 71% | 50% | 69% |
 
-(36 runs per level, v1.3.0. Each level has a power factor, `LEVEL_POWER` in
+(48 runs per level - 6 decks x 8 games - v1.5.4; the reworked waves were
+tuned to the same difficulty as the old ones. Each level has a power factor, `LEVEL_POWER` in
 `src/levels.py`, on top of the usual enemy levels - that's the knob to turn
-if one feels off.)
+if one feels off. `python tools/level_tune.py [level keys]` replays them and
+prints each level's win rate and average stars; `--scale` tries a power
+factor before you commit to it.)
 
 Being a level or two above the recommendation makes a level much easier,
 being below makes it much harder.

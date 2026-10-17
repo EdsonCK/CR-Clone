@@ -2486,27 +2486,39 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._draw_wave_banner()
 
     def _draw_wave_banner(self):
+        """Wave announcements: just outlined text over the arena (no ribbon),
+        so nothing hides the field while a wave starts."""
         run = self.level_run
-        if run is None or not run.banner:
+        if run is None:
             return
-        title, sub, age = run.banner
+        if run.banner:
+            self._draw_wave_title(*run.banner)
+        # mid-wave call-outs ("Reinforcements!") sit higher up, smaller
+        note = getattr(run, "note", None)
+        if note:
+            txt, nage = note
+            na = min(1.0, nage / 0.2) * min(1.0, (2.2 - nage) / 0.5)
+            if na > 0:
+                t3 = render_text(self.font_m, txt, (255, 200, 120), True).copy()
+                t3.set_alpha(int(255 * na))
+                self.screen.blit(t3, (cfg.WINDOW_W // 2 - t3.get_width() // 2,
+                                      cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.30)))
+
+    def _draw_wave_title(self, title, sub, age):
         a = min(1.0, age / 0.25) * min(1.0, (3.0 - age) / 0.6)
         if a <= 0:
             return
-        cy = cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.42) - int((1 - min(1.0, age / 0.25)) * 20)
-        rib = pygame.Surface((cfg.WINDOW_W, 76), pygame.SRCALPHA)
-        rib.fill((10, 8, 18, int(170 * a)))
-        pygame.draw.line(rib, (232, 190, 90, int(255 * a)), (0, 1), (cfg.WINDOW_W, 1), 2)
-        pygame.draw.line(rib, (232, 190, 90, int(255 * a)), (0, 74), (cfg.WINDOW_W, 74), 2)
-        self.screen.blit(rib, (0, cy - 38))
+        if not hasattr(self, "font_wave"):
+            self.font_wave = pygame.font.SysFont("arial", 27, bold=True)
+        cy = cfg.ARENA_Y0 + int(cfg.ARENA_PX_H * 0.42) - int((1 - min(1.0, age / 0.25)) * 16)
         boss = title.startswith("BOSS")
-        t1 = render_text(self.font_l, title, (255, 110, 110) if boss else WHITE).copy()
+        t1 = render_text(self.font_wave, title, (255, 110, 110) if boss else WHITE, True).copy()
         t1.set_alpha(int(255 * a))
-        self.screen.blit(t1, (cfg.WINDOW_W // 2 - t1.get_width() // 2, cy - 30))
+        self.screen.blit(t1, (cfg.WINDOW_W // 2 - t1.get_width() // 2, cy - 22))
         if sub:
-            t2 = render_text(self.font_sb, sub, (230, 220, 190)).copy()
+            t2 = render_text(self.font_sb, sub, (240, 228, 196), True).copy()
             t2.set_alpha(int(255 * a))
-            self.screen.blit(t2, (cfg.WINDOW_W // 2 - t2.get_width() // 2, cy + 12))
+            self.screen.blit(t2, (cfg.WINDOW_W // 2 - t2.get_width() // 2, cy + 10))
 
     # --------------------------------------------------------- arena
     def _margin_camps(self, surf, rng, W, H, BX, ry, rh):
