@@ -10,8 +10,10 @@ assets — and it's fully swappable (see below).
 
 ## Quick start
 
-**Windows, nothing installed:** download `clash-clone-v1.4.9-windows.zip`,
-right-click it > *Extract All...*, open the extracted `ClashClone` folder and
+**Windows, nothing installed:** download
+[`windows/clash-clone-v1.8.0-windows.zip`](windows/clash-clone-v1.8.0-windows.zip)
+from this repository (on GitHub: open the file and click *Download raw
+file*), right-click it > *Extract All...*, open the extracted `ClashClone` folder and
 double-click **ClashClone.exe**. Python, pygame and everything else are
 inside the folder (64-bit Windows 10/11). On the blue *"Windows protected
 your PC"* box click *More info* > *Run anyway* (it appears for any unsigned
@@ -1723,8 +1725,8 @@ They never touch your real saves.
 
 ### Building the Windows version
 
-The release zip was built with PyInstaller 6.10 and pygame 2.6.1 on Python
-3.11 (64-bit). To rebuild it after changing the code: on Windows install
+The Windows zip in `windows/` (currently v1.8.0) was built with PyInstaller
+6.10 and pygame 2.6.1 on Python 3.11 (64-bit). To rebuild it after changing the code: on Windows install
 Python 3.11 from python.org and double-click `tools\windows\build_windows.bat`
 (result: `dist\ClashClone\ClashClone.exe`), or run the *Build Windows*
 workflow on GitHub and download the zip from the run's Artifacts.
