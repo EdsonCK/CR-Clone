@@ -470,6 +470,14 @@ def _veteran(key):
                    _R, card=key)
 
 
+# unique modifiers join CARD_UPS (chaos_mods + its parts register themselves;
+# whichever of these modules is imported first, everything ends up loaded)
+import chaos_mods  # noqa: E402
+import importlib as _il  # noqa: E402
+if hasattr(chaos_mods, "PARTS"):
+    for _part in chaos_mods.PARTS:
+        _il.import_module(_part)
+
 # every eligible card can also simply level up
 for _k in list(CARD_UPS):
     CARD_UPS[_k].append(_veteran(_k))
@@ -670,3 +678,5 @@ _boon("second_wind", "Second Wind", "Your towers heal 20% at the start of every 
       _boon_add(wave_heal=0.2), _R)
 _boon("spells", "Spell Mastery", "Your spells: +30% radius and +50% damage.",
       _spell_mastery, _E)
+
+_LOADED = True

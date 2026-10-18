@@ -19,6 +19,7 @@ import random
 
 import config as cfg
 import cards
+import chaos_hooks
 import evo_engine
 import towers
 from cards import CardDef
@@ -144,8 +145,12 @@ def curse(e, team, spec, power):
 
 
 def on_hit_mods(src, e, dmg, fx, fy):
-    """Endless upgrades on a single-target hit: freeze, knockback, lifesteal."""
+    """Endless upgrades on a single-target hit: freeze, knockback, lifesteal
+    (and a unique modifier's "hit" hook)."""
     mods = src.card.mods
+    fn = chaos_hooks.get("hit", mods)
+    if fn is not None and src._match_ref is not None:
+        fn(src, e, dmg, e.x, e.y, src._match_ref)
     if mods.get("freeze"):
         e.freeze_timer = max(e.freeze_timer, mods["freeze"])
     kb = mods.get("knockback")
@@ -311,6 +316,8 @@ class Entity:
         self.spawn_queue = []      # staggered spawner wave: [seconds until next, left]
         if card.spawner and card.spawn_first is not None:
             self.spawn_timer = card.spawn_first
+        elif card.spawner and self.is_building and not is_tower:
+            self.spawn_timer = 0.0     # spawner buildings: first wave as soon as it's up
         self.elixir_timer = card.generates_elixir[1] if card.generates_elixir else 0.0
         self.lifetime = card.lifetime
 
@@ -505,6 +512,12 @@ class Entity:
             evo_engine.tick(self, dt, match)
             if not self.alive:
                 return
+        if self.card.mods:                       # unique Chaos / Endless modifiers
+            fn = chaos_hooks.get("tick", self.card.mods)
+            if fn is not None:
+                fn(self, dt, match)
+                if not self.alive:
+                    return
         if self.slow_timer > 0:
             self.slow_timer -= dt
             if self.slow_timer <= 0:
@@ -796,6 +809,7 @@ class Entity:
         """Riders on this unit's back fire at the nearest enemy in their range."""
         rkey, rcount = self.card.back_riders
         rc = match.card(self.team, rkey)
+        rrange = rc.range * (self.card.mods or {}).get("rider_range", 1.0)   # Chaos
         self.rider_cd = getattr(self, "rider_cd", 0.0) - dt
         if self.rider_cd > 0:
             return
@@ -813,11 +827,11 @@ class Entity:
                     match.towers[(e.team, s)].alive for s in ("left", "right")):
                 continue
             d = dist(self.x, self.y, e.x, e.y)
-            if d <= rc.range + e.radius and d < best_d:
+            if d <= rrange + e.radius and d < best_d:
                 best, best_d = e, d
         if best is None:
             return
-        self.rider_cd = rc.hit_speed
+        self.rider_cd = rc.hit_speed / (self.card.mods or {}).get("rider_atk", 1.0)
         for _ in range(rcount):
             match.projectiles.append(Projectile(
                 self.team, self.x, self.y, best,
@@ -1067,7 +1081,7 @@ class Entity:
             else:
                 mem = getattr(self, "_steer_mem", None)
                 if mem is not None:
-                    self._steer_mem = (mem[0], -mem[1])
+                    self._steer_mem = (mem[0], -mem[1], True)   # keep it this time
         self._stk = (self.x, self.y, now, now)
 
     def _steer_around(self, tx, ty, target, match):
@@ -1105,8 +1119,18 @@ class Entity:
                     and (getattr(target, "is_tower", False)
                          or getattr(target, "is_building", False)
                          or isinstance(target, _Spot)))   # Levels / Endless march
+        def detour(sd):                       # length of going round on side sd
+            wx = best.x + (-oy / od * sd) * r
+            wy = best.y + (ox / od * sd) * r
+            return math.hypot(wx - self.x, wy - self.y) + math.hypot(tx - wx, ty - wy)
         if mem is not None and mem[0] == id(best):
             side = mem[1]
+            # chasing something that moved round to the other side: switch
+            # when the other way is clearly shorter (not for a lane march
+            # round the King, nor right after getting unstuck)
+            if not (len(mem) > 2 and mem[2]) and detour(-side) + 0.75 < detour(side):
+                side = -side
+                self._steer_mem = (id(best), side)
         elif marching and abs(oy) > 0.25 * od:
             # marching up our lane (no enemy in sight): go round on our own
             # lane's side - never the long way round the other side of it
@@ -1116,14 +1140,18 @@ class Entity:
             # the King and the arena edge): then the other way round
             if self._rim_blocked(best, side, r, target, match):
                 side = -side
-            self._steer_mem = (id(best), side)
+            self._steer_mem = (id(best), side, True)
         else:
-            cross = ox * dy - oy * dx
-            if abs(cross) < 0.05 * dd * od:
-                # dead ahead: go round on the side nearer the arena middle
-                mid = cfg.GRID_COLS / 2.0
-                cross = (best.x - mid) * (1 if dy < 0 else -1) or (0.5 - self.anim_seed)
-            side = 1.0 if cross < 0 else -1.0
+            # the shorter way round (dead ahead: the side nearer the middle)
+            la, lb = detour(1.0), detour(-1.0)
+            if abs(la - lb) > 0.3:
+                side = 1.0 if la < lb else -1.0
+            else:
+                cross = ox * dy - oy * dx
+                if abs(cross) < 0.05 * dd * od:
+                    mid = cfg.GRID_COLS / 2.0
+                    cross = (best.x - mid) * (1 if dy < 0 else -1) or (0.5 - self.anim_seed)
+                side = 1.0 if cross < 0 else -1.0
             self._steer_mem = (id(best), side)
         px, py = -oy / od * side, ox / od * side
         if od <= r + 0.05:                    # touching it: walk along the rim
@@ -1385,6 +1413,9 @@ class Entity:
 
     def on_death(self, match):
         c = self.card
+        fn = chaos_hooks.get("death", c.mods)
+        if fn is not None:
+            fn(self, match)
         # Elixir Golem blobs: dying gifts the OPPONENT elixir
         if c.death_gives_elixir > 0:
             match.add_elixir(1 - self.team, c.death_gives_elixir)
@@ -1504,6 +1535,9 @@ class Projectile:
         om = owner.card.mods if owner is not None and not owner.is_tower else None
         self.freeze = om.get("freeze", 0.0) if om else 0.0     # Endless upgrades
         self.kb = om.get("knockback", 0.0) if om else 0.0
+        if om and om.get("proj_style"):                         # looks like another card's
+            self.style = om["proj_style"]
+            self.speed = PROJ_SPEEDS.get(self.style, cfg.PROJECTILE_SPEED)
 
     def update(self, dt, match):
         if self.homing and self.target and self.target.alive:
@@ -1642,6 +1676,9 @@ class Projectile:
                               tower_damage=self.tower_dmg, knockback=self.kb,
                               kb_from=(self.x - self.vx, self.y - self.vy))
             if self.owner is not None and self.owner.card.mods:
+                fn = chaos_hooks.get("hit", self.owner.card.mods)
+                if fn is not None:
+                    fn(self.owner, None, self.dmg, self.x, self.y, match)
                 lsf = self.owner.card.mods.get("lifesteal")
                 if lsf and self.owner.alive:
                     self.owner.hp = min(self.owner.max_hp, self.owner.hp + self.dmg * lsf)
@@ -1701,6 +1738,10 @@ class Effect:
 
     def update(self, dt, match):
         self.elapsed += dt
+        if getattr(self, "fx_tick_hook", None):          # unique spell modifiers
+            fn = chaos_hooks.HOOKS["fx_tick"].get(self.fx_tick_hook)
+            if fn is not None:
+                fn(self, dt, match)
         if self.kind == "incoming":
             # telegraph window: when it expires, the spell actually lands
             if self.elapsed >= self.duration:
@@ -2440,6 +2481,7 @@ class Match:
         card = self.card(team, key)
         lkey = key if played is None or played == "mirror" else played
         self.emit("deploy", key, x, y, team, evo=evo, hero=hero)
+        dfn = chaos_hooks.get("deploy", card.mods)
         rp = (card.mods or {}).get("repeat")
         if rp and not getattr(self, "_redeploying", False):
             for i in range(rp[0]):      # Endless: it comes back n more times
@@ -2447,6 +2489,8 @@ class Match:
                                x=x, y=y, evo=evo, played=played)
         if card.category == "spell":
             self._cast_spell(team, card, x, y, evo=evo, boost=boost, hero=hero)
+            if dfn is not None:
+                dfn(self, team, [], x, y)
             return
         power = level = None
         if team not in self.team_power:
@@ -2465,6 +2509,8 @@ class Match:
         else:
             units = self.spawn_units(team, key, card.count, x, y, power=power,
                                      level=level)
+        if dfn is not None:
+            dfn(self, team, units, x, y)
         if not units:
             return
         if evo or hero:
@@ -2649,6 +2695,18 @@ class Match:
             lvl = (lvl or cards.LEVEL_BASE) + boost
         if evo:
             evo_engine.on_spell(self, team, card, x, y, evo, lp)
+        sfn = chaos_hooks.get("spell", card.mods)
+        if sfn is not None and sfn(self, team, card, x, y):
+            return
+        afn = chaos_hooks.get("spell_after", card.mods)
+        if afn is not None:
+            n0 = len(self.effects)
+            self._resolve_spell_core(team, card, x, y, lp, lvl, fwd, hero)
+            afn(self, team, card, x, y, self.effects[n0:])
+            return
+        self._resolve_spell_core(team, card, x, y, lp, lvl, fwd, hero)
+
+    def _resolve_spell_core(self, team, card, x, y, lp, lvl, fwd, hero):
         pw = lp[1]
         if card.spell_kind:
             self._special_spell(team, card, x, y, lp, lvl)
@@ -2809,6 +2867,9 @@ class Match:
                              kb_from=(source.x, source.y))
             if mods.get("lifesteal") and source.alive:
                 source.hp = min(source.max_hp, source.hp + dmg * mods["lifesteal"])
+            fn = chaos_hooks.get("hit", mods)
+            if fn is not None:
+                fn(source, target, dmg, cx, cy, self)
             # the unit being swung at always takes the hit, even at the very
             # edge of a spin attack's reach
             if (target.alive and dist(cx, cy, target.x, target.y)

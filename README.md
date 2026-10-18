@@ -118,6 +118,28 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.8.0 changes
+
+* **Unique card modifiers** (Chaos and Endless): every card now also has a
+  modifier that changes HOW it plays, not just its numbers - a Lava Hound
+  that drops pups as it flies, a Barbarian Hut that spawns Mega Knights, an
+  X-Bow firing Wizard fireballs at air and ground, an endless Phoenix... They
+  join the upgrade pool next to the stat upgrades, one-time each, with a
+  rarity by power (see *Unique modifiers* below for all 123).
+* **Fix: melee troops chasing an enemy troop past a building** no longer run
+  the long way round: they keep checking which way round is shorter as the
+  target moves and switch sides when the other way is clearly shorter
+  (worst extra detour in a test grid: 3.1 tiles -> 0.7).
+* **Hero Berserker** toned down: her frenzy no longer boosts her damage
+  (it used to replace each hit with a 3x-strength "bear claws" hit - now she
+  just swings every 0.2 s at her normal damage), the frenzy lasts 4 s like
+  the real game, and there's a 0.5 s wind-up when you activate it before she
+  moves or attacks.
+* **Spawner buildings** (Barbarian Hut, Goblin Hut, Tombstone) send out their
+  first wave as soon as they're placed instead of waiting a full spawn
+  interval. (Goblin Drill keeps its own timing; troop spawners like the
+  Witch are unchanged.)
+
 ## v1.7.0 changes
 
 * **Chaos mode** (Modes tab): a 1v1 battle against the Master AI where every
@@ -376,6 +398,136 @@ Evolutions and Heroes the higher you climb.
 | **War Chest** | +3 elixir at the start of every wave. | epic | stacks |
 | **Second Wind** | Your towers heal 20% at the start of every wave. | rare | stacks |
 | **Spell Mastery** | Your spells: +30% radius and +50% damage. | epic | stacks |
+
+### Unique modifiers
+
+Every card also has a modifier that changes how it plays (one-time; in Chaos and Endless, * = win condition: Chaos only). Code: src/chaos_mods.py (+ chaos_mods_a/b/c.py), hook points in src/chaos_hooks.py.
+
+| Card | Modifier | What it does | Rarity |
+|---|---|---|---|
+| Archer Queen | **Triple Draw** | Every shot is 3 arrows at 3 different targets. | epic |
+| Archers | **Arrow Rain** | Every 5 s each Archer calls an arrow rain on her target. | epic |
+| Arrows | **Paratroopers** | Two Archers parachute in where the volley lands. | epic |
+| Baby Dragon | **Dragon Clutch** | 2 Skeleton Dragons hatch when she falls. | epic |
+| Balloon * | **Carpet Bomber** | Drops a small bomb every second on whatever it flies over. | legendary |
+| Bandit | **Smoke Bomb** | Vanishes (untargetable) for 1.2 s after every hit. | epic |
+| Barbarian Barrel | **Barbarian Convoy** | The barrel drops a Barbarian every 1.5 tiles it rolls (3 more). | epic |
+| Barbarian Hut | **Mega Barracks** | Spawns a Mega Knight (who lands with his slam) instead of Barbarians. | legendary |
+| Barbarians | **War Horn** | When a Barbarian falls, his horn enrages every ally around for 4 s. | epic |
+| Bats | **Bat Colony** | Every 4 s each Bat calls another (2 each at most). | epic |
+| Battle Healer | **Last Prayer** | When she falls, every friendly troop within 5 tiles is fully healed. | epic |
+| Battle Ram * | **Elite Convoy** | Two Elite Barbarians jump out when it breaks (instead of Barbarians). | legendary |
+| Berserker | **Feast** | Every kill heals her fully and makes her swing 15% faster (3 times). | rare |
+| Bomb Tower | **Cluster Bombs** | Its death bomb scatters 4 more bombs around it. | rare |
+| Bomber | **Cluster Bombs** | Every bomb splits into 3 bomblets around it. | epic |
+| Boss Bandit | **The Gang** | Two Bandits come with her. | legendary |
+| Bowler | **Earthshaker** | Every boulder slows ground troops within 2 tiles by 50% for 2 s. | rare |
+| Cannon Cart | **Dig In** | When the cart breaks, the cannon digs in as a Cannon. | epic |
+| Cannon | **Rolling Cannon** | When it expires or falls it rolls on as a Cannon Cart. | epic |
+| Clone | **Evil Twins** | Also copies the ENEMY troops in the area onto your side (1 hp, up to 6). | legendary |
+| Dark Prince | **Dark Leap** | Leaps onto targets 3-5 tiles away with a shield slam (splash). | epic |
+| Dart Goblin | **Spark Darts** | Shoots Sparky blasts - 50% slower than his darts. | legendary |
+| Earthquake | **Aftershock** | Ends with an aftershock that stuns and hurls troops out of it. | epic |
+| Electro Dragon | **Static Aura** | Zaps the nearest enemy within 3.5 tiles every second (0.5 s stun). | epic |
+| Electro Giant * | **Storm Giant** | Every 2 s lightning arcs from him to up to 3 enemies within 4 tiles. | legendary |
+| Electro Spirit | **Spirit Split** | It splits into 2 more Electro Spirits when it zaps (once). | epic |
+| Electro Wizard | **Lightning Field** | Every 2 s lightning arcs to up to 3 enemies within 5 tiles (stun). | legendary |
+| Elite Barbarians | **Unstoppable** | Can't be stunned, frozen, slowed or rooted. | epic |
+| Elixir Collector | **Overflow** | When it's destroyed or runs dry it spills 3 elixir. | rare |
+| Elixir Golem * | **Elixir Reversal** | Its Elixir Blobs pay YOU their elixir instead of the opponent. | legendary |
+| Executioner | **Vortex Axe** | His axe drags the enemies it hits toward him. | epic |
+| Fire Spirit | **Chain Reaction** | Each blast lights another Fire Spirit - three in a row. | epic |
+| Fireball | **Napalm** | The ground burns: 3 more fire bursts, a second apart. | epic |
+| Firecracker | **Big Finish** | Goes out with a Fireball-sized blast. | rare |
+| Fisherman | **Tidal Wave** | Lands with a wave that throws enemies back and slows them. | rare |
+| Flying Machine | **Bombing Run** | Drops a bomb on ground troops below it every 3 s. | epic |
+| Freeze | **Shatter** | When the ice breaks, everything that was frozen shatters for heavy damage. | epic |
+| Furnace | **Dragon Forge** | Forges a Baby Dragon instead of a Fire Spirit (a bit less often). | legendary |
+| Giant * | **Leaping Giant** | Dashes onto targets 3-6 tiles away, and after each punch leaps back to dash in again. | legendary |
+| Giant Skeleton | **Bomb Carrier** | Drops a lit bomb behind him every 4 s. | legendary |
+| Giant Snowball | **Rolling Snowball** | Keeps rolling on: 3 more slowing hits, 2 tiles apart. | rare |
+| Goblin Barrel | **Brawler Barrel** | A Goblin Brawler rolls out with the Goblins. | epic |
+| Goblin Cage | **Snap Trap** | Snaps shut on the nearest enemy troop within 2.5 tiles - rooted for 3 s (every 6 s). | epic |
+| Goblin Curse | **Goblin Plague** | A Goblin pops out of the cursed ground every second (5 in all). | epic |
+| Goblin Demolisher | **Last Resort** | Blows up when destroyed and 3 Goblins scramble out. | epic |
+| Goblin Drill | **Tunnel Hop** | When it caves in, it resurfaces once 4 tiles further on. | epic |
+| Goblin Gang | **Big Brother** | A Goblin Giant comes with the Gang. | legendary |
+| Goblin Giant * | **Rocket Riders** | The Spear Goblins on his back throw 3x as fast with 3x the range. | epic |
+| Goblin Hut | **Dart Academy** | Trains Dart Goblins instead of Spear Goblins. | epic |
+| Goblin Machine | **Self-Destruct** | Explodes when destroyed and its 2 Goblin pilots jump out. | epic |
+| Goblins | **Pickpockets** | Every stab steals 0.08 elixir for you. | rare |
+| Goblinstein | **Lightning Rod** | Every 2 s a bolt arcs through 3 enemies near the Doctor. | epic |
+| Golden Knight | **Midas Touch** | Every troop he finishes off pays you 1 elixir. | legendary |
+| Golem * | **Earthshaker** | Every punch is a quake that damages and slows everything around him. | epic |
+| Graveyard | **Bone Lord** | When the Graveyard closes, a Giant Skeleton climbs out of it. | legendary |
+| Guards | **Phalanx** | Their shields grow back fully 5 s after breaking. | epic |
+| Heal Spirit | **Spirit Ward** | Its burst also shields your troops nearby (150 hp). | rare |
+| Hog Rider * | **Hog Wild** | When he falls, 2 Royal Hogs charge on. | epic |
+| Hunter | **Net Gun** | Every shot nets its target: rooted for 1 s. | epic |
+| Ice Golem * | **Blizzard Golem** | A blizzard swirls around him: enemies within 2.5 tiles are slowed by 40%. | epic |
+| Ice Spirit | **Frost Nova** | Bursts into a Frost Nova: freezes everything within 3 tiles for 2 s. | epic |
+| Ice Wizard | **Blizzard Aura** | A blizzard swirls round him: slows and chills every enemy troop within 3.5 tiles. | epic |
+| Inferno Dragon | **Forked Beam** | The beam forks onto the nearest other enemy, burning both. | legendary |
+| Inferno Tower | **Ring of Fire** | A ring of fire burns everything within 3 tiles every second. | epic |
+| Knight | **Shield Bash** | Every 3rd swing is a shield bash: stuns 1 s and shoves the target back. | rare |
+| Lava Hound * | **Pup Bomber** | Drops 2 Lava Pups every 2 s while it flies. | legendary |
+| Lightning | **Lingering Storm** | 5 more strikes, one a second, on random enemies near where it struck. | legendary |
+| Little Prince | **Royal Retinue** | A Knight and a Princess march with him. | epic |
+| Lumberjack | **Rage Trail** | Spills a Rage puddle where he walks every 3 s. | epic |
+| Magic Archer | **Ricochet** | Arrows ricochet to the nearest other enemy within 4 tiles for 60% damage. | epic |
+| Mega Knight | **Last Stand** | Slams one last time when he falls: triple damage over a wider area, knocking everything back. | epic |
+| Mega Minion | **Heavy Payload** | Every 3rd hit drops a payload: big splash and a stun. | epic |
+| Mighty Miner | **Dynamite Trail** | Drops a lit bomb behind him every 3 s. | epic |
+| Miner | **Prospector** | Every hit on a tower or building digs up 0.25 elixir. | rare |
+| Mini P.E.K.K.A | **Pancake Frenzy** | Every kill enrages him (4 s) and heals him 30%. | epic |
+| Minion Giant * | **Flying Hive** | 2 Minions buzz out of him every 3 s (8 at most). | legendary |
+| Minion Horde | **Dive Bombers** | Every Minion dive-bombs as it falls (splash damage). | epic |
+| Minions | **Swarm Call** | Each Minion that falls sends a Bat in its place. | rare |
+| Mirror | **Mirror Image** | Mirror becomes a 1-elixir Clone: copies your troops in the area. | legendary |
+| Monk | **Healing Palm** | Every strike heals your troops within 3 tiles for its damage. | epic |
+| Mortar | **Barbarian Barrage** | A Barbarian drops wherever a shell lands. | epic |
+| Mother Witch | **Pied Piper** | Every 4 s turns the weakest enemy troop within 5 tiles (300 hp or less) into a Hog for her side. | legendary |
+| Musketeer | **Headshot** | 1 shot in 4 is a headshot for triple damage. | rare |
+| Night Witch | **Bat Storm** | Summons 3 Bats twice as often, and 6 burst out when she falls. | legendary |
+| P.E.K.K.A | **Execution** | Finishes off any troop or building left under 25% hp in one blow. | legendary |
+| Phoenix | **Endless Phoenix** | Every reborn Phoenix lays an egg again - she keeps coming back until an egg is destroyed. | legendary |
+| Poison | **Spreading Plague** | Poison grows 15% wider and stronger with every tick. | epic |
+| Prince | **Skewer** | A charged hit runs through: everything 2-3 tiles behind the target is hit too. | epic |
+| Princess | **Flaming Arrows** | Her arrows set the ground ablaze where they land. | epic |
+| Rage | **Eternal Rage** | Rage never ends - casting it again moves it (your last one disappears). | legendary |
+| Ram Rider * | **Net Rider** | Throws a Hunter's net every 3 s (roots and drags the nearest troop) and, like an Evo Battle Ram, is charged again after every hit, knocking her target back. | legendary |
+| Rascals | **Avenge the Boy** | If the Rascal Boy falls, the Girls are enraged for good. | rare |
+| Rocket | **Cluster Rocket** | It splits: 4 mini rockets land around the impact. | legendary |
+| Ronin | **Iaido** | Every 5 s he dashes through the nearest enemy, cutting everything on the way for double damage. | epic |
+| Royal Delivery | **Royal Surprise** | A random royal (Prince, Dark Prince, Royal Giant, Royal Hogs, Princess, Ghost...) comes in the crate too. | legendary |
+| Royal Ghost | **Possession** | Troops he finishes rise again as ghostly allies at half hp (3 per Ghost). | legendary |
+| Royal Giant * | **Royal Escort** | A Royal Guard joins him every 6 s (up to 4). | epic |
+| Royal Hogs * | **Truffle Bombs** | Each hog bursts like a small bomb when it falls. | epic |
+| Royal Recruits | **Random Regiment** | 6 of one completely random troop (6 Skeletons... or 6 Sparkies). | legendary |
+| Rune Giant * | **Rune Pillar** | Every 4 s her runes flare: your troops within 4 tiles are raged for 2 s. | epic |
+| Skeleton Army | **Restless Dead** | Each Skeleton has a 40% chance to rise once more when it falls. | epic |
+| Skeleton Barrel * | **Bone Rain** | Drops a Skeleton every 1.2 s on the way (6 in all) before it bursts. | epic |
+| Skeleton Dragons | **Bone Rain** | Every other fireball drops a Skeleton where it lands. | epic |
+| Skeleton King | **Lord of Bones** | Raises 2 Skeletons beside him every 3 s (10 at most). | epic |
+| Skeletons | **Undying Bones** | Every Skeleton pulls itself back together once when destroyed. | rare |
+| Sparky | **Shockwave** | Every blast also stuns everything within 3 tiles for 1.5 s. | legendary |
+| Spear Goblins | **Pinning Spears** | Spears pin troops in place for 0.6 s. | rare |
+| Spirit Empress | **Spirit Court** | Arrives with one of every spirit (Fire, Ice, Electro and Heal). | epic |
+| Suspicious Bush * | **Machine in the Bush** | Can't be damaged until it opens - and a Goblin Machine bursts out. | legendary |
+| Tesla | **Storm Coil** | Every 2.5 s it arcs to up to 3 enemies within 6 tiles, stunning them. | epic |
+| The Log | **Timber!** | A Lumberjack follows the Log out. | epic |
+| Three Musketeers | **Last Stand** | When one Musketeer falls, the others are enraged for 6 s and healed 50%. | epic |
+| Tombstone | **Tomb of the Giant** | Breaks open into a Giant Skeleton instead of 4 Skeletons. | legendary |
+| Tornado | **Wandering Twister** | Lasts 4x as long and wanders forward down the lane, dragging everything with it. | legendary |
+| Valkyrie | **Vortex Spin** | Her spin pulls ground troops within 3.5 tiles into her axe. | epic |
+| Vines | **Thorn Field** | Every ground troop that walks into the patch is rooted too. | epic |
+| Void | **Event Horizon** | Drags enemy troops toward its centre while it strikes. | epic |
+| Wall Breakers * | **Demolition Crew** | Each one leaves a Bomber behind in the rubble. | epic |
+| Witch | **Bat Witch** | Summons 4 Bats instead of Skeletons. | rare |
+| Wizard | **Wall of Fire** | His fireballs leave burning ground behind. | epic |
+| X-Bow | **Fireball Bow** | Shoots Wizard fireballs (splash) at air and ground. | legendary |
+| Zap | **Ion Storm** | Zaps 4 more times over 4 s, each 20% wider. | epic |
+| Zappies | **Short Circuit** | When a Zappy falls it stuns everything within 2.5 tiles for 2 s. | rare |
 
 ## v1.5.4 changes
 
@@ -1537,6 +1689,8 @@ src/
               mastery_data.py  per-card averages that size the goals
   levels.py   the 30 Levels, the wave runner and the Endless generator
   endless_upgrades.py  Endless upgrade catalogue;  endless_ui.py  the pick screen
+  chaos.py    Chaos battles (offers, rarities, AI picks);  chaos_mods*.py  the
+              unique card modifiers;  chaos_hooks.py  their engine hook points
   profile_data.py  currencies, card / King / Tower Troop levels, unlocks (profile.json)
   savedata.py the save folder outside the game + importing old saves
   evos.py     Evolution & Hero catalogue;  evo_engine.py  what they do

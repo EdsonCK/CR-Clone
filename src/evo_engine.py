@@ -247,7 +247,7 @@ def before_attack(e, match, dmg):
             e.pr_chill = (e.pr_shots % 2 == 1)              # 1st, 3rd, 5th...
     if e.hero:
         if getattr(e, "berserk_t", 0) > 0:
-            dmg = 167 * DMG * p1                            # bear claws
+            # frenzy: hits every 0.2s at her NORMAL damage (no damage boost)
             if t is not None and t.is_tower:
                 dmg *= 0.25
         if getattr(e, "ma_triple", False):
@@ -1161,10 +1161,14 @@ def do_hero_ability(h, match):
         h.alive = False
         match.emit("portal", "tomb_queen", h.x, h.y, h.team)
     elif k == "berserker":
-        h.berserk_t = 4.0
-        h.atk_buff, h.atk_buff_timer = 3.0, 4.0
-        h.haste_mult, h.haste_timer = 3.3 / 2.3, 4.0
-        h.undying_t = 4.0
+        # 0.5 s wind-up (she can't move or attack), then a 4 s frenzy -
+        # the real game's duration - she can't be killed through all of it
+        windup, frenzy = 0.5, 4.0
+        h.channel_t = max(h.channel_t, windup)
+        h.berserk_t = windup + frenzy
+        h.atk_buff, h.atk_buff_timer = 3.0, windup + frenzy
+        h.haste_mult, h.haste_timer = 3.3 / 2.3, windup + frenzy
+        h.undying_t = windup + frenzy
     elif k == "ice_wizard":
         h.frosty = True
     elif k == "electro_wizard":

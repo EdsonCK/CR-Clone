@@ -210,8 +210,9 @@ HEROES = {
                       "The Tombstone crumbles and the Tomb Queen rises - a huge "
                       "building-hunter that bursts into skeletons."),
     "berserker": Hero("Hero Berserker", "Savage Survival", 3,
-                      "4s frenzy: attacks every 0.2s, ultra fast, can't drop below 1 HP "
-                      "(-75% vs Crown Towers).", 4.0),
+                      "After a 0.5s wind-up, a 4s frenzy: attacks every 0.2s (normal "
+                      "damage), ultra fast, can't drop below 1 HP (-75% vs Crown "
+                      "Towers).", 4.0),
     "ice_wizard": Hero("Hero Ice Wizard", "Frosty Fella", 2,
                        "His next hit on a slowed enemy builds a Snowman behind it that "
                        "freezes everything nearby."),
