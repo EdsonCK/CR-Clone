@@ -20,6 +20,10 @@ Modes screen. Rewards: gold per battle, +1 shard for the first win in each.
   Chaos           always against the Master AI: every 45 s both sides pick
                   one of two upgrades of the same rarities (chaos.py) -
                   rarer as the match goes on, two legendaries in overtime
+  Chaos Draft     Draft your deck (pairs, as in Draft), then take 3 starting
+                  upgrades - a rare, an epic, a legendary: you pick one of
+                  two, the enemy gets the other (or one of the same rarity
+                  for its own deck) - then a Chaos battle vs the Master AI
   2v2 Battle      you and an AI teammate against two AIs, as in the real
                   game: each player has their own deck, hand and elixir bar
                   and deploys anywhere on their side; the towers, crowns and
@@ -57,9 +61,61 @@ MODES = [
     ("random", "Random Decks", "Both sides get a random deck.", "skeleton_barrel"),
     ("double", "Double Trouble", "x2 elixir, x2 tower HP, 5 minutes.", "princess"),
     ("chaos", "Chaos", "Master AI. Both sides pick upgrades every 45 s.", "lightning"),
+    ("chaos_draft", "Chaos Draft", "Draft + 3 starting upgrades, then Chaos.",
+     "electro_wizard"),
     ("endless", "Endless Survival", "Survive endless waves (Level Deck).", "skeleton_king"),
 ]
 MODE_NAMES = {k: n for k, n, _, _ in MODES}
+CHAOS_MODES = ("chaos", "chaos_draft")
+
+
+class DraftStart:
+    """Chaos Draft's 3 starting-upgrade picks (rare, epic, legendary), shown
+    with the Chaos pick overlay while the match clock waits. It looks like a
+    ChaosRun to the HUD; battle() hands over to the real one."""
+
+    def __init__(self, match, seed):
+        self.m = match
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.n_start = len(chaos.DRAFT_TIERS)
+        self.start_no = 0
+        self.picks, self.ai_picks = [], []
+        self.last_ai_pick = None
+        self.round, self.n_rounds = 0, chaos.total_rounds()
+        self.choice = None
+        self._offer()
+
+    def _offer(self):
+        self.tiers = [chaos.DRAFT_TIERS[self.start_no]] * 2
+        self.choice = chaos.draft_offer(self.m, self.start_no, self.rng,
+                                        [u.key for u in self.picks]) or None
+
+    def update(self, dt=0.0):
+        pass
+
+    def time_to_next(self):
+        return chaos.INTERVAL
+
+    def next_is_final(self):
+        return False
+
+    def choose(self, i):
+        mine, theirs = chaos.draft_pick(self.m, self.choice, i, self.rng,
+                                        self.picks, self.ai_picks)
+        if theirs is not None:
+            self.last_ai_pick = (theirs, self.m.elapsed)
+        self.start_no += 1
+        self.choice = None
+        if self.start_no < self.n_start:
+            self._offer()
+        return mine
+
+    def battle(self):
+        """The Chaos battle proper, with the starting upgrades taken."""
+        run = chaos.ChaosRun(self.m, self.seed, picks=self.picks, ai_picks=self.ai_picks)
+        run.last_ai_pick = self.last_ai_pick          # its toast shows next
+        return run
 
 
 class ModesMixin:
@@ -133,7 +189,7 @@ class ModesMixin:
         for i, (k, name, desc, icon) in enumerate(self._mode_items()):
             r = self._mode_rect(i)
             gold = k == "endless"
-            wild = k == "chaos"
+            wild = k in CHAOS_MODES
             self._panel(r, border=(214, 176, 84) if gold else (188, 120, 255) if wild
                         else (110, 120, 150),
                         top=(70, 58, 40) if gold else (66, 40, 92) if wild else (52, 54, 72),
@@ -159,7 +215,7 @@ class ModesMixin:
         self.mode = key
         if key == "endless":
             return self._start_endless()
-        if key == "draft":
+        if key in ("draft", "chaos_draft"):
             return self._start_draft()
         deck = list(self.player_deck)
         if len(deck) != cfg.DECK_SIZE:
@@ -178,7 +234,7 @@ class ModesMixin:
 
     def _launch_special(self, deck, ai_deck):
         key = self.mode
-        ai_level = chaos.CHAOS_AI_LEVEL if key == "chaos" else self.ai_level
+        ai_level = chaos.CHAOS_AI_LEVEL if key in CHAOS_MODES else self.ai_level
         cfg.apply_ai_settings(ai_level, 1.0)
         self._arena_surf = None
         self.level_run = None
@@ -214,7 +270,9 @@ class ModesMixin:
             m.set_tower_troop(ENEMY, self._tower_troop())
         self.mode_decks = (list(deck), list(ai_deck))
         self.ai = AIController(m, team=ENEMY, level=ai_level)
-        self.chaos = chaos.ChaosRun(m, random.randrange(1 << 30)) if key == "chaos" else None
+        seed = random.randrange(1 << 30)
+        self.chaos = (chaos.ChaosRun(m, seed) if key == "chaos"
+                      else DraftStart(m, seed) if key == "chaos_draft" else None)
         self._ai_toast = None
         if key == "duo":
             self._duo_setup(m, deck, specials, alv)
@@ -270,7 +328,7 @@ class ModesMixin:
         self.sfx.play("match_start", 0.9, min_gap=0.0)
 
     def _mode_again(self):
-        if self.mode == "draft":
+        if self.mode in ("draft", "chaos_draft"):
             self._start_draft()
         elif self.mode is not None:
             self._start_mode(self.mode)
@@ -305,7 +363,7 @@ class ModesMixin:
                 self.last_rewards.append(("New best!", {}))
             return
         win = w == PLAYER
-        if k == "chaos":
+        if k in CHAOS_MODES:
             run = self.chaos
             self._reward("Victory" if win else "Played",
                          profile_data.chaos_gold(win, self.match.crowns[PLAYER],
@@ -313,7 +371,7 @@ class ModesMixin:
             if win:
                 rec["wins"] += 1
                 if rec["wins"] == 1:
-                    self._reward("First Chaos win", coins=1, gems=10)
+                    self._reward("First %s win" % MODE_NAMES[k], coins=1, gems=10)
             return
         self._reward("Victory" if win else "Played",
                      profile_data.special_gold(win, self.ai_level, self.match.crowns[PLAYER]))
@@ -368,7 +426,8 @@ class ModesMixin:
     def _draw_draft(self):
         d = self.draft
         mouse = pygame.mouse.get_pos()
-        self._screen_title("Draft  -  pick %d of 8" % (len(d["mine"]) + 1), 30)
+        self._screen_title("%s  -  pick %d of 8" % (MODE_NAMES.get(self.mode, "Draft"),
+                                                    len(d["mine"]) + 1), 30)
         self._text("You keep the card you click. The AI gets the other one.",
                    self.font_s, (200, 204, 220), center=(cfg.WINDOW_W // 2, 70))
         for i, r in enumerate(self._draft_rects()):

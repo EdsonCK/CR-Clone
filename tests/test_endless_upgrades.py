@@ -221,6 +221,9 @@ for _ in range(2):
     boon("tower_hp").apply(m, PLAYER)
 assert abs(lt.dmg - d0 * 1.75 ** 2) < 1e-6 and abs(lt.range - (r0 + 5.0)) < 1e-6
 assert lt.sight == lt.range and lt.max_hp >= int(h0 * 1.5 * 1.5) - 1
+lt.hp = lt.max_hp * 0.3                      # Stone Walls also fully repairs
+boon("tower_hp").apply(m, PLAYER)
+assert lt.hp == lt.max_hp, "Stone Walls should fully heal"
 
 # ---- boons never depend on your deck (only Rebuild needs a fallen tower)
 for deck in (["knight"] * 8, ["fireball"] * 8, ["skeletons"] * 8):

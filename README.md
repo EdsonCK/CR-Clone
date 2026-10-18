@@ -120,6 +120,51 @@ Evolutions and Heroes the higher you climb.
 * **Top bar** - your King level (the blue badge, with its XP ring: click it
   for the King Tower screen), trophies, gold, gems, Evo shards and Hero coins.
 
+## v1.9.0 changes
+
+* **Chaos Draft** (new special mode): draft your deck from pairs as in Draft,
+  then take 3 starting upgrades - a rare, an epic and a legendary (you pick
+  one of two, the AI gets the other) - then play a Chaos battle vs the
+  Master AI (see Special Modes).
+* **Every champion and hero gets its own ability button**: the first sits in
+  the right margin, the second in the left one, more stack above them
+  (handy when Ascension makes several heroes at once).
+* **Tie Breaker** is announced: a big red "Tie Breaker" over the arena (with
+  the overtime horn) while everything freezes and the towers drain; the
+  result screen waits until a tower falls.
+* **Upgraded cards are marked in your hand** (Chaos, Chaos Draft, Endless):
+  a thin inlaid inner outline with a gem at each corner, in the colour of
+  the rarest upgrade on that card (blue rare, pink-magenta epic, shimmering
+  gold-cyan-pink legendary) and a small star for a unique modifier. It sits
+  inside the card, so it never looks like an Evo (violet glow outside the
+  card) or a Hero (gold HERO label) - and both read at once. The Next
+  preview shows it too.
+* **Tie Breaker engine**: when overtime ends level on crowns, the match
+  pauses for 1 s, then every standing tower drains at the same rate (3 s for
+  the lowest one) until the first tower falls - its owner loses (both at
+  once: a draw). Nothing else moves meanwhile. Before, the game just ended
+  on the spot.
+* **Balance**:
+  * Mini P.E.K.K.A damage +10% (308 -> 339).
+  * P.E.K.K.A damage +20% (325 -> 390).
+  * X-Bow -10% health (996 -> 896) and 10% slower hit speed (0.30 -> 0.33 s).
+  * Firecracker sight 8 tiles (the real game's value) - placed in front of
+    your King at the right moment, your Firecracker baits an enemy one
+    whose sparks then fly on into your King and wake it. A lone Firecracker
+    on a Princess Tower still never wakes the King (both tested).
+  * Ram Rider sight 9.5 tiles (like the Hog Rider) so she spots buildings
+    from the bridge.
+  * Hero Giant's Heroic Hurl no longer stuns or deals landing damage - he
+    just throws the troop to the other lane.
+  * Evolved Firecracker's embers are now purple with a dark rim (easier to
+    see on the grass).
+* **Chaos tweaks**:
+  * P.E.K.K.A **Execution** now instantly kills any troop or building (not
+    towers) under **75%** hp (was 25%, which barely mattered in a battle).
+  * **Stone Walls** (+50% tower max hp) now also fully heals your towers.
+  * **Rebuild** is Endless-only now: in Chaos it could end an overtime the
+    moment it was picked.
+
 ## v1.8.0 changes
 
 * **Unique card modifiers** (Chaos and Endless): every card now also has a
@@ -384,7 +429,7 @@ Evolutions and Heroes the higher you climb.
 | **Sharpshooter Towers** | Princess Towers deal +75% damage per hit. | epic | stacks |
 | **Rapid Fire** | All your towers shoot 50% faster. | epic | stacks |
 | **Watchtowers** | All your towers reach 2.5 tiles further. | rare | stacks |
-| **Stone Walls** | All your towers get +50% max hp (and heal it). | epic | stacks |
+| **Stone Walls** | All your towers get +50% max hp and fully heal. | epic | stacks |
 | **Restoration** | All your towers fully heal. | rare | stacks |
 | **Rebuild** | Fallen Princess Towers are rebuilt at full hp. | legendary | stacks |
 | **Frost Towers** | Tower shots slow enemies by 35% for 1.5 s (each pick slows harder and longer). | rare | stacks |
@@ -491,7 +536,7 @@ Every card also has a modifier that changes how it plays (one-time; in Chaos and
 | Mother Witch | **Pied Piper** | Every 4 s turns the weakest enemy troop within 5 tiles (300 hp or less) into a Hog for her side. | legendary |
 | Musketeer | **Headshot** | 1 shot in 4 is a headshot for triple damage. | rare |
 | Night Witch | **Bat Storm** | Summons 3 Bats twice as often, and 6 burst out when she falls. | legendary |
-| P.E.K.K.A | **Execution** | Finishes off any troop or building left under 25% hp in one blow. | legendary |
+| P.E.K.K.A | **Execution** | Instantly kills any troop or building (not towers) left under 75% hp. | legendary |
 | Phoenix | **Endless Phoenix** | Every reborn Phoenix lays an egg again - she keeps coming back until an egg is destroyed. | legendary |
 | Poison | **Spreading Plague** | Poison grows 15% wider and stronger with every tick. | epic |
 | Prince | **Skewer** | A charged hit runs through: everything 2-3 tiles behind the target is hit too. | epic |
@@ -1022,7 +1067,7 @@ and the Evolution only comes out once you've cycled it.
 | Electro Giant | 2 | Every 6s an energy pulse drains a level from every enemy within 6 tiles (stacks). |
 | Elite Barbarians | 1 | Throw Rage-tipped spears at ground units 3.5-5 tiles away, leaving a trail of Rage (5s cooldown). |
 | Executioner | 1 | Enemies within 2.5 tiles when he throws take 75% extra axe damage and are knocked back. |
-| Firecracker | 2 | Her firework and its sparks leave burning, slowing embers behind them. |
+| Firecracker | 2 | Her firework and its sparks leave purple, burning, slowing embers behind them. |
 | Furnace | 2 | While attacking she spawns Fire Spirits every 2.4s, to her sides. |
 | Giant Snowball | 2 | Rolls 4.5 tiles, carrying the enemies it hit; slows 1s longer. |
 | Goblin Barrel | 2 | A second barrel lands on the mirrored tile in the other lane with 3 Decoy Goblins. |
@@ -1067,7 +1112,7 @@ button lights up once their banner is planted:
 | Bowler | **Boulder Barrage** (2) | After a 2.5s wind-up, lobs huge boulders up to 11.5 tiles for 7.3s. |
 | Dark Prince | **Dismount** (3) | Leaps off (slam on landing): his Rhino charges on at buildings while he fights on foot. |
 | Electro Wizard | **Surging Strikes** (2) | For 3s, zaps and stuns 2 enemies within 5 tiles every 0.5s (-50% vs Crown Towers). |
-| Giant | **Heroic Hurl** (2) | Grabs the highest-HP enemy troop within 2 tiles and throws it to the other lane (stunned 2s; ground troops take landing damage). |
+| Giant | **Heroic Hurl** (2) | Grabs the highest-HP enemy troop within 2 tiles and throws it to the other lane (no damage, no stun - it just has to walk back). |
 | Goblins | **Banner Brigade** (1) | 4 Goblins. When the last one falls their banner stays 5s - use it to call 2 more Goblins. |
 | Ice Golem | **Snowstorm** (2) | Three icy blasts around him (4 tiles), each slowing enemies 30%. |
 | Ice Wizard | **Frosty Fella** (2) | His next hit on a slowed enemy builds a Snowman behind it that freezes everything nearby. |
@@ -1132,6 +1177,7 @@ each pays a Hero coin.
 | Double Trouble | x2 elixir, double-strength towers, 5 minutes |
 | 2v2 Battle | you + an AI teammate against two AIs (below) |
 | Chaos | always vs the Master AI; both sides pick an upgrade every 45 s (below) |
+| Chaos Draft | Draft, then 3 starting upgrades each, then Chaos (below) |
 
 ### Chaos
 
@@ -1157,16 +1203,35 @@ catalogue:
 * **How the AI picks** (chaos.ai_score): rarity first, then what suits its
   deck and the board - upgrades for its win condition and its expensive
   cards, building on a card it has already upgraded, Elixir Flow / +2
-  levels / Thrift highly; Restoration and Rebuild when its towers are hurt
-  or down, King's Wrath and tower boosts more once it has lost a tower,
+  levels / Thrift highly; Restoration when its towers are hurt, King's Wrath and tower boosts more once it has lost a tower,
   Ascension by how many Evo / Hero cards it has.
 * Win-condition cards have upgrades here too (Endless doesn't allow them).
+* Endless-only boons are left out: War Chest, Second Wind and Rebuild
+  (Rebuild could end an overtime instantly).
 * A purple chip next to the match timer counts down to the next upgrade
   (it pulses in the last 5 s and says FINAL before the last one).
 * Your upgrades are listed in the left scenery margin and the AI's in the
   right one (hover either for details); both show on the result screen.
 * Rewards: a Master-AI special-battle payout plus 5 gold per upgrade you
   took; your first Chaos win adds a Hero coin and 10 gems.
+
+### Chaos Draft
+
+Draft meets Chaos, always against the **Master AI** at Tournament Standard
+(level 11 for both sides):
+
+1. **Draft your deck**: pick one card of each pair, the AI gets the other,
+   until both have 8.
+2. **Three starting upgrades** before the clock starts: pick 1 is two
+   rares, pick 2 two epics, pick 3 two legendaries (card upgrades for your
+   drafted deck and/or boons). The one you leave **goes to the AI** - or,
+   if it's for a card the AI doesn't have, an upgrade of the same rarity
+   for one of its own cards. The pick screen shows what the enemy got.
+3. **A Chaos battle**: from there it plays exactly like Chaos (an upgrade
+   offer every 45 s), with the 3 starting upgrades already in both lists.
+
+Rewards and records work like Chaos (the starting upgrades count toward the
+per-upgrade gold); both sides' upgrades are on the result screen.
 
 ### 2v2 Battle
 

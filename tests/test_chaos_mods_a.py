@@ -175,13 +175,16 @@ assert sum(1 for e in m.entities if e.key == "skeleton_dragons") == 2
 m = match_with("pekka")
 k = m.spawn_units(ENEMY, "giant", 1, 9.5, 20.0, deploy=0.0)[0]
 k.speed = k.base_speed = 0
-k.hp = k.max_hp * 0.3
+for tw in m.towers.values():                   # only the P.E.K.K.A hits it
+    tw.range = 0
+k.hp = h0 = k.max_hp * 0.74                   # under 75%: one hit is enough
+assert h0 > 2 * m.card(PLAYER, "pekka").damage * 1.3
 play(m, "pekka")
 for _ in range(30 * 8):
     m.update(1 / 30)
-    if not k.alive:
+    if k.hp < h0 or not k.alive:
         break
-assert not k.alive
+assert not k.alive, "first P.E.K.K.A hit should execute under 75%"
 # Wizard leaves burning ground; Princess too
 for card in ("wizard", "princess"):
     m = match_with(card)

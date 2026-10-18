@@ -27,6 +27,7 @@ from ui import lt_c, dk_c, render_text, grad_rect
 TIER_COLS = {"rare": (84, 156, 255), "epic": (186, 104, 255),
              "legendary": (255, 196, 64)}
 CHOICE_W, CHOICE_H, CHOICE_GAP = 236, 310, 16
+CHAOS_MODES = ("chaos", "chaos_draft")
 
 
 def _theirs(text):
@@ -55,7 +56,7 @@ class EndlessUIMixin:
     def _chaos_run(self):
         """The ChaosRun of the current Chaos battle, else None."""
         run = getattr(self, "chaos", None)
-        if self.mode != "chaos" or run is None or run.m is not self.match:
+        if self.mode not in CHAOS_MODES or run is None or run.m is not self.match:
             return None
         return run
 
@@ -97,7 +98,10 @@ class EndlessUIMixin:
         ch = self._endless_choice()
         if not ch or not 0 <= i < len(ch):
             return False
-        self._upgrade_run().choose(i)
+        run = self._upgrade_run()
+        run.choose(i)
+        if not run.choice and getattr(run, "start_no", None) is not None:
+            self.chaos = run.battle()        # Chaos Draft: starting picks done
         self.selected = None
         self.drag_card = None
         self.sfx.play("evo_deploy", 0.6, min_gap=0.0)
@@ -165,7 +169,21 @@ class EndlessUIMixin:
         cx = cfg.WINDOW_W // 2
         run = self._upgrade_run()
         chaos = self._chaos_run()
-        if chaos is not None:
+        if chaos is not None and getattr(chaos, "start_no", None) is not None:
+            # Chaos Draft: the 3 starting upgrades (rare, epic, legendary)
+            tier = chaos.tiers[0] if chaos.tiers else "rare"
+            col = TIER_COLS.get(tier, TIER_COLS["epic"])
+            self._text("Starting upgrade %d of %d  -  %s"
+                       % (chaos.start_no + 1, chaos.n_start, tier.title()), self.font_l,
+                       lt_c(col, 30), center=(cx, cfg.ARENA_Y0 + 40), outline=True)
+            self._text("Pick one - the enemy gets the other (or the same rarity for its deck)",
+                       self.font_s, (220, 224, 236), center=(cx, cfg.ARENA_Y0 + 70))
+            if chaos.last_ai_pick is not None:
+                u = chaos.last_ai_pick[0]
+                ucol = TIER_COLS.get(u.tier, TIER_COLS["epic"])
+                self._text("Enemy got: " + u.title, self.font_s, lt_c(ucol, 50),
+                           center=(cx, cfg.ARENA_Y0 + 92), outline=True)
+        elif chaos is not None:
             final = chaos.round >= chaos.n_rounds
             self._text("FINAL UPGRADE" if final else "Chaos upgrade", self.font_l,
                        (255, 196, 64) if final else (226, 150, 255),
@@ -335,7 +353,7 @@ class EndlessUIMixin:
             picks = getattr(self.level_run, "picks", None)
             return [("Upgrades taken: %d" % len(picks), (255, 214, 110), picks)] if picks else []
         run = getattr(self, "chaos", None)
-        if self.mode == "chaos" and run is not None and run.m is self.match:
+        if self.mode in CHAOS_MODES and run is not None and run.m is self.match:
             return [("Your upgrades: %d" % len(run.picks), (255, 214, 110), run.picks),
                     ("Enemy upgrades: %d" % len(run.ai_picks), (240, 130, 130),
                      run.ai_picks)]

@@ -379,7 +379,7 @@ _CARD_LIST = [
             hp=965, damage=135, hit_speed=1.5, range=1.2, speed=SPEED_MEDIUM,
             attacks=G, splash=1.8, splash_self=True),   # 360 spin around her
     CardDef("mini_pekka", "Mini P.E.K.K.A", 4, rarity="rare",
-            hp=539, damage=308, hit_speed=1.6, range=1.2, speed=SPEED_FAST,
+            hp=539, damage=339, hit_speed=1.6, range=1.2, speed=SPEED_FAST,
             attacks=G),
     CardDef("musketeer", "Musketeer", 4, rarity="rare",
             hp=365, damage=110, hit_speed=1.1, range=6.0, speed=SPEED_MEDIUM,
@@ -399,7 +399,7 @@ _CARD_LIST = [
             sub_hp_mult=0.71, sub_dmg_mult=0.63),
             # witch: 4 skeletons every 7s
     CardDef("pekka", "P.E.K.K.A", 7, rarity="epic",
-            hp=1420, damage=325, hit_speed=1.8, range=1.2, speed=SPEED_SLOW,
+            hp=1420, damage=390, hit_speed=1.8, range=1.2, speed=SPEED_SLOW,
             attacks=G, no_knockback=True),
     CardDef("prince", "Prince", 5, rarity="epic",
             hp=743, damage=173, hit_speed=1.4, range=1.6, speed=SPEED_MEDIUM,
@@ -505,7 +505,7 @@ _CARD_LIST = [
             splash=1.5, lifetime=30.0, min_range=3.5, deploy_time=3.5, siege=True),
             # ground-targeting with a 3.5-tile blind spot
     CardDef("xbow", "X-Bow", 6, category="building", rarity="epic",
-            hp=996, damage=25, hit_speed=0.3, range=11.5, attacks=G,
+            hp=896, damage=25, hit_speed=0.33, range=11.5, attacks=G,
             lifetime=40.0, deploy_time=3.5, siege=True),
             # locks onto the first ground target in range (troop or building)
     CardDef("tombstone", "Tombstone", 3, category="building", rarity="rare",
@@ -779,7 +779,7 @@ _CARD_LIST = [
             attacks=G, first_hit=0.3),
     CardDef("firecracker", "Firecracker", 3, rarity="common",
             hp=160, damage=36, hit_speed=3.0, range=6.0, speed=SPEED_FAST,
-            attacks=AG, shrapnel=(5, 50.0, 4.5), recoil=1.0),
+            attacks=AG, shrapnel=(5, 50.0, 4.5), recoil=1.0, sight=8.0),
             # her firework bursts into 5 sparks that fly on through the
             # target (big targets eat several); she hops back after each shot
     CardDef("goblin_gang", "Goblin Gang", 3, rarity="common",
@@ -877,7 +877,7 @@ _CARD_LIST = [
             hp=881, damage=125, hit_speed=1.8, range=0.8, speed=SPEED_MEDIUM,
             attacks=B, charge=True, charge_mult=2.0, river_jump=True,
             back_riders=("ram_rider_bola", 1),
-            sub_hp_mult=0.99, sub_dmg_mult=0.99, sight=5.5),
+            sub_hp_mult=0.99, sub_dmg_mult=0.99, sight=9.5),
             # the rider throws snaring bolas at troops while the ram charges
     CardDef("ronin", "Ronin", 5, rarity="legendary",
             hp=794, damage=166, hit_speed=1.3, range=1.2, speed=SPEED_FAST,

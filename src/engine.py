@@ -3053,17 +3053,18 @@ class Match:
                 best = best or e
         return best
 
-    def hero_status(self, team):
-        """(hero, ready, cost) for the HUD; hero is None if none deployed."""
-        h = self.hero_on_field(team)
+    def hero_status(self, team, h=None):
+        """(hero, ready, cost) for the HUD; hero is None if none deployed.
+        `h`: a particular hero (several can be out at once)."""
+        h = h or self.hero_on_field(team)
         if h is None or h.hero_def is None:
             return None, False, 0
         cost = h.hero_def.cost
         ready = evo_engine.hero_ready(h, self) and self.elixir[team] >= cost
         return h, ready, cost
 
-    def activate_hero(self, team):
-        h, ready, cost = self.hero_status(team)
+    def activate_hero(self, team, h=None):
+        h, ready, cost = self.hero_status(team, h)
         if h is None or not ready:
             return False
         self.elixir[team] -= cost
@@ -3077,9 +3078,10 @@ class Match:
                 return e
         return None
 
-    def ability_status(self, team):
-        """(champion, ready, cost) for HUD; champion is None if not deployed."""
-        champ = self.champion_on_field(team)
+    def ability_status(self, team, champ=None):
+        """(champion, ready, cost) for HUD; champion is None if not deployed.
+        `champ`: a particular champion (several can be out at once)."""
+        champ = champ or self.champion_on_field(team)
         if champ is None:
             return None, False, 0
         cost = champ.card.ability_cost
@@ -3087,8 +3089,8 @@ class Match:
                  and self.elixir[team] >= cost and not champ.is_dashing())
         return champ, ready, cost
 
-    def activate_ability(self, team):
-        champ = self.champion_on_field(team)
+    def activate_ability(self, team, champ=None):
+        champ = champ or self.champion_on_field(team)
         if champ is None or champ.ability_cd > 0 or champ.ability_uses <= 0:
             return False
         card = champ.card
@@ -3395,6 +3397,9 @@ class Match:
     def update(self, dt):
         if self.finished:
             return
+        if getattr(self, "tiebreak", None) is not None:   # frozen: towers drain
+            self._update_tiebreak(dt)
+            return
 
         # elixir regen
         mult = self.elixir_multiplier()
@@ -3605,7 +3610,58 @@ class Match:
             if self.crowns[PLAYER] != self.crowns[ENEMY]:
                 self._finish(PLAYER if self.crowns[PLAYER] > self.crowns[ENEMY] else ENEMY)
             else:
-                self._finish(self._decide_by_tower_hp())
+                self._start_tiebreak()
+
+    # ---- tie breaker -------------------------------------------------------
+    TIEBREAK_PAUSE = 1.0      # "Tie Breaker" shows, nothing moves
+    TIEBREAK_DRAIN = 3.0      # then every tower drains; the lowest falls in this long
+
+    def _start_tiebreak(self):
+        """Overtime ran out with crowns level: everything freezes, then every
+        standing tower loses hp at the same rate until the first one falls -
+        its team loses (two falling at once on both sides: a draw)."""
+        standing = [t for t in self.towers.values() if t.alive]
+        low = min((t.hp for t in standing), default=0)
+        self.tiebreak = {"t": 0.0, "rate": max(low, 1.0) / self.TIEBREAK_DRAIN,
+                         "start_hp": {id(t): t.hp for t in standing}}
+        self.emit("tiebreak", None, 0, 0, None)
+
+    def tiebreak_phase(self):
+        """None, "pause" or "drain" (for the HUD)."""
+        tb = getattr(self, "tiebreak", None)
+        if tb is None:
+            return None
+        return "pause" if tb["t"] < self.TIEBREAK_PAUSE else "drain"
+
+    def _update_tiebreak(self, dt):
+        tb = self.tiebreak
+        tb["t"] += dt
+        if tb["t"] < self.TIEBREAK_PAUSE:
+            return
+        fallen = set()
+        for tw in self.towers.values():
+            if not tw.alive:
+                continue
+            tw.hp -= tb["rate"] * dt
+            if tw.twin is not None:
+                tw.twin.hp = tw.hp
+            if tw.hp <= 0:
+                tw.hp = 0
+                fallen.add(tw.team)
+        if fallen:
+            for tw in self.towers.values():
+                if tw.alive and tw.hp <= 0:
+                    tw.alive = False
+                    tw._death_done = True
+                    self.emit("death", tw.key, tw.x, tw.y, tw.team, tower=True,
+                              king=tw.is_king, building=True, big=True)
+            if len(fallen) == 2:
+                self._finish(None)                    # both at once: a draw
+            else:
+                loser = fallen.pop()
+                self.crowns[1 - loser] += 1
+                self._finish(1 - loser)
+            self.entities = [e for e in self.entities if e.alive]
 
     def _decide_by_tower_hp(self):
         def lowest(team):

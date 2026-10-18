@@ -525,10 +525,9 @@ def _tower_range(plus):
 def _tower_hp(mult):
     def apply(match, team):
         for tw in _towers(match, team):
-            add = tw.max_hp * (mult - 1)
             tw.max_hp = int(tw.max_hp * mult)
             if tw.alive:
-                tw.hp += add
+                tw.hp = tw.max_hp              # and fully repaired
             if tw.twin is not None:
                 tw.twin.max_hp = tw.max_hp
     return apply
@@ -645,7 +644,7 @@ _boon("tower_speed", "Rapid Fire", "All your towers shoot 50% faster.",
       _tower_speed(1.5))
 _boon("tower_range", "Watchtowers", "All your towers reach 2.5 tiles further.",
       _tower_range(2.5), _R)
-_boon("tower_hp", "Stone Walls", "All your towers get +50% max hp (and heal it).",
+_boon("tower_hp", "Stone Walls", "All your towers get +50% max hp and fully heal.",
       _tower_hp(1.5))
 _boon("heal", "Restoration", "All your towers fully heal.", _heal_towers(1.0), _R)
 _boon("rebuild", "Rebuild", "Fallen Princess Towers are rebuilt at full hp.",

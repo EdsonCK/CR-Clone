@@ -33,7 +33,8 @@ from engine import PLAYER, ENEMY
 INTERVAL = 45.0                       # seconds between upgrade offers
 TIERS = ("rare", "epic", "legendary")
 CHAOS_AI_LEVEL = 5                    # always the Master AI
-EXCLUDED = {"boon:war_chest", "boon:second_wind"}   # Endless (per-wave) only
+EXCLUDED = {"boon:war_chest", "boon:second_wind",   # Endless (per-wave) only
+            "boon:rebuild"}       # Endless only: in a battle it could end overtime unfairly
 
 # per-offer chance of each rarity, from the first offer to the one before
 # the last (interpolated in between); the last offer is always legendary
@@ -160,7 +161,7 @@ class ChaosRun:
     frame (before the match); while `choice` is set the game pauses for the
     player's pick and calls choose(i)."""
 
-    def __init__(self, match, seed=None):
+    def __init__(self, match, seed=None, picks=(), ai_picks=()):
         self.m = match
         self.rng = _random.Random(seed)
         self.n_rounds = total_rounds()
@@ -168,8 +169,8 @@ class ChaosRun:
         self.next_at = INTERVAL           # match time of the next offer
         self.choice = None                # [Upgrade, Upgrade] for the player
         self.tiers = None                 # rarities of the current offer
-        self.picks = []                   # the player's upgrades
-        self.ai_picks = []                # the AI's upgrades
+        self.picks = list(picks)          # the player's upgrades (Chaos Draft:
+        self.ai_picks = list(ai_picks)    #   the starting ones are already here)
         self.ai_options = None            # what the AI was offered last
         self.last_ai_pick = None          # (Upgrade, match time) for the HUD
 
@@ -209,3 +210,53 @@ class ChaosRun:
         self.picks.append(u)
         self.choice = None
         return u
+
+
+# ---------------------------------------------------------------- Chaos Draft
+DRAFT_TIERS = ("rare", "epic", "legendary")   # the 3 starting-upgrade picks
+
+
+def draft_offer(match, pick_no, rng, taken=()):
+    """Starting-upgrade pick `pick_no` (0, 1, 2) of a Chaos Draft: two
+    options of that pick's rarity for the player (card upgrades for the
+    player's drafted deck and/or boons)."""
+    tier = DRAFT_TIERS[pick_no]
+    return offer(match, PLAYER, [tier, tier], rng, taken)
+
+
+def draft_ai_gets(match, leftover, rng, ai_taken=()):
+    """What the AI gets after you pick: the option you left - or, if it's an
+    upgrade for a card the AI doesn't have, an upgrade of the same rarity
+    (and the same kind when possible) for one of its own cards."""
+    ai_taken = set(ai_taken)
+    if leftover.kind == "boon" or leftover.card in match.decks[ENEMY]:
+        if leftover.key not in ai_taken:
+            return leftover
+    card_ups, boons = pool(match, ENEMY, leftover.tier, ai_taken)
+    if leftover.kind == "card" and getattr(leftover, "unique", False):
+        uniq = [u for u in card_ups if getattr(u, "unique", False)]
+        card_ups = uniq or card_ups
+    src = card_ups or boons
+    if not src:
+        for t in TIERS:
+            card_ups, boons = pool(match, ENEMY, t, ai_taken)
+            src = card_ups or boons
+            if src:
+                break
+    return rng.choice(src) if src else None
+
+
+def draft_pick(match, options, i, rng, picks, ai_picks):
+    """Apply a Chaos Draft starting-upgrade pick: options[i] to you, the
+    other one (or its equivalent) to the AI. Returns (yours, the AI's)."""
+    mine = options[i]
+    mine.apply(match, PLAYER)
+    picks.append(mine)
+    theirs = None
+    rest = [u for j, u in enumerate(options) if j != i]
+    if rest:
+        theirs = draft_ai_gets(match, rest[0], rng, [u.key for u in ai_picks])
+        if theirs is not None:
+            theirs.apply(match, ENEMY)
+            ai_picks.append(theirs)
+    return mine, theirs

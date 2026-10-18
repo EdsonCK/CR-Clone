@@ -1059,12 +1059,9 @@ def do_hero_ability(h, match):
             if abs(nx - o.x) < 3.0:
                 nx = o.x + (9.0 if o.x < cfg.GRID_COLS / 2 else -9.0)
             nx, ny = _clamp(nx, o.y)
+            # just a throw: no stun, no landing damage
             o.start_dash(None, kind="point", point=(nx, ny), speed=11.0, quiet=True)
-            o.stun_timer = max(o.stun_timer, 2.0)
             o.target = None
-            if not o.flying:
-                match.later_add(abs(nx - o.x) / 11.0, "blast", team=h.team, x=nx, y=ny,
-                                radius=0.6, dmg=135 * DMG * p1, key="giant", air=False)
             _fx(match, "aoe", h.team, o.x, o.y, 1.2, 0.45, "giant")
     elif k == "mini_pekka":
         meters = int(getattr(h, "pancakes", 0.0))

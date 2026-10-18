@@ -170,7 +170,7 @@ HEROES = {
                    "raises a 260 shield for 5s.", 5.0),
     "giant": Hero("Hero Giant", "Heroic Hurl", 2,
                   "Grabs the highest-HP enemy troop within 2 tiles and throws it to "
-                  "the other lane (stunned 2s; ground troops take landing damage)."),
+                  "the other lane (no damage, no stun - it just has to walk back)."),
     "mini_pekka": Hero("Hero Mini P.E.K.K.A", "Breakfast Boost", 1,
                        "Eats his pancakes: heals 30% and gains 1 level plus 1 per "
                        "pancake meter filled (fights fill them faster)."),

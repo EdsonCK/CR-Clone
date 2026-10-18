@@ -211,9 +211,9 @@ def a_wizard_firewall(src, target, dmg, x, y, match):
 
 @hook("hit")
 def a_pekka_execute(src, target, dmg, x, y, match):
-    """P.E.K.K.A: finishes off any troop or building left under 25% hp."""
+    """P.E.K.K.A: finishes off any troop or building left under 75% hp."""
     if (target is not None and target.alive and not target.is_tower
-            and target.hp < target.max_hp * 0.25):
+            and target.hp < target.max_hp * 0.75):
         target.take_damage(target.hp + target.shield + 1)
         _aoe_fx(match, src.team, target.x, target.y, 1.0, "pekka")
 
@@ -428,8 +428,8 @@ UNIQUE = [
       M(hit="a_wizard_firewall")),
     U("witch", "Bat Witch", "Summons 4 Bats instead of Skeletons.",
       lambda c: {"spawner": ("bat", 4, c.spawner[2])}, _R),
-    U("pekka", "Execution", "Finishes off any troop or building left under 25% "
-      "hp in one blow.", M(hit="a_pekka_execute"), _L),
+    U("pekka", "Execution", "Instantly kills any troop or building (not "
+      "towers) left under 75% hp.", M(hit="a_pekka_execute"), _L),
     U("prince", "Skewer", "A charged hit runs through: everything 2-3 tiles "
       "behind the target is hit too.", M(hit="a_prince_skewer")),
     U("dark_prince", "Dark Leap", "Leaps onto targets 3-5 tiles away with a "

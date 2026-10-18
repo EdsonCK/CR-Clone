@@ -906,6 +906,9 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         if m.overtime and not a.get("ot"):
             a["ot"] = True
             self.sfx.play("overtime", 0.9)
+        if getattr(m, "tiebreak", None) is not None and not a.get("tb"):
+            a["tb"] = True                      # Tie Breaker: the overtime horn again
+            self.sfx.play("overtime", 1.0)
         sec = int(math.ceil(m.time_left))
         if 0 < sec <= 10 and sec != a.get("tick"):
             a["tick"] = sec
@@ -1306,8 +1309,46 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         cy = cfg.ARENA_Y0 + cfg.ARENA_PX_H - r - 26
         return pygame.Rect(cx - r, cy - r, 2 * r, 2 * r)
 
-    def _ability_btn_rect(self):
-        return self._margin_btn_rect(0)
+    def _ability_slot_rect(self, i):
+        """Button i: 0 in the right margin, 1 in the left, then 2, 3, ...
+        stacked above them, alternating sides."""
+        r = self._margin_btn_rect(1 if i % 2 == 0 else 0)
+        return r.move(0, -(i // 2) * (2 * self.BTN_R + 34))
+
+    def _ability_units(self):
+        """Every champion and hero of yours on the field, one button each:
+        [("hero" | "champ", entity)] in the order they came in."""
+        m = self.match
+        out, groups = [], set()
+        for e in m.entities:
+            if e.seat != PLAYER or not e.alive:
+                continue
+            if getattr(e, "hero", False) and getattr(e, "hero_def", None) is not None:
+                grp = getattr(e, "hero_group", None)
+                if grp is not None:              # Hero Goblins: one button per squad
+                    if grp in groups:
+                        continue
+                    groups.add(grp)
+                out.append(("hero", e))
+            elif e.card.is_champion:
+                out.append(("champ", e))
+        return out
+
+    def _ability_buttons(self):
+        return [(kind, e, self._ability_slot_rect(i))
+                for i, (kind, e) in enumerate(self._ability_units())]
+
+    def _hero_ready(self, h):
+        return self.match.hero_status(PLAYER, h)[1]
+
+    def _champ_ready(self, c):
+        return self.match.ability_status(PLAYER, c)[1]
+
+    def _activate_unit(self, kind, e):
+        """Fire THIS unit's ability (several champions / heroes can be out)."""
+        if kind == "hero":
+            return self.match.activate_hero(PLAYER, e)
+        return self.match.activate_ability(PLAYER, e)
 
     def _match_click(self, pos, button):
         if button == 3:
@@ -1315,18 +1356,12 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
                 self.sfx.play("ui_deselect", 0.6, min_gap=0.0)
             self.selected = None
             return
-        # hero ability button (bottom-right)
-        h, hready, hcost = self.match.hero_status(PLAYER)
-        if h is not None and self._hero_btn_rect().collidepoint(pos):
-            if not self.match.activate_hero(PLAYER):
-                self.sfx.play("ui_invalid", 0.6)
-            return
-        # champion ability button (bottom-left)
-        champ, ready, cost = self.match.ability_status(PLAYER)
-        if champ is not None and self._ability_btn_rect().collidepoint(pos):
-            if not self.match.activate_ability(PLAYER):
-                self.sfx.play("ui_invalid", 0.6)
-            return
+        # champion / hero ability buttons (side margins, one per unit)
+        for kind, e, r in self._ability_buttons():
+            if r.collidepoint(pos):
+                if not self._activate_unit(kind, e):
+                    self.sfx.play("ui_invalid", 0.6)
+                return
         rects = self._hand_slot_rects()
         for i, r in enumerate(rects):
             if r.collidepoint(pos):
@@ -2515,9 +2550,48 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._draw_topbar()
         self._draw_hud()
         self._draw_wave_banner()
+        self._draw_tiebreak()
         self._draw_chaos_toast()
         self._draw_upgrade_list()
         self._draw_upgrade_choice()
+
+    def _draw_tiebreak(self):
+        """Overtime ran out level: big red "Tie Breaker" over the arena while
+        everything is frozen (pause) and every tower drains (drain)."""
+        m = self.match
+        tb = getattr(m, "tiebreak", None)
+        if tb is None:
+            return
+        t = tb["t"]
+        phase = m.tiebreak_phase()
+        fade = min(1.0, t / 0.35)
+        pulse = 0.5 + 0.5 * math.sin(self._now() * 7)
+        if not hasattr(self, "_tb_font"):
+            self._tb_font = pygame.font.SysFont("arial", 58, bold=True)
+        cx, cy = cfg.WINDOW_W // 2, cfg.ARENA_Y0 + cfg.ARENA_PX_H // 2
+        txt = "Tie Breaker"
+        red = (255, int(52 + 40 * pulse), int(40 + 30 * pulse))
+        body = self._tb_font.render(txt, True, red)
+        edge = self._tb_font.render(txt, True, (40, 0, 4))
+        w, h = body.get_size()
+        surf = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
+        for ox in range(-4, 5, 2):                       # thick dark outline
+            for oy in range(-4, 5, 2):
+                if ox or oy:
+                    surf.blit(edge, (5 + ox, 5 + oy))
+        surf.blit(body, (5, 5))
+        scale = 1.0 + 0.35 * (1.0 - fade) + 0.04 * pulse
+        surf = pygame.transform.smoothscale(surf, (int(surf.get_width() * scale),
+                                                   int(surf.get_height() * scale)))
+        surf.set_alpha(int(255 * fade))
+        band = pygame.Surface((cfg.ARENA_PX_W, h + 34), pygame.SRCALPHA)
+        band.fill((30, 0, 0, int(120 * fade)))
+        self.screen.blit(band, (cfg.ARENA_X0, cy - band.get_height() // 2))
+        self.screen.blit(surf, surf.get_rect(center=(cx, cy)))
+        sub = ("Lowest tower falls - get ready" if phase == "pause"
+               else "Every tower is draining...")
+        self._text(sub, self.font_sb, (255, 214, 200), center=(cx, cy + h // 2 + 22),
+                   outline=True)
 
     def _draw_wave_banner(self):
         """Wave announcements: just outlined text over the arena (no ribbon),
@@ -4088,6 +4162,7 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             if key in m.hero_cards[PLAYER]:
                 self._text("HERO", self.font_s, (255, 200, 90),
                            center=(r.right - 18, r.y + 24), outline=True)
+            self._draw_upgrade_mark(key, r)
         # next card in a framed box on the right
         nk = m.next_card[PLAYER]
         if nk:
@@ -4101,8 +4176,12 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self._text("Next", self.font_s, (170, 178, 195),
                        center=(nb.centerx, nb.y + 9))
             self.screen.blit(sprites.get_sprite(nk, 38), (nb.centerx - 19, nb.y + 19))
-        self._draw_ability_button()
-        self._draw_hero_button()
+            self._draw_upgrade_mark(nk, nb, small=True)
+        for kind, e, r in self._ability_buttons():
+            if kind == "hero":
+                self._draw_hero_button(e, r)
+            else:
+                self._draw_ability_button(e, r)
         if m.is_2v2:
             self._draw_ally_panel()
 
@@ -4152,8 +4231,85 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
             self._text("Next", self.font_s, (170, 178, 195), topleft=(r.x + 8, ny + 6))
             self.screen.blit(sprites.get_sprite(nk, 26), (r.right - 34, ny))
 
-    def _hero_btn_rect(self):
-        return self._margin_btn_rect(1)
+    # hand-card upgrade outline colours: kept clear of the Evo violet glow
+    # (epic is a pinker magenta) and the Hero gold label (legendary shimmers
+    # gold -> cyan -> pink like a legendary card frame)
+    UPG_COLS = {"rare": (90, 165, 255), "epic": (245, 95, 205)}
+    UPG_SHIMMER = ((255, 215, 90), (130, 235, 255), (255, 140, 230))
+
+    def _card_upgrade(self, key):
+        """(rarity of the rarest upgrade you hold for this card, has a unique
+        modifier) - or (None, False). Endless and Chaos only."""
+        run = self._chaos_run() or self.level_run
+        picks = getattr(run, "picks", None) or ()
+        tiers = ("rare", "epic", "legendary")
+        best, uniq = -1, False
+        for u in picks:
+            if getattr(u, "kind", None) == "card" and u.card == key:
+                best = max(best, tiers.index(u.tier) if u.tier in tiers else 0)
+                uniq = uniq or getattr(u, "unique", False)
+        if best < 0:
+            return None, False
+        return tiers[best], uniq
+
+    def _upg_col(self, tier, t=0.0):
+        """Outline colour; legendary cycles through UPG_SHIMMER (t in 0..1)."""
+        if tier != "legendary":
+            return self.UPG_COLS[tier]
+        cs = self.UPG_SHIMMER
+        f = (t % 1.0) * len(cs)
+        a, b = cs[int(f) % len(cs)], cs[(int(f) + 1) % len(cs)]
+        k = f - int(f)
+        return tuple(int(a[i] + (b[i] - a[i]) * k) for i in range(3))
+
+    def _draw_upgrade_mark(self, key, r, small=False):
+        """Upgraded card: an inlaid inner outline in its rarest upgrade's
+        colour with a gem at each corner (inside any Evo / Hero frame - Evo
+        glows outside the card, Hero is a gold label), plus a star for a
+        unique modifier (left side; EVO / HERO marks sit top-right)."""
+        tier, uniq = self._card_upgrade(key)
+        if tier is None:
+            return
+        scr = self.screen
+        inner = r.inflate(-6, -6)
+        pygame.draw.rect(scr, (12, 14, 20), inner.inflate(2, 2), 1, border_radius=7)
+        if tier == "legendary":                  # shimmering, segment by segment
+            per = 2 * (inner.w + inner.h)
+            ph = self._now() * 0.35
+            x0, y0, x1, y1 = inner.x, inner.y, inner.right - 1, inner.bottom - 1
+            edges = (((x0, y0), (1, 0), inner.w), ((x1, y0), (0, 1), inner.h),
+                     ((x1, y1), (-1, 0), inner.w), ((x0, y1), (0, -1), inner.h))
+            dist = 0
+            for (sx, sy), (dx, dy), n in edges:
+                for d in range(0, n, 4):
+                    col = self._upg_col(tier, (dist + d) / per + ph)
+                    a = (sx + dx * d, sy + dy * d)
+                    b = (sx + dx * min(n - 1, d + 4), sy + dy * min(n - 1, d + 4))
+                    pygame.draw.line(scr, col, a, b, 2)
+                dist += n
+            main = self._upg_col(tier, ph)
+        else:
+            main = self._upg_col(tier)
+            pygame.draw.rect(scr, main, inner, 2, border_radius=7)
+        # corner gems: dark-rimmed diamonds that read as "socketed", not a frame
+        g = 3 if small else 4
+        for i, (cx, cy) in enumerate((inner.topleft, (inner.right - 1, inner.y),
+                                      (inner.right - 1, inner.bottom - 1),
+                                      (inner.x, inner.bottom - 1))):
+            col = self._upg_col(tier, i / 4 + self._now() * 0.35) \
+                if tier == "legendary" else main
+            pts = [(cx, cy - g), (cx + g, cy), (cx, cy + g), (cx - g, cy)]
+            pygame.draw.polygon(scr, col, pts)
+            pygame.draw.polygon(scr, (12, 14, 20), pts, 1)
+        if uniq:
+            sx, sy = (inner.x + 7, r.y + 32) if not small else (inner.x + 6, inner.bottom - 8)
+            rr = 6 if not small else 5
+            pts = [(sx + math.cos(-math.pi / 2 + k * math.pi / 5) * (rr if k % 2 == 0 else rr * 0.45),
+                    sy + math.sin(-math.pi / 2 + k * math.pi / 5) * (rr if k % 2 == 0 else rr * 0.45))
+                   for k in range(10)]
+            pygame.draw.circle(scr, (12, 14, 20), (sx, sy), rr + 2)
+            pygame.draw.polygon(scr, main, pts)
+            pygame.draw.polygon(scr, (255, 255, 255), pts, 1)
 
     def _btn_label(self, text, r, col, border):
         """Ability name on a chip under a margin button (fits the margin)."""
@@ -4165,11 +4321,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         pygame.draw.rect(self.screen, border, chip, 1, border_radius=6)
         self.screen.blit(label, (chip.x + 5, chip.y + 3))
 
-    def _draw_hero_button(self):
-        h, ready, cost = self.match.hero_status(PLAYER)
-        if h is None:
-            return
-        r = self._hero_btn_rect()
+    def _draw_hero_button(self, h, r):
+        ready, cost = self._hero_ready(h), h.hero_def.cost
         cx, cy = r.center
         rad = r.w // 2
         waiting = h.key == "goblins"            # Hero Goblins: banner not up yet
@@ -4194,11 +4347,8 @@ class Game(HomeMixin, ModesMixin, ScreensMixin, TrophyMixin, KingMixin, RewardFX
         self._btn_label(h.hero_def.ability, r,
                         (255, 226, 150) if not used else (150, 150, 150), (170, 140, 70))
 
-    def _draw_ability_button(self):
-        champ, ready, cost = self.match.ability_status(PLAYER)
-        if champ is None:
-            return
-        r = self._ability_btn_rect()
+    def _draw_ability_button(self, champ, r):
+        ready, cost = self._champ_ready(champ), champ.card.ability_cost
         cx, cy = r.center
         rad = r.w // 2
         pygame.draw.circle(self.screen, (15, 18, 26), (cx, cy + 2), rad)
